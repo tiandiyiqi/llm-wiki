@@ -343,40 +343,387 @@ python3 llm-wiki.py visualize ./my-kb --name "My Knowledge Base"
 
 ## 使用指南
 
-### 典型工作流程
+### 两种使用方式
+
+LLM Wiki 支持两种使用方式：
+
+#### 方式一：命令行（CLI）
+
+直接在终端执行命令：
+
+```bash
+python3 llm-wiki.py init ./my-kb
+python3 llm-wiki.py ingest ./my-kb raw/doc.md
+python3 llm-wiki.py query ./my-kb "installation"
+```
+
+#### 方式二：自然语言（Claude Code Skill）
+
+安装为 Skill 后，在 Claude Code 对话中用自然语言描述需求：
+
+**自然语言示例：**
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    LLM Wiki 工作流程                         │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  1. 初始化                                                   │
-│     $ llm-wiki init ./my-kb                                 │
-│                                                             │
-│  2. 收集资料 → 放入 raw/ 目录                                 │
-│     - 官方文档、博客文章、教程                                │
-│     - PDF、Markdown、文本文件                                │
-│                                                             │
-│  3. 摄入提取                                                 │
-│     $ llm-wiki ingest ./my-kb raw/doc.md                    │
-│     → 自动提取知识原子到 atoms/                              │
-│                                                             │
-│  4. 人工审核                                                 │
-│     - 检查提取的知识是否准确                                  │
-│     - 补充缺失的元数据                                       │
-│                                                             │
-│  5. 验证                                                     │
-│     $ llm-wiki lint ./my-kb --okf-check                     │
-│                                                             │
-│  6. 查询使用                                                 │
-│     $ llm-wiki query ./my-kb "installation"                 │
-│     $ llm-wiki visualize ./my-kb                            │
-│                                                             │
-│  7. 分享备份                                                 │
-│     $ llm-wiki export ./my-kb -o bundle.tar.gz              │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+用户: 帮我初始化一个知识库，路径是 ./nextcloud-docs
+
+用户: 把 raw/nextcloud-install.md 这个文档加入知识库
+
+用户: 搜索关于 installation 的知识
+
+用户: 检查一下知识库是否符合 OKF 规范
+
+用户: 生成知识图谱
+
+用户: 把知识库打包导出
 ```
+
+**自然语言与命令对照表：**
+
+| 自然语言描述 | 等效命令 |
+|-------------|---------|
+| "初始化一个知识库" | `llm-wiki init` |
+| "加入/摄入这个文档" | `llm-wiki ingest` |
+| "搜索/查询关于 X 的知识" | `llm-wiki query` |
+| "检查/验证 OKF 规范" | `llm-wiki lint` |
+| "生成索引" | `llm-wiki index` |
+| "导出/打包知识库" | `llm-wiki export` |
+| "导入/恢复知识库" | `llm-wiki import` |
+| "生成知识图谱/可视化" | `llm-wiki visualize` |
+
+---
+
+### 全周期使用示例：构建 Nextcloud 知识库
+
+以下是一个完整的知识库构建周期，包含所有 8 个命令的使用。
+
+#### 背景
+
+假设你收集了一系列 Nextcloud 相关文档，想要构建一个结构化的知识库。
+
+---
+
+#### 第一步：初始化知识库（init）
+
+**CLI 方式：**
+```bash
+python3 llm-wiki.py init ./nextcloud-kb
+```
+
+**自然语言方式：**
+```
+用户: 帮我初始化一个 Nextcloud 知识库，路径是 ./nextcloud-kb
+
+Claude: 📦 Initializing knowledge base: ./nextcloud-kb
+   Created: atoms/methods
+   Created: atoms/facts
+   Created: atoms/definitions
+   ...
+   ✅ Knowledge base initialized!
+   Path: ./nextcloud-kb
+```
+
+**输出结果：**
+```
+nextcloud-kb/
+├── index.md          # 知识库索引
+├── log.md            # 更新日志
+├── atoms/            # 知识原子目录
+│   ├── methods/
+│   ├── facts/
+│   ├── definitions/
+│   └── ...
+├── raw/              # 原始资料目录
+└── views/            # 可视化输出目录
+```
+
+---
+
+#### 第二步：收集原始资料
+
+将文档放入 `raw/` 目录：
+
+```bash
+# 复制收集的文档
+cp ~/Documents/nextcloud-install.md ./nextcloud-kb/raw/
+cp ~/Documents/nextcloud-requirements.md ./nextcloud-kb/raw/
+cp ~/Documents/nextcloud-security.md ./nextcloud-kb/raw/
+```
+
+---
+
+#### 第三步：摄入资料（ingest）
+
+**CLI 方式：**
+```bash
+# 摄入安装文档（自动检测类型）
+python3 llm-wiki.py ingest ./nextcloud-kb raw/nextcloud-install.md
+
+# 摄入需求文档
+python3 llm-wiki.py ingest ./nextcloud-kb raw/nextcloud-requirements.md
+
+# 摄入安全文档，指定类型
+python3 llm-wiki.py ingest ./nextcloud-kb raw/nextcloud-security.md --type method
+```
+
+**自然语言方式：**
+```
+用户: 把 raw/nextcloud-install.md 加入知识库
+
+Claude: 📦 Ingesting source: raw/nextcloud-install.md
+   Knowledge base: ./nextcloud-kb
+   Source type: official
+   Title: Nextcloud Installation Guide
+   Atom type: method
+   ✅ Atom created: atoms/methods/nextcloud-installation-guide-20260618120000.md
+
+用户: 把 raw/nextcloud-requirements.md 也加进去
+
+Claude: 📦 Ingesting source: raw/nextcloud-requirements.md
+   Atom type: fact
+   ✅ Atom created: atoms/facts/nextcloud-requirements-20260618120100.md
+```
+
+**生成的原子文件示例：**
+
+```markdown
+# atoms/methods/nextcloud-installation-guide-20260618120000.md
+
+---
+type: method
+title: Nextcloud Installation Guide
+description: Complete installation guide for Nextcloud on Ubuntu Server
+tags:
+  - installation
+  - ubuntu
+  - apache
+timestamp: 2026-06-18T12:00:00
+source: raw/nextcloud-install.md
+source_type: official
+---
+
+# Nextcloud Installation Guide
+
+## 概述
+
+Complete installation guide for Nextcloud on Ubuntu Server...
+
+## 详细内容
+
+[从原文档提取的内容...]
+
+# Citations
+
+[1] [nextcloud-install.md](raw/nextcloud-install.md)
+```
+
+---
+
+#### 第四步：验证知识库（lint）
+
+**CLI 方式：**
+```bash
+# 基本验证
+python3 llm-wiki.py lint ./nextcloud-kb
+
+# 详细 OKF 规范检查
+python3 llm-wiki.py lint ./nextcloud-kb --okf-check
+```
+
+**自然语言方式：**
+```
+用户: 检查知识库是否符合 OKF 规范
+
+Claude: 📦 Validating OKF conformance: ./nextcloud-kb
+
+📊 Results:
+   Concepts: 3
+   Valid: ✅ Yes
+
+📋 OKF v0.1 Conformance Check:
+   ✅ All .md files have frontmatter: True
+   ✅ All frontmatter have 'type': True
+   ✅ Reserved files valid: True
+```
+
+---
+
+#### 第五步：生成索引（index）
+
+**CLI 方式：**
+```bash
+# 为整个知识库生成索引
+python3 llm-wiki.py index ./nextcloud-kb
+
+# 为特定目录生成索引
+python3 llm-wiki.py index ./nextcloud-kb -d ./nextcloud-kb/atoms/methods
+```
+
+**自然语言方式：**
+```
+用户: 生成知识库的索引文件
+
+Claude: 📦 Generating index.md for: ./nextcloud-kb
+   Generated: ./nextcloud-kb/index.md
+   Concepts: 3
+```
+
+---
+
+#### 第六步：查询知识（query）
+
+**CLI 方式：**
+```bash
+# 基本搜索
+python3 llm-wiki.py query ./nextcloud-kb "installation"
+
+# 按类型过滤
+python3 llm-wiki.py query ./nextcloud-kb "ubuntu" --type method
+
+# 限制结果数量
+python3 llm-wiki.py query ./nextcloud-kb "config" --limit 5
+```
+
+**自然语言方式：**
+```
+用户: 搜索关于 installation 的知识
+
+Claude: 🔍 Querying: 'installation'
+   Knowledge base: ./nextcloud-kb
+   Total concepts: 3
+
+📋 Results (2):
+
+1. [method] Nextcloud Installation Guide
+   Path: atoms/methods/nextcloud-installation-guide-20260618120000.md
+   Complete installation guide for Nextcloud on Ubuntu Server...
+   Tags: installation, ubuntu, apache
+
+2. [fact] Nextcloud System Requirements
+   Path: atoms/facts/nextcloud-requirements-20260618120100.md
+   System requirements for Nextcloud server...
+   Tags: requirements, server
+
+用户: 只看 method 类型的安装知识
+
+Claude: 🔍 Querying: 'installation' (type: method)
+
+📋 Results (1):
+
+1. [method] Nextcloud Installation Guide
+   Path: atoms/methods/nextcloud-installation-guide-20260618120000.md
+```
+
+---
+
+#### 第七步：可视化知识图谱（visualize）
+
+**CLI 方式：**
+```bash
+# 生成可视化（默认输出到 views/knowledge-graph.html）
+python3 llm-wiki.py visualize ./nextcloud-kb
+
+# 指定输出路径和名称
+python3 llm-wiki.py visualize ./nextcloud-kb -o ./nextcloud-graph.html --name "Nextcloud Knowledge Base"
+```
+
+**自然语言方式：**
+```
+用户: 生成知识图谱
+
+Claude: 📊 Generating knowledge graph: ./nextcloud-kb
+   Output: ./nextcloud-kb/views/knowledge-graph.html
+   Concepts: 3
+
+✅ Visualization created: ./nextcloud-kb/views/knowledge-graph.html
+   Open in browser to view interactive graph
+```
+
+**可视化功能：**
+- 🔍 搜索节点
+- 🏷️ 按类型过滤（method/fact/definition 等）
+- 🔗 显示知识关联
+- 📊 点击节点查看详情
+
+---
+
+#### 第八步：导出备份（export）
+
+**CLI 方式：**
+```bash
+# 导出为 Bundle
+python3 llm-wiki.py export ./nextcloud-kb -o nextcloud-bundle.tar.gz
+
+# 强制导出（忽略验证错误）
+python3 llm-wiki.py export ./nextcloud-kb -o nextcloud-bundle.tar.gz --force
+```
+
+**自然语言方式：**
+```
+用户: 把知识库打包导出
+
+Claude: 📦 Exporting OKF bundle from: ./nextcloud-kb
+
+📊 Validation Results:
+   Concepts: 3
+   Errors: 0
+   Warnings: 0
+
+📦 Creating bundle: nextcloud-bundle.tar.gz
+
+✅ Export complete!
+   Bundle: nextcloud-bundle.tar.gz
+   Concepts: 3
+   Size: 2.5 KB
+```
+
+---
+
+#### 第九步：导入恢复（import）
+
+**CLI 方式：**
+```bash
+# 导入到新目录
+python3 llm-wiki.py import nextcloud-bundle.tar.gz -o ./restored-kb
+
+# 覆盖现有目录
+python3 llm-wiki.py import nextcloud-bundle.tar.gz -o ./existing-kb --overwrite
+```
+
+**自然语言方式：**
+```
+用户: 从 nextcloud-bundle.tar.gz 恢复知识库到 ./restored-kb
+
+Claude: 📦 Importing OKF bundle: nextcloud-bundle.tar.gz
+
+📦 Extracting to: ./restored-kb
+
+📊 Bundle Info:
+   OKF Version: 0.1
+   Concepts: 3
+   Types:
+     - method: 2
+     - fact: 1
+
+✅ Import complete!
+   Files imported: 5
+```
+
+---
+
+### 命令速查表
+
+| 命令 | CLI | 自然语言关键词 | 用途 |
+|------|-----|---------------|------|
+| init | `llm-wiki init ./kb` | "初始化知识库" | 创建目录结构 |
+| ingest | `llm-wiki ingest ./kb raw/doc.md` | "加入文档"、"摄入资料" | 提取知识原子 |
+| query | `llm-wiki query ./kb "关键词"` | "搜索"、"查询" | 检索知识 |
+| lint | `llm-wiki lint ./kb` | "检查"、"验证" | OKF 规范检查 |
+| index | `llm-wiki index ./kb` | "生成索引" | 创建目录索引 |
+| export | `llm-wiki export ./kb -o bundle.tar.gz` | "导出"、"打包" | 备份知识库 |
+| import | `llm-wiki import bundle.tar.gz -o ./kb` | "导入"、"恢复" | 恢复知识库 |
+| visualize | `llm-wiki visualize ./kb` | "知识图谱"、"可视化" | 生成交互图 |
+
+---
 
 ### 典型应用场景
 
