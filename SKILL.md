@@ -428,10 +428,14 @@ alias llm-wiki='python3 ~/.claude/skills/llm-wiki/llm-wiki.py'
 | 命令 | 用途 | 示例 |
 |------|------|------|
 | `llm-wiki init` | 初始化知识库 | `llm-wiki init ./my-kb` |
+| `llm-wiki ingest` | 摄入资料提取原子 | `llm-wiki ingest ./my-kb raw/doc.md` |
+| `llm-wiki embed` | 生成语义搜索嵌入 | `llm-wiki embed ./my-kb` |
+| `llm-wiki query` | 搜索查询知识 | `llm-wiki query ./my-kb "关键词"` |
 | `llm-wiki lint` | OKF 兼容性检查 | `llm-wiki lint ./my-kb --okf-check` |
+| `llm-wiki index` | 生成目录索引 | `llm-wiki index ./my-kb` |
 | `llm-wiki export` | 导出为 OKF Bundle | `llm-wiki export ./my-kb -o bundle.tar.gz` |
 | `llm-wiki import` | 导入 OKF Bundle | `llm-wiki import bundle.tar.gz -o ./my-kb` |
-| `llm-wiki index` | 生成目录索引 | `llm-wiki index ./my-kb` |
+| `llm-wiki visualize` | 生成知识图谱 | `llm-wiki visualize ./my-kb` |
 
 ### 命令详解
 

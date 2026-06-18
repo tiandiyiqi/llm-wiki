@@ -9,9 +9,10 @@
 ## 特性
 
 - ✅ **OKF v0.1 完全兼容** - 符合 Google Cloud Platform 提出的开放知识格式规范
-- ✅ **零外部依赖** - 仅使用 Python 标准库，无需 pip install
-- ✅ **八大核心命令** - init/ingest/query/lint/index/export/import/visualize
+- ✅ **零外部依赖** - 核心功能仅使用 Python 标准库
+- ✅ **九大核心命令** - init/ingest/embed/query/lint/index/export/import/visualize
 - ✅ **智能提取** - 自动检测知识类型、提取标题和标签
+- ✅ **语义搜索** - 支持向量嵌入和语义查询（可选）
 - ✅ **知识图谱** - 生成交互式 HTML 可视化
 - ✅ **单文件部署** - 一个 `.py` 文件即可使用
 
@@ -67,16 +68,21 @@ python3 llm-wiki.py init ./my-kb
 # 2. 摄入资料（自动提取知识原子）
 python3 llm-wiki.py ingest ./my-kb raw/document.md
 
-# 3. 查询知识
+# 3. 查询知识（关键词搜索）
 python3 llm-wiki.py query ./my-kb "installation"
 
-# 4. 验证 OKF 兼容性
+# 4. 语义搜索（可选，需先安装依赖）
+pip install chromadb sentence-transformers
+python3 llm-wiki.py embed ./my-kb
+python3 llm-wiki.py query ./my-kb "如何部署" --semantic
+
+# 5. 验证 OKF 兼容性
 python3 llm-wiki.py lint ./my-kb --okf-check
 
-# 5. 生成知识图谱
+# 6. 生成知识图谱
 python3 llm-wiki.py visualize ./my-kb
 
-# 6. 导出 Bundle
+# 7. 导出 Bundle
 python3 llm-wiki.py export ./my-kb -o bundle.tar.gz
 ```
 
@@ -159,7 +165,7 @@ python3 llm-wiki.py ingest ./my-kb raw/tutorial.md --type method
 
 ### query - 搜索查询知识
 
-在知识库中搜索知识原子。
+在知识库中搜索知识原子。支持**关键词搜索**和**语义搜索**两种模式。
 
 ```bash
 python3 llm-wiki.py query <knowledge_base> <query> [options]
@@ -170,13 +176,14 @@ python3 llm-wiki.py query <knowledge_base> <query> [options]
 | 参数 | 简写 | 说明 |
 |------|------|------|
 | `knowledge_base` | - | 知识库目录路径（必需） |
-| `query` | - | 查询关键词（必需） |
+| `query` | - | 查询关键词或问题（必需） |
 | `--type` | `-t` | 按类型过滤 |
 | `--limit` | `-l` | 结果数量限制（默认：10） |
+| `--semantic` | `-s` | 启用语义搜索（需要先运行 `embed`） |
 
 **示例：**
 ```bash
-# 基本搜索
+# 关键词搜索（默认）
 python3 llm-wiki.py query ./my-kb "installation"
 
 # 按类型过滤
@@ -184,13 +191,50 @@ python3 llm-wiki.py query ./my-kb "ubuntu" --type method
 
 # 限制结果数量
 python3 llm-wiki.py query ./my-kb "config" --limit 5
+
+# 语义搜索（需要先安装依赖并运行 embed）
+python3 llm-wiki.py query ./my-kb "如何部署服务" --semantic
 ```
 
-**搜索优先级：**
+**关键词搜索优先级：**
 1. 标题匹配（最高优先级）
 2. 描述匹配
 3. 标签匹配
 4. 正文匹配
+
+**语义搜索：**
+- 理解查询意图，而非字面匹配
+- 支持同义词、相关概念
+- 需要 ChromaDB 和 sentence-transformers
+
+---
+
+### embed - 生成向量嵌入
+
+为知识库生成向量嵌入，用于语义搜索。
+
+```bash
+python3 llm-wiki.py embed <knowledge_base>
+```
+
+**依赖安装：**
+```bash
+pip install chromadb sentence-transformers
+```
+
+**示例：**
+```bash
+# 生成嵌入
+python3 llm-wiki.py embed ./my-kb
+
+# 然后使用语义搜索
+python3 llm-wiki.py query ./my-kb "如何安装" --semantic
+```
+
+**技术说明：**
+- 使用 `all-MiniLM-L6-v2` 模型生成嵌入
+- 嵌入存储在 `.chroma/` 目录中
+- 首次运行会下载模型（约 90MB）
 
 ---
 
@@ -615,6 +659,51 @@ Claude: 🔍 Querying: 'installation' (type: method)
 
 ---
 
+#### 第 6.5 步：语义搜索（embed + query --semantic）
+
+**可选步骤**：启用语义搜索，支持自然语言查询。
+
+**CLI 方式：**
+```bash
+# 安装依赖（首次使用）
+pip install chromadb sentence-transformers
+
+# 生成向量嵌入
+python3 llm-wiki.py embed ./nextcloud-kb
+
+# 语义搜索
+python3 llm-wiki.py query ./nextcloud-kb "如何配置服务器" --semantic
+```
+
+**自然语言方式：**
+```
+用户: 启用语义搜索
+
+Claude: 📊 Generating embeddings for: ./nextcloud-kb
+   Concepts to embed: 3
+   Loading embedding model (first run may take a while)...
+   Generating embeddings...
+   Storing in ChromaDB...
+
+✅ Embeddings generated for 3 concepts
+
+用户: 用语义搜索查找如何配置服务器
+
+Claude: 🔍 Semantic search results (2):
+
+1. [method] Nextcloud Installation Guide
+   Path: atoms/methods/nextcloud-installation-guide-20260618120000.md
+   Similarity: 0.856
+   Complete installation guide for Nextcloud on Ubuntu Server...
+
+2. [fact] Nextcloud System Requirements
+   Path: atoms/facts/nextcloud-requirements-20260618120100.md
+   Similarity: 0.723
+   System requirements for Nextcloud server...
+```
+
+---
+
 #### 第七步：可视化知识图谱（visualize）
 
 **CLI 方式：**
@@ -716,6 +805,7 @@ Claude: 📦 Importing OKF bundle: nextcloud-bundle.tar.gz
 |------|-----|---------------|------|
 | init | `llm-wiki init ./kb` | "初始化知识库" | 创建目录结构 |
 | ingest | `llm-wiki ingest ./kb raw/doc.md` | "加入文档"、"摄入资料" | 提取知识原子 |
+| embed | `llm-wiki embed ./kb` | "生成嵌入"、"向量化" | 生成语义搜索嵌入 |
 | query | `llm-wiki query ./kb "关键词"` | "搜索"、"查询" | 检索知识 |
 | lint | `llm-wiki lint ./kb` | "检查"、"验证" | OKF 规范检查 |
 | index | `llm-wiki index ./kb` | "生成索引" | 创建目录索引 |
@@ -883,6 +973,53 @@ examples/nextcloud-kb/
 - [OKF 规范 v0.1](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
 - [OKF 示例 Bundle](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf/bundles)
 - [Google Cloud Knowledge Catalog](https://github.com/GoogleCloudPlatform/knowledge-catalog)
+
+## 技术说明
+
+### 核心技术
+
+| 技术 | 用途 | 说明 |
+|------|------|------|
+| Python 标准库 | 核心功能 | 无外部依赖（语义搜索除外） |
+| SimpleYAMLParser | YAML 解析 | 自实现，避免 PyYAML 依赖 |
+| ChromaDB | 向量存储 | 语义搜索（可选） |
+| sentence-transformers | 嵌入模型 | `all-MiniLM-L6-v2`（可选） |
+| Cytoscape.js | 知识图谱 | 可视化 HTML |
+
+### 搜索技术对比
+
+| 特性 | 关键词搜索 | 语义搜索 |
+|------|-----------|---------|
+| 依赖 | 无 | ChromaDB + sentence-transformers |
+| 理解能力 | 字面匹配 | 意义理解 |
+| 同义词 | ❌ 不支持 | ✅ 支持 |
+| 多语言 | ✅ 支持 | ✅ 支持（模型决定） |
+| 准确度 | 高（精确匹配） | 高（相关匹配） |
+| 速度 | 快 | 较慢（需要嵌入） |
+
+### 增强搜索的建议
+
+当前语义搜索使用 `all-MiniLM-L6-v2` 模型。以下是增强建议：
+
+1. **同义词扩展**
+   - 使用 WordNet 或自定义同义词词典
+   - 在关键词搜索中扩展查询词
+
+2. **全文索引**
+   - 集成 SQLite FTS5（Python 内置）
+   - 支持更高效的文本检索
+
+3. **混合搜索**
+   - 结合关键词和语义搜索结果
+   - 优先精确匹配，补充语义相关
+
+4. **多语言嵌入模型**
+   - 使用 `paraphrase-multilingual-MiniLM-L12-v2`
+   - 支持中英文混合查询
+
+5. **领域微调**
+   - 在特定领域数据上微调嵌入模型
+   - 提升专业术语的理解能力
 
 ## 贡献
 

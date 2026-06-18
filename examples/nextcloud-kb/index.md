@@ -1,11 +1,14 @@
-# Knowledge Base Index
+# Knowledge Concepts Index
 
-This knowledge base contains Nextcloud-related documentation and guides.
+## Statistics
 
-## Methods
+- Total concepts: 2
 
-* [Nextcloud Ubuntu Apache Installation](atoms/methods/nextcloud-installation-ubuntu-apache.md) - Standard installation process for Nextcloud on Ubuntu using Apache web server
+## Concepts
 
-## Facts
+### fact
 
-* [Nextcloud System Requirements](atoms/facts/nextcloud-system-requirements.md) - Minimum and recommended system requirements for Nextcloud server
+* [Nextcloud System Requirements](/atoms/facts/nextcloud-system-requirements.md) - Minimum and recommended system requirements for Nextcloud server
+### method
+
+* [Nextcloud Ubuntu Apache Installation](/atoms/methods/nextcloud-installation-ubuntu-apache.md) - Standard installation process for Nextcloud on Ubuntu using Apache web server
