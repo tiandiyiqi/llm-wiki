@@ -10,10 +10,10 @@
 
 - ✅ **OKF v0.1 完全兼容** - 符合 Google Cloud Platform 提出的开放知识格式规范
 - ✅ **零外部依赖** - 仅使用 Python 标准库，无需 pip install
-- ✅ **五大核心命令** - init/export/import/lint/index
-- ✅ **自动验证** - OKF 规范符合性检查
+- ✅ **八大核心命令** - init/ingest/query/lint/index/export/import/visualize
+- ✅ **智能提取** - 自动检测知识类型、提取标题和标签
+- ✅ **知识图谱** - 生成交互式 HTML 可视化
 - ✅ **单文件部署** - 一个 `.py` 文件即可使用
-- ✅ **Claude Code 集成** - 可作为 Skill 使用
 
 ## 安装
 
@@ -46,8 +46,8 @@ git clone https://github.com/Tiandiyiqi/llm-wiki.git ~/.claude/skills/llm-wiki
 用户: /llm-wiki init ./my-kb
 Claude: 正在初始化知识库...
 
-用户: /llm-wiki lint ./my-kb --okf-check
-Claude: 正在检查 OKF 兼容性...
+用户: /llm-wiki query ./my-kb "installation"
+Claude: 正在搜索知识...
 ```
 
 ### 方式三：创建别名（可选）
@@ -58,57 +58,26 @@ Claude: 正在检查 OKF 兼容性...
 alias llm-wiki='python3 /path/to/llm-wiki/llm-wiki.py'
 ```
 
-然后可以直接使用：
-
-```bash
-llm-wiki init ./my-kb
-llm-wiki export ./my-kb -o bundle.tar.gz
-```
-
 ## 快速开始
 
-### 1. 初始化知识库
-
 ```bash
-python3 llm-wiki.py init ./my-knowledge-base
-```
+# 1. 初始化知识库
+python3 llm-wiki.py init ./my-kb
 
-### 2. 添加知识原子
+# 2. 摄入资料（自动提取知识原子）
+python3 llm-wiki.py ingest ./my-kb raw/document.md
 
-在 `my-knowledge-base/atoms/methods/` 创建文件：
+# 3. 查询知识
+python3 llm-wiki.py query ./my-kb "installation"
 
-```markdown
----
-type: method
-title: 示例方法
-description: 这是一个示例知识原子
-tags:
-  - example
-timestamp: 2026-06-18T10:00:00Z
----
+# 4. 验证 OKF 兼容性
+python3 llm-wiki.py lint ./my-kb --okf-check
 
-# 示例方法
+# 5. 生成知识图谱
+python3 llm-wiki.py visualize ./my-kb
 
-## 步骤
-
-1. 第一步
-2. 第二步
-
-# Citations
-
-[1] [参考来源](https://example.com)
-```
-
-### 3. 验证
-
-```bash
-python3 llm-wiki.py lint ./my-knowledge-base --okf-check
-```
-
-### 4. 导出
-
-```bash
-python3 llm-wiki.py export ./my-knowledge-base -o knowledge-bundle.tar.gz
+# 6. 导出 Bundle
+python3 llm-wiki.py export ./my-kb -o bundle.tar.gz
 ```
 
 ## 命令参考
@@ -126,26 +95,16 @@ python3 llm-wiki.py <command> --help  # 查看子命令帮助
 
 创建符合 OKF 规范的目录结构。
 
-**用法：**
-
 ```bash
 python3 llm-wiki.py init <knowledge_base>
 ```
 
-**参数：**
-
-| 参数 | 说明 |
-|------|------|
-| `knowledge_base` | 知识库目录路径（必需） |
-
 **示例：**
-
 ```bash
 python3 llm-wiki.py init ./my-kb
 ```
 
 **创建的目录结构：**
-
 ```
 my-kb/
 ├── index.md          # 知识库索引
@@ -159,10 +118,79 @@ my-kb/
 │   ├── questions/    # 问题
 │   └── references/   # 参考
 ├── raw/              # 原始资料
-│   ├── reference/    # 参考资料
-│   └── observations/ # 观察
 └── views/            # 视图/可视化
 ```
+
+---
+
+### ingest - 摄入资料提取原子
+
+从源文件自动提取知识原子，支持 Markdown 文件。
+
+```bash
+python3 llm-wiki.py ingest <knowledge_base> <source> [options]
+```
+
+**参数：**
+
+| 参数 | 简写 | 说明 |
+|------|------|------|
+| `knowledge_base` | - | 知识库目录路径（必需） |
+| `source` | - | 源文件路径（必需） |
+| `--type` | `-t` | 原子类型（默认自动检测） |
+| `--auto-type` | - | 自动检测类型（默认开启） |
+
+**示例：**
+```bash
+# 摄入文档（自动检测类型）
+python3 llm-wiki.py ingest ./my-kb raw/document.md
+
+# 指定类型
+python3 llm-wiki.py ingest ./my-kb raw/tutorial.md --type method
+```
+
+**自动检测规则：**
+- 包含 "步骤"、"step"、"how to"、"安装" → `method`
+- 包含 "要求"、"requirement"、"版本" → `fact`
+- 包含 "定义"、"definition"、"概念" → `definition`
+- 包含 "统计"、"数据"、"性能" → `data`
+
+---
+
+### query - 搜索查询知识
+
+在知识库中搜索知识原子。
+
+```bash
+python3 llm-wiki.py query <knowledge_base> <query> [options]
+```
+
+**参数：**
+
+| 参数 | 简写 | 说明 |
+|------|------|------|
+| `knowledge_base` | - | 知识库目录路径（必需） |
+| `query` | - | 查询关键词（必需） |
+| `--type` | `-t` | 按类型过滤 |
+| `--limit` | `-l` | 结果数量限制（默认：10） |
+
+**示例：**
+```bash
+# 基本搜索
+python3 llm-wiki.py query ./my-kb "installation"
+
+# 按类型过滤
+python3 llm-wiki.py query ./my-kb "ubuntu" --type method
+
+# 限制结果数量
+python3 llm-wiki.py query ./my-kb "config" --limit 5
+```
+
+**搜索优先级：**
+1. 标题匹配（最高优先级）
+2. 描述匹配
+3. 标签匹配
+4. 正文匹配
 
 ---
 
@@ -170,21 +198,11 @@ my-kb/
 
 验证知识库是否符合 OKF v0.1 规范。
 
-**用法：**
-
 ```bash
 python3 llm-wiki.py lint <knowledge_base> [--okf-check]
 ```
 
-**参数：**
-
-| 参数 | 说明 |
-|------|------|
-| `knowledge_base` | 知识库目录路径（必需） |
-| `--okf-check` | 显示详细的 OKF 规范检查结果 |
-
 **示例：**
-
 ```bash
 # 基本检查
 python3 llm-wiki.py lint ./my-kb
@@ -202,122 +220,12 @@ python3 llm-wiki.py lint ./my-kb --okf-check
 | `title` 字段 | 🟡 警告 | 推荐添加 |
 | `description` 字段 | 🟡 警告 | 推荐添加 |
 | `timestamp` 字段 | 🟡 警告 | 推荐添加，ISO 8601 格式 |
-| `index.md` 结构 | 🟡 警告 | 保留文件应符合规范 |
-
----
-
-### export - 导出 OKF Bundle
-
-将知识库打包为 `.tar.gz` 文件，包含 `manifest.json` 元数据。
-
-**用法：**
-
-```bash
-python3 llm-wiki.py export <knowledge_base> [options]
-```
-
-**参数：**
-
-| 参数 | 简写 | 说明 |
-|------|------|------|
-| `knowledge_base` | - | 知识库目录路径（必需） |
-| `--output <path>` | `-o` | 输出文件路径（默认：`<kb_name>-okf-bundle.tar.gz`） |
-| `--validate` | `-v` | 验证 OKF 符合性（默认开启） |
-| `--no-validate` | - | 跳过验证 |
-| `--force` | `-f` | 强制导出（忽略验证错误） |
-
-**示例：**
-
-```bash
-# 基本导出（自动验证）
-python3 llm-wiki.py export ./my-kb -o bundle.tar.gz
-
-# 强制导出（忽略验证错误）
-python3 llm-wiki.py export ./my-kb -o bundle.tar.gz --force
-
-# 跳过验证
-python3 llm-wiki.py export ./my-kb -o bundle.tar.gz --no-validate
-```
-
-**输出内容：**
-
-```
-bundle.tar.gz
-├── manifest.json              # 元数据（概念清单、统计）
-├── index.md                   # 知识库索引
-├── atoms/
-│   ├── methods/
-│   │   └── *.md
-│   └── facts/
-│       └── *.md
-└── ...
-```
-
-**manifest.json 示例：**
-
-```json
-{
-  "okf_version": "0.1",
-  "export_time": "2026-06-18T10:00:00",
-  "source_dir": "/path/to/kb",
-  "concepts": [
-    {
-      "id": "atoms/methods/example",
-      "type": "method",
-      "title": "示例方法",
-      "description": "..."
-    }
-  ],
-  "statistics": {
-    "total_concepts": 5,
-    "types": {
-      "method": 3,
-      "fact": 2
-    }
-  }
-}
-```
-
----
-
-### import - 导入 OKF Bundle
-
-从 `.tar.gz` 文件恢复知识库。
-
-**用法：**
-
-```bash
-python3 llm-wiki.py import <bundle> [options]
-```
-
-**参数：**
-
-| 参数 | 简写 | 说明 |
-|------|------|------|
-| `bundle` | - | Bundle 文件路径（必需） |
-| `--output <dir>` | `-o` | 输出目录（默认：当前目录） |
-| `--overwrite` | - | 覆盖现有文件 |
-
-**示例：**
-
-```bash
-# 导入到新目录
-python3 llm-wiki.py import bundle.tar.gz -o ./restored-kb
-
-# 导入并覆盖现有目录
-python3 llm-wiki.py import bundle.tar.gz -o ./existing-kb --overwrite
-
-# 导入到当前目录
-python3 llm-wiki.py import bundle.tar.gz
-```
 
 ---
 
 ### index - 生成目录索引
 
 为知识库目录生成 `index.md` 文件（渐进披露）。
-
-**用法：**
 
 ```bash
 python3 llm-wiki.py index <knowledge_base> [options]
@@ -328,10 +236,9 @@ python3 llm-wiki.py index <knowledge_base> [options]
 | 参数 | 简写 | 说明 |
 |------|------|------|
 | `knowledge_base` | - | 知识库目录路径（必需） |
-| `--directory <dir>` | `-d` | 指定要生成索引的子目录 |
+| `--directory` | `-d` | 指定要生成索引的子目录 |
 
 **示例：**
-
 ```bash
 # 为整个知识库生成索引
 python3 llm-wiki.py index ./my-kb
@@ -340,24 +247,215 @@ python3 llm-wiki.py index ./my-kb
 python3 llm-wiki.py index ./my-kb -d ./my-kb/atoms/methods
 ```
 
-**生成的 index.md 示例：**
+---
 
-```markdown
-# Knowledge Concepts Index
+### export - 导出 OKF Bundle
 
-## Statistics
+将知识库打包为 `.tar.gz` 文件。
 
-- Total concepts: 5
+```bash
+python3 llm-wiki.py export <knowledge_base> [options]
+```
 
-## Concepts
+**参数：**
 
-### method
+| 参数 | 简写 | 说明 |
+|------|------|------|
+| `knowledge_base` | - | 知识库目录路径（必需） |
+| `--output` | `-o` | 输出文件路径 |
+| `--validate` | `-v` | 验证 OKF 符合性（默认开启） |
+| `--no-validate` | - | 跳过验证 |
+| `--force` | `-f` | 强制导出（忽略验证错误） |
 
-* [示例方法](/atoms/methods/example.md) - 这是一个示例方法
+**示例：**
+```bash
+# 基本导出
+python3 llm-wiki.py export ./my-kb -o bundle.tar.gz
 
-### fact
+# 强制导出
+python3 llm-wiki.py export ./my-kb -o bundle.tar.gz --force
+```
 
-* [示例事实](/atoms/facts/example-fact.md) - 这是一个示例事实
+---
+
+### import - 导入 OKF Bundle
+
+从 `.tar.gz` 文件恢复知识库。
+
+```bash
+python3 llm-wiki.py import <bundle> [options]
+```
+
+**参数：**
+
+| 参数 | 简写 | 说明 |
+|------|------|------|
+| `bundle` | - | Bundle 文件路径（必需） |
+| `--output` | `-o` | 输出目录（默认：当前目录） |
+| `--overwrite` | - | 覆盖现有文件 |
+
+**示例：**
+```bash
+# 导入到新目录
+python3 llm-wiki.py import bundle.tar.gz -o ./restored-kb
+
+# 覆盖现有目录
+python3 llm-wiki.py import bundle.tar.gz -o ./existing-kb --overwrite
+```
+
+---
+
+### visualize - 生成知识图谱
+
+生成交互式 HTML 知识图谱可视化。
+
+```bash
+python3 llm-wiki.py visualize <knowledge_base> [options]
+```
+
+**参数：**
+
+| 参数 | 简写 | 说明 |
+|------|------|------|
+| `knowledge_base` | - | 知识库目录路径（必需） |
+| `--output` | `-o` | 输出 HTML 文件路径 |
+| `--name` | `-n` | 图谱名称 |
+
+**示例：**
+```bash
+# 生成可视化（默认输出到 views/knowledge-graph.html）
+python3 llm-wiki.py visualize ./my-kb
+
+# 指定输出路径
+python3 llm-wiki.py visualize ./my-kb -o ./graph.html
+
+# 指定名称
+python3 llm-wiki.py visualize ./my-kb --name "My Knowledge Base"
+```
+
+**可视化功能：**
+- 🔍 搜索节点
+- 🏷️ 按类型过滤
+- 🔗 显示节点关系
+- 📊 点击查看详情
+
+---
+
+## 使用指南
+
+### 典型工作流程
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    LLM Wiki 工作流程                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  1. 初始化                                                   │
+│     $ llm-wiki init ./my-kb                                 │
+│                                                             │
+│  2. 收集资料 → 放入 raw/ 目录                                 │
+│     - 官方文档、博客文章、教程                                │
+│     - PDF、Markdown、文本文件                                │
+│                                                             │
+│  3. 摄入提取                                                 │
+│     $ llm-wiki ingest ./my-kb raw/doc.md                    │
+│     → 自动提取知识原子到 atoms/                              │
+│                                                             │
+│  4. 人工审核                                                 │
+│     - 检查提取的知识是否准确                                  │
+│     - 补充缺失的元数据                                       │
+│                                                             │
+│  5. 验证                                                     │
+│     $ llm-wiki lint ./my-kb --okf-check                     │
+│                                                             │
+│  6. 查询使用                                                 │
+│     $ llm-wiki query ./my-kb "installation"                 │
+│     $ llm-wiki visualize ./my-kb                            │
+│                                                             │
+│  7. 分享备份                                                 │
+│     $ llm-wiki export ./my-kb -o bundle.tar.gz              │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 典型应用场景
+
+#### 场景一：技术文档知识库
+
+**需求：** 将分散的技术文档整理成可搜索的知识库
+
+**步骤：**
+```bash
+# 1. 初始化
+llm-wiki init ./tech-docs
+
+# 2. 放入原始文档
+cp ~/Downloads/*.md ./tech-docs/raw/
+
+# 3. 批量摄入
+for f in ./tech-docs/raw/*.md; do
+    llm-wiki ingest ./tech-docs "$f"
+done
+
+# 4. 验证
+llm-wiki lint ./tech-docs
+
+# 5. 可视化
+llm-wiki visualize ./tech-docs
+```
+
+#### 场景二：项目知识管理
+
+**需求：** 为团队项目建立知识库，支持快速查询
+
+**步骤：**
+```bash
+# 1. 初始化
+llm-wiki init ./project-kb
+
+# 2. 添加项目文档
+llm-wiki ingest ./project-kb ./README.md --type reference
+llm-wiki ingest ./project-kb ./SETUP.md --type method
+llm-wiki ingest ./project-kb ./API.md --type reference
+
+# 3. 查询
+llm-wiki query ./project-kb "api"
+llm-wiki query ./project-kb "setup" --type method
+```
+
+#### 场景三：个人学习笔记
+
+**需求：** 整理学习笔记，建立知识图谱
+
+**步骤：**
+```bash
+# 1. 初始化
+llm-wiki init ./learning-notes
+
+# 2. 摄入笔记
+llm-wiki ingest ./learning-notes notes/python-basics.md
+llm-wiki ingest ./learning-notes notes/python-advanced.md
+
+# 3. 生成图谱
+llm-wiki visualize ./learning-notes --name "Python Learning"
+
+# 4. 导出备份
+llm-wiki export ./learning-notes -o notes-backup.tar.gz
+```
+
+#### 场景四：Claude Code 知识增强
+
+**需求：** 作为 Claude Code 的外部知识源
+
+**步骤：**
+```bash
+# 1. 安装为 Skill
+git clone https://github.com/Tiandiyiqi/llm-wiki.git ~/.claude/skills/llm-wiki
+
+# 2. 在 Claude Code 对话中使用
+/llm-wiki init ./my-knowledge
+/llm-wiki ingest ./my-knowledge raw/article.md
+/llm-wiki query ./my-knowledge "关键词"
 ```
 
 ---
@@ -405,7 +503,6 @@ timestamp: 2026-06-18T10:00:00Z  # 推荐：ISO 8601 时间戳
 # Citations
 
 [1] [参考来源](https://...)
-[2] [另一个来源](https://...)
 ```
 
 ### 知识类型

@@ -9,16 +9,21 @@ Usage:
 
 Commands:
     init        初始化知识库目录结构
-    export      导出知识库为 OKF Bundle
-    import      导入 OKF Bundle 到知识库
+    ingest      摄入资料提取知识原子
+    query       搜索查询知识
     lint        检查 OKF 兼容性
     index       生成目录索引
+    export      导出知识库为 OKF Bundle
+    import      导入 OKF Bundle 到知识库
+    visualize   生成知识图谱可视化 HTML
 
 Examples:
     llm-wiki init ./my-kb
-    llm-wiki export ./my-kb --output bundle.tar.gz
-    llm-wiki import bundle.tar.gz --output ./my-kb
+    llm-wiki ingest ./my-kb raw/doc.md
+    llm-wiki query ./my-kb "installation"
     llm-wiki lint ./my-kb --okf-check
+    llm-wiki visualize ./my-kb --output views/graph.html
+    llm-wiki export ./my-kb --output bundle.tar.gz
 """
 
 import argparse
@@ -27,6 +32,7 @@ import os
 import re
 import sys
 import tarfile
+import html
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -41,6 +47,17 @@ REQUIRED_FIELDS = {'type'}
 
 # OKF Recommended frontmatter fields (§4.1)
 RECOMMENDED_FIELDS = ['title', 'description', 'resource', 'tags', 'timestamp']
+
+# Knowledge types mapping
+TYPE_DIRS = {
+    'fact': 'facts',
+    'opinion': 'opinions',
+    'definition': 'definitions',
+    'method': 'methods',
+    'data': 'data',
+    'question': 'questions',
+    'reference': 'references'
+}
 
 
 class SimpleYAMLParser:
@@ -109,6 +126,24 @@ class SimpleYAMLParser:
             result[current_key] = current_list
 
         return result if result else None
+
+    def dump(self, data: Dict[str, Any]) -> str:
+        """Convert dict to YAML string."""
+        lines = []
+        for key, value in data.items():
+            if isinstance(value, list):
+                lines.append(f"{key}:")
+                for item in value:
+                    lines.append(f"  - {item}")
+            elif isinstance(value, bool):
+                lines.append(f"{key}: {str(value).lower()}")
+            elif isinstance(value, (int, float)):
+                lines.append(f"{key}: {value}")
+            else:
+                # Escape quotes in string values
+                escaped = str(value).replace('"', '\\"')
+                lines.append(f"{key}: \"{escaped}\"")
+        return '\n'.join(lines)
 
 
 class OKFValidator:
@@ -186,6 +221,12 @@ class OKFValidator:
                 except:
                     self.warnings.append((str(rel_path), "timestamp not in ISO 8601 format"))
 
+            # Extract body content
+            body = parts[2].strip() if len(parts) >= 3 else ''
+
+            # Extract links for graph
+            links = self._extract_links(body)
+
             self.concepts.append({
                 'id': str(rel_path).replace('.md', ''),
                 'path': str(rel_path),
@@ -193,11 +234,28 @@ class OKFValidator:
                 'title': frontmatter.get('title', rel_path.stem),
                 'description': frontmatter.get('description', ''),
                 'tags': frontmatter.get('tags', []),
-                'frontmatter': frontmatter
+                'frontmatter': frontmatter,
+                'body': body,
+                'links': links
             })
 
         except Exception as e:
             self.errors.append((str(rel_path), f"Parse error: {e}"))
+
+    def _extract_links(self, body: str) -> List[str]:
+        """Extract markdown links from body."""
+        # Match [[link]] and [text](link) formats
+        wiki_links = re.findall(r'\[\[([^\]]+)\]\]', body)
+        md_links = re.findall(r'\]\(([^\)]+)\)', body)
+
+        all_links = []
+        for link in wiki_links:
+            all_links.append(link)
+        for link in md_links:
+            if link.startswith('/') or link.startswith('./') or not link.startswith('http'):
+                all_links.append(link)
+
+        return all_links
 
 
 class OKFExporter:
@@ -420,7 +478,7 @@ This knowledge base follows the Open Knowledge Format (OKF) v0.1 specification.
 ## Quick Start
 
 1. Add source materials to `raw/`
-2. Extract knowledge atoms to `atoms/`
+2. Run `llm-wiki ingest` to extract atoms
 3. Run `llm-wiki lint` to validate
 4. Run `llm-wiki export` to create bundle
 """
@@ -443,8 +501,8 @@ This knowledge base follows the Open Knowledge Format (OKF) v0.1 specification.
         print(f"   Path: {self.kb_dir}")
         print(f"\nNext steps:")
         print(f"   1. Add source materials to raw/")
-        print(f"   2. Run 'llm-wiki lint' to validate")
-        print(f"   3. Run 'llm-wiki export' to create bundle")
+        print(f"   2. Run 'llm-wiki ingest' to extract atoms")
+        print(f"   3. Run 'llm-wiki lint' to validate")
 
         return True
 
@@ -509,6 +567,621 @@ class IndexGenerator:
         return True
 
 
+class KnowledgeIngestor:
+    """Ingests source materials and extracts knowledge atoms."""
+
+    def __init__(self, kb_dir: Path, source_path: Path):
+        self.kb_dir = kb_dir
+        self.source_path = source_path
+        self.yaml_parser = SimpleYAMLParser()
+
+    def ingest(self, auto_detect_type: bool = True, default_type: str = 'method') -> bool:
+        print(f"📦 Ingesting source: {self.source_path}")
+        print(f"   Knowledge base: {self.kb_dir}")
+
+        # Check source exists
+        if not self.source_path.exists():
+            print(f"❌ Error: Source not found: {self.source_path}")
+            return False
+
+        # Read source content
+        try:
+            content = self.source_path.read_text(encoding='utf-8')
+        except Exception as e:
+            print(f"❌ Error reading source: {e}")
+            return False
+
+        # Detect source type
+        source_type = self._detect_source_type()
+        print(f"   Source type: {source_type}")
+
+        # Extract title from first heading or filename
+        title = self._extract_title(content)
+        print(f"   Title: {title}")
+
+        # Extract description from first paragraph
+        description = self._extract_description(content)
+
+        # Extract keywords/tags
+        tags = self._extract_tags(content)
+
+        # Determine atom type
+        atom_type = self._determine_type(content, auto_detect_type, default_type)
+        print(f"   Atom type: {atom_type}")
+
+        # Generate atom_id
+        atom_id = self._generate_atom_id(title)
+
+        # Determine target directory
+        target_dir = TYPE_DIRS.get(atom_type, 'methods')
+        target_path = self.kb_dir / 'atoms' / target_dir / f"{atom_id}.md"
+
+        # Create atom file
+        atom_content = self._create_atom_content(
+            title=title,
+            description=description,
+            atom_type=atom_type,
+            tags=tags,
+            source_path=self.source_path,
+            source_type=source_type,
+            original_content=content
+        )
+
+        # Write atom
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(atom_content)
+
+        print(f"\n✅ Atom created: {target_path}")
+        print(f"   atom_id: {atom_id}")
+
+        # Update log
+        self._update_log(title, atom_id, atom_type)
+
+        return True
+
+    def _detect_source_type(self) -> str:
+        """Detect source type from file/path."""
+        path_str = str(self.source_path).lower()
+
+        if 'official' in path_str or 'docs' in path_str:
+            return 'official'
+        if 'blog' in path_str:
+            return 'blog'
+        if self.source_path.suffix == '.pdf':
+            return 'document'
+        if 'README' in self.source_path.name:
+            return 'official'
+
+        return 'user'
+
+    def _extract_title(self, content: str) -> str:
+        """Extract title from content."""
+        # Try first heading
+        heading_match = re.search(r'^#\s+(.+)$', content, re.MULTILINE)
+        if heading_match:
+            return heading_match.group(1).strip()
+
+        # Try title in frontmatter
+        if content.startswith('---'):
+            parts = content.split('---', 2)
+            if len(parts) >= 3:
+                fm = self.yaml_parser.parse(parts[1])
+                if fm and 'title' in fm:
+                    return fm['title']
+
+        # Use filename
+        return self.source_path.stem
+
+    def _extract_description(self, content: str) -> str:
+        """Extract description from first meaningful paragraph."""
+        # Remove frontmatter if present
+        if content.startswith('---'):
+            parts = content.split('---', 2)
+            if len(parts) >= 3:
+                content = parts[2]
+
+        # Remove headings and code blocks
+        lines = content.split('\n')
+        clean_lines = []
+        in_code_block = False
+
+        for line in lines:
+            if line.startswith('```'):
+                in_code_block = not in_code_block
+                continue
+            if in_code_block:
+                continue
+            if line.startswith('#'):
+                continue
+            if line.strip():
+                clean_lines.append(line.strip())
+
+        # Get first meaningful paragraph
+        if clean_lines:
+            first_para = ' '.join(clean_lines[:5])  # First 5 non-empty lines
+            # Limit to ~100 chars
+            if len(first_para) > 100:
+                first_para = first_para[:97] + '...'
+            return first_para
+
+        return 'No description available'
+
+    def _extract_tags(self, content: str) -> List[str]:
+        """Extract keywords/tags from content."""
+        tags = []
+
+        # Common tech keywords
+        tech_keywords = [
+            'installation', 'config', 'setup', 'deploy', 'security',
+            'ubuntu', 'linux', 'windows', 'macos', 'docker', 'kubernetes',
+            'python', 'javascript', 'golang', 'rust', 'java',
+            'database', 'api', 'rest', 'graphql', 'web',
+            'nextcloud', 'apache', 'nginx', 'mysql', 'postgresql'
+        ]
+
+        content_lower = content.lower()
+        for keyword in tech_keywords:
+            if keyword in content_lower:
+                tags.append(keyword)
+
+        # Limit tags
+        return tags[:5] if tags else ['general']
+
+    def _determine_type(self, content: str, auto_detect: bool, default_type: str) -> str:
+        """Determine knowledge atom type."""
+        if not auto_detect:
+            return default_type
+
+        content_lower = content.lower()
+
+        # Detect method (how-to, steps)
+        if any(word in content_lower for word in ['步骤', 'step', 'how to', '安装', 'install', '配置', 'configure', 'setup']):
+            return 'method'
+
+        # Detect fact (statements, requirements)
+        if any(word in content_lower for word in ['要求', 'requirement', '支持', 'support', '版本', 'version', '限制', 'limit']):
+            return 'fact'
+
+        # Detect definition
+        if any(word in content_lower for word in ['定义', 'definition', '是什么', '什么是', '概念', 'concept']):
+            return 'definition'
+
+        # Detect data
+        if any(word in content_lower for word in ['统计', 'statistics', '数据', 'data', '性能', 'performance', '指标', 'metric']):
+            return 'data'
+
+        return default_type
+
+    def _generate_atom_id(self, title: str) -> str:
+        """Generate atom_id from title."""
+        # Convert to lowercase, replace spaces with hyphens
+        slug = title.lower()
+        slug = re.sub(r'[^\w\s-]', '', slug)
+        slug = re.sub(r'\s+', '-', slug)
+        slug = re.sub(r'-+', '-', slug)
+
+        # Add timestamp suffix for uniqueness
+        timestamp = datetime.now().strftime('%Y%m%d%H%M')
+
+        return f"{slug}-{timestamp}"
+
+    def _create_atom_content(
+        self,
+        title: str,
+        description: str,
+        atom_type: str,
+        tags: List[str],
+        source_path: Path,
+        source_type: str,
+        original_content: str
+    ) -> str:
+        """Create atom markdown content."""
+
+        # Build frontmatter
+        frontmatter = {
+            'type': atom_type,
+            'title': title,
+            'description': description,
+            'resource': str(source_path),
+            'tags': tags,
+            'timestamp': datetime.now().isoformat(),
+            'source': str(source_path.relative_to(self.kb_dir) if source_path.is_relative_to(self.kb_dir) else source_path),
+            'source_type': source_type
+        }
+
+        # Build body
+        body_parts = [f"# {title}\n\n"]
+        body_parts.append(f"## 概述\n\n{description}\n\n")
+
+        # Extract main content sections
+        if original_content.startswith('---'):
+            parts = original_content.split('---', 2)
+            if len(parts) >= 3:
+                main_content = parts[2]
+                # Clean and format
+                body_parts.append("## 详细内容\n\n")
+                body_parts.append(main_content.strip())
+                body_parts.append("\n\n")
+
+        # Add citations section
+        body_parts.append("# Citations\n\n")
+        body_parts.append(f"[1] [{source_path.name}]({source_path})\n")
+
+        # Combine
+        yaml_str = self.yaml_parser.dump(frontmatter)
+
+        return f"---\n{yaml_str}\n---\n{''.join(body_parts)}"
+
+    def _update_log(self, title: str, atom_id: str, atom_type: str):
+        """Update log.md with new atom."""
+        log_path = self.kb_dir / 'log.md'
+
+        if log_path.exists():
+            log_content = log_path.read_text(encoding='utf-8')
+        else:
+            log_content = "# Knowledge Base Log\n\n"
+
+        # Add entry
+        today = datetime.now().strftime('%Y-%m-%d')
+        new_entry = f"\n## {today}\n\n* **Ingest**: Added [{title}](atoms/{TYPE_DIRS.get(atom_type, 'methods')}/{atom_id}.md) ({atom_type})\n"
+
+        # Check if today's section exists
+        if f"## {today}" in log_content:
+            # Append to existing section
+            log_content = log_content.replace(f"## {today}\n", f"## {today}\n{new_entry.strip()}\n")
+        else:
+            log_content += new_entry
+
+        log_path.write_text(log_content)
+
+
+class KnowledgeQuerier:
+    """Searches and queries knowledge atoms."""
+
+    def __init__(self, kb_dir: Path):
+        self.kb_dir = kb_dir
+        self.yaml_parser = SimpleYAMLParser()
+        self.concepts: List[Dict] = []
+
+    def query(self, query_str: str, limit: int = 10, by_type: Optional[str] = None) -> bool:
+        print(f"🔍 Querying: '{query_str}'")
+        print(f"   Knowledge base: {self.kb_dir}")
+
+        # Load all concepts
+        self._load_concepts()
+
+        if not self.concepts:
+            print("   No concepts found in knowledge base")
+            return False
+
+        print(f"   Total concepts: {len(self.concepts)}")
+
+        # Search
+        results = self._search(query_str, by_type)
+
+        # Limit results
+        results = results[:limit]
+
+        if not results:
+            print(f"\n   No results found for '{query_str}'")
+            return True
+
+        # Display results
+        print(f"\n📋 Results ({len(results)}):")
+        for i, result in enumerate(results, 1):
+            print(f"\n{i}. [{result['type']}] {result['title']}")
+            print(f"   Path: {result['path']}")
+            print(f"   {result['description'][:80]}...")
+            if result['tags']:
+                print(f"   Tags: {', '.join(result['tags'])}")
+
+        return True
+
+    def _load_concepts(self):
+        """Load all concepts from knowledge base."""
+        for md_file in self.kb_dir.rglob('*.md'):
+            if md_file.name in RESERVED_FILES:
+                continue
+
+            content = md_file.read_text(encoding='utf-8')
+
+            if content.startswith('---'):
+                parts = content.split('---', 2)
+                if len(parts) >= 3:
+                    fm = self.yaml_parser.parse(parts[1])
+                    if fm:
+                        body = parts[2] if len(parts) >= 3 else ''
+                        self.concepts.append({
+                            'id': str(md_file.relative_to(self.kb_dir)).replace('.md', ''),
+                            'path': str(md_file.relative_to(self.kb_dir)),
+                            'type': fm.get('type', 'Unknown'),
+                            'title': fm.get('title', md_file.stem),
+                            'description': fm.get('description', ''),
+                            'tags': fm.get('tags', []),
+                            'frontmatter': fm,
+                            'body': body
+                        })
+
+    def _search(self, query_str: str, by_type: Optional[str] = None) -> List[Dict]:
+        """Search concepts by query string."""
+        query_lower = query_str.lower()
+        results = []
+
+        for concept in self.concepts:
+            # Filter by type if specified
+            if by_type and concept['type'] != by_type:
+                continue
+
+            # Calculate relevance score
+            score = 0
+
+            # Title match (highest priority)
+            if query_lower in concept['title'].lower():
+                score += 100
+
+            # Description match
+            if query_lower in concept['description'].lower():
+                score += 50
+
+            # Tags match
+            for tag in concept['tags']:
+                if query_lower in tag.lower():
+                    score += 30
+
+            # Body match
+            if query_lower in concept['body'].lower():
+                score += 10
+
+            # Type match
+            if query_lower == concept['type'].lower():
+                score += 20
+
+            if score > 0:
+                results.append({
+                    **concept,
+                    'score': score
+                })
+
+        # Sort by score
+        results.sort(key=lambda x: x['score'], reverse=True)
+
+        return results
+
+
+class KnowledgeVisualizer:
+    """Generates interactive knowledge graph HTML."""
+
+    def __init__(self, kb_dir: Path, output_path: Path):
+        self.kb_dir = kb_dir
+        self.output_path = output_path
+        self.validator = OKFValidator()
+
+    def visualize(self, name: Optional[str] = None) -> bool:
+        print(f"📊 Generating knowledge graph: {self.kb_dir}")
+        print(f"   Output: {self.output_path}")
+
+        # Validate and load concepts
+        is_valid, errors, warnings = self.validator.validate_bundle(self.kb_dir)
+
+        if not self.validator.concepts:
+            print("   No concepts found in knowledge base")
+            return False
+
+        print(f"   Concepts: {len(self.validator.concepts)}")
+
+        # Generate HTML
+        html_content = self._generate_html(name or self.kb_dir.name)
+
+        # Write output
+        self.output_path.parent.mkdir(parents=True, exist_ok=True)
+        self.output_path.write_text(html_content, encoding='utf-8')
+
+        print(f"\n✅ Visualization created: {self.output_path}")
+        print(f"   Open in browser to view interactive graph")
+
+        return True
+
+    def _generate_html(self, name: str) -> str:
+        """Generate single-file HTML visualization."""
+
+        # Prepare nodes and edges for Cytoscape.js
+        nodes = []
+        edges = []
+
+        # Color mapping for types
+        type_colors = {
+            'method': '#3498db',
+            'fact': '#2ecc71',
+            'definition': '#9b59b6',
+            'opinion': '#e74c3c',
+            'data': '#f39c12',
+            'question': '#1abc9c',
+            'reference': '#34495e'
+        }
+
+        for concept in self.validator.concepts:
+            node_id = concept['id']
+            node_type = concept['type']
+            color = type_colors.get(node_type, '#95a5a6')
+
+            nodes.append({
+                'data': {
+                    'id': node_id,
+                    'label': concept['title'][:30],
+                    'type': node_type,
+                    'description': concept['description'],
+                    'path': concept['path'],
+                    'color': color
+                }
+            })
+
+            # Add edges from links
+            for link in concept.get('links', []):
+                # Normalize link to node id
+                target_id = link.replace('.md', '').replace('/', '').replace('./', '')
+                if target_id:
+                    edges.append({
+                        'data': {
+                            'id': f"{node_id}->{target_id}",
+                            'source': node_id,
+                            'target': target_id
+                        }
+                    })
+
+        # Build nodes JSON
+        nodes_json = json.dumps(nodes)
+        edges_json = json.dumps(edges)
+        escaped_name = html.escape(name)
+
+        # Generate HTML template using string concatenation to avoid f-string issues
+        html_content = '''<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>''' + escaped_name + ''' - Knowledge Graph</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            display: flex;
+        }
+        #sidebar {
+            width: 300px;
+            background: #fff;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+        }
+        #header {
+            padding: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+        #header h1 { font-size: 18px; margin-bottom: 5px; }
+        #header p { color: #666; font-size: 14px; }
+        #search { padding: 10px 20px; border-bottom: 1px solid #ddd; }
+        #search input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        #filters { padding: 10px 20px; border-bottom: 1px solid #ddd; }
+        #filters label {
+            display: inline-block;
+            margin: 2px 4px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        #stats { padding: 10px 20px; border-bottom: 1px solid #ddd; font-size: 12px; color: #666; }
+        #detail {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        #detail h2 { margin-bottom: 10px; }
+        #detail .meta { color: #666; font-size: 14px; margin-bottom: 10px; }
+        #graph { flex: 1; background: #fff; }
+        .type-method { background: #3498db; color: #fff; }
+        .type-fact { background: #2ecc71; color: #fff; }
+        .type-definition { background: #9b59b6; color: #fff; }
+        .type-opinion { background: #e74c3c; color: #fff; }
+        .type-data { background: #f39c12; color: #fff; }
+        .type-question { background: #1abc9c; color: #fff; }
+        .type-reference { background: #34495e; color: #fff; }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <div id="header">
+            <h1>''' + escaped_name + '''</h1>
+            <p>Knowledge Graph Visualization</p>
+        </div>
+        <div id="search">
+            <input type="text" placeholder="Search..." id="searchInput">
+        </div>
+        <div id="filters">
+            <label class="type-method"><input type="checkbox" checked data-type="method"> method</label>
+            <label class="type-fact"><input type="checkbox" checked data-type="fact"> fact</label>
+            <label class="type-definition"><input type="checkbox" checked data-type="definition"> definition</label>
+            <label class="type-opinion"><input type="checkbox" checked data-type="opinion"> opinion</label>
+            <label class="type-data"><input type="checkbox" checked data-type="data"> data</label>
+            <label class="type-question"><input type="checkbox" checked data-type="question"> question</label>
+            <label class="type-reference"><input type="checkbox" checked data-type="reference"> reference</label>
+        </div>
+        <div id="stats">
+            Concepts: ''' + str(len(nodes)) + ''' | Links: ''' + str(len(edges)) + '''
+        </div>
+        <div id="detail">
+            <p style="color: #999;">Click a node to view details</p>
+        </div>
+    </div>
+    <div id="graph"></div>
+    <script>
+        var nodes = ''' + nodes_json + ''';
+        var edges = ''' + edges_json + ''';
+        var cy = cytoscape({
+            container: document.getElementById('graph'),
+            elements: nodes.concat(edges),
+            style: [
+                {selector: 'node', style: {
+                    'label': 'data(label)',
+                    'background-color': 'data(color)',
+                    'width': 60, 'height': 60,
+                    'font-size': 10,
+                    'text-valign': 'center',
+                    'text-halign': 'center',
+                    'color': '#fff'
+                }},
+                {selector: 'edge', style: {
+                    'width': 1,
+                    'line-color': '#ccc',
+                    'curve-style': 'bezier'
+                }}
+            ],
+            layout: {name: 'cose', animate: true, animationDuration: 500}
+        });
+        cy.on('tap', 'node', function(evt) {
+            var node = evt.target;
+            var data = node.data();
+            document.getElementById('detail').innerHTML =
+                '<h2>' + data.label + '</h2>' +
+                '<div class="meta"><span class="type-' + data.type + '">' + data.type + '</span> | ' + data.path + '</div>' +
+                '<p>' + data.description + '</p>';
+        });
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            var query = e.target.value.toLowerCase();
+            cy.nodes().forEach(function(node) {
+                var label = node.data('label').toLowerCase();
+                node.style('display', (query && label.indexOf(query) === -1) ? 'none' : 'element');
+            });
+        });
+        document.querySelectorAll('#filters input').forEach(function(input) {
+            input.addEventListener('change', function() {
+                var type = this.dataset.type;
+                var checked = this.checked;
+                cy.nodes().forEach(function(node) {
+                    if (node.data('type') === type) {
+                        node.style('display', checked ? 'element' : 'none');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>'''
+
+        return html_content
+
+
+# === Command Functions ===
+
 def cmd_init(args):
     kb_dir = Path(args.knowledge_base)
     initializer = KBInitializer(kb_dir)
@@ -516,24 +1189,27 @@ def cmd_init(args):
     sys.exit(0 if success else 1)
 
 
-def cmd_export(args):
+def cmd_ingest(args):
     kb_dir = Path(args.knowledge_base)
-    output_path = Path(args.output) if args.output else None
+    source_path = Path(args.source)
 
-    exporter = OKFExporter(kb_dir, output_path)
-    success = exporter.export(
-        validate=args.validate and not args.no_validate,
-        force=args.force
+    ingestor = KnowledgeIngestor(kb_dir, source_path)
+    success = ingestor.ingest(
+        auto_detect_type=args.auto_type,
+        default_type=args.type
     )
     sys.exit(0 if success else 1)
 
 
-def cmd_import(args):
-    bundle_path = Path(args.bundle)
-    output_dir = Path(args.output) if args.output else Path('.')
+def cmd_query(args):
+    kb_dir = Path(args.knowledge_base)
 
-    importer = OKFImporter(bundle_path, output_dir)
-    success = importer.import_bundle(overwrite=args.overwrite)
+    querier = KnowledgeQuerier(kb_dir)
+    success = querier.query(
+        query_str=args.query,
+        limit=args.limit,
+        by_type=args.type
+    )
     sys.exit(0 if success else 1)
 
 
@@ -579,6 +1255,36 @@ def cmd_index(args):
     sys.exit(0 if success else 1)
 
 
+def cmd_export(args):
+    kb_dir = Path(args.knowledge_base)
+    output_path = Path(args.output) if args.output else None
+
+    exporter = OKFExporter(kb_dir, output_path)
+    success = exporter.export(
+        validate=args.validate and not args.no_validate,
+        force=args.force
+    )
+    sys.exit(0 if success else 1)
+
+
+def cmd_import(args):
+    bundle_path = Path(args.bundle)
+    output_dir = Path(args.output) if args.output else Path('.')
+
+    importer = OKFImporter(bundle_path, output_dir)
+    success = importer.import_bundle(overwrite=args.overwrite)
+    sys.exit(0 if success else 1)
+
+
+def cmd_visualize(args):
+    kb_dir = Path(args.knowledge_base)
+    output_path = Path(args.output) if args.output else kb_dir / 'views' / 'knowledge-graph.html'
+
+    visualizer = KnowledgeVisualizer(kb_dir, output_path)
+    success = visualizer.visualize(name=args.name)
+    sys.exit(0 if success else 1)
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog='llm-wiki',
@@ -593,6 +1299,34 @@ def main():
     init_parser = subparsers.add_parser('init', help='初始化知识库')
     init_parser.add_argument('knowledge_base', type=Path, help='知识库目录路径')
     init_parser.set_defaults(func=cmd_init)
+
+    # ingest command
+    ingest_parser = subparsers.add_parser('ingest', help='摄入资料提取原子')
+    ingest_parser.add_argument('knowledge_base', type=Path, help='知识库目录路径')
+    ingest_parser.add_argument('source', type=Path, help='源文件路径')
+    ingest_parser.add_argument('--type', '-t', default='method', help='原子类型（默认: method）')
+    ingest_parser.add_argument('--auto-type', action='store_true', default=True, help='自动检测类型')
+    ingest_parser.set_defaults(func=cmd_ingest)
+
+    # query command
+    query_parser = subparsers.add_parser('query', help='搜索查询知识')
+    query_parser.add_argument('knowledge_base', type=Path, help='知识库目录路径')
+    query_parser.add_argument('query', help='查询关键词')
+    query_parser.add_argument('--type', '-t', help='按类型过滤')
+    query_parser.add_argument('--limit', '-l', type=int, default=10, help='结果数量限制')
+    query_parser.set_defaults(func=cmd_query)
+
+    # lint command
+    lint_parser = subparsers.add_parser('lint', help='OKF 兼容性检查')
+    lint_parser.add_argument('knowledge_base', type=Path, help='知识库目录路径')
+    lint_parser.add_argument('--okf-check', action='store_true', help='显示 OKF 规范检查详情')
+    lint_parser.set_defaults(func=cmd_lint)
+
+    # index command
+    index_parser = subparsers.add_parser('index', help='生成目录索引')
+    index_parser.add_argument('knowledge_base', type=Path, help='知识库目录路径')
+    index_parser.add_argument('--directory', '-d', type=Path, help='指定目录')
+    index_parser.set_defaults(func=cmd_index)
 
     # export command
     export_parser = subparsers.add_parser('export', help='导出为 OKF Bundle')
@@ -610,17 +1344,12 @@ def main():
     import_parser.add_argument('--overwrite', action='store_true', help='覆盖现有文件')
     import_parser.set_defaults(func=cmd_import)
 
-    # lint command
-    lint_parser = subparsers.add_parser('lint', help='OKF 兼容性检查')
-    lint_parser.add_argument('knowledge_base', type=Path, help='知识库目录路径')
-    lint_parser.add_argument('--okf-check', action='store_true', help='显示 OKF 规范检查详情')
-    lint_parser.set_defaults(func=cmd_lint)
-
-    # index command
-    index_parser = subparsers.add_parser('index', help='生成目录索引')
-    index_parser.add_argument('knowledge_base', type=Path, help='知识库目录路径')
-    index_parser.add_argument('--directory', '-d', type=Path, help='指定目录')
-    index_parser.set_defaults(func=cmd_index)
+    # visualize command
+    visualize_parser = subparsers.add_parser('visualize', help='生成知识图谱可视化')
+    visualize_parser.add_argument('knowledge_base', type=Path, help='知识库目录路径')
+    visualize_parser.add_argument('--output', '-o', type=Path, help='输出 HTML 文件路径')
+    visualize_parser.add_argument('--name', '-n', help='图谱名称')
+    visualize_parser.set_defaults(func=cmd_visualize)
 
     args = parser.parse_args()
 
