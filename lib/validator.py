@@ -107,16 +107,33 @@ class OKFValidator:
             self.errors.append((str(rel_path), f"Parse error: {e}"))
 
     def _extract_links(self, body: str) -> List[str]:
-        """Extract markdown links from body."""
+        """Extract markdown links from body, excluding code blocks and non-md links."""
+        # Remove code blocks first (both ``` and ```bash style)
+        body_without_code = re.sub(r'```[\s\S]*?```', '', body)
+        body_without_code = re.sub(r'`[^`]+`', '', body_without_code)
+
         # Match [[link]] and [text](link) formats
-        wiki_links = re.findall(r'\[\[([^\]]+)\]\]', body)
-        md_links = re.findall(r'\]\(([^\)]+)\)', body)
+        wiki_links = re.findall(r'\[\[([^\]]+)\]\]', body_without_code)
+        md_links = re.findall(r'\]\(([^\)]+)\)', body_without_code)
 
         all_links = []
         for link in wiki_links:
+            # Wiki links are typically internal references
             all_links.append(link)
         for link in md_links:
-            if link.startswith('/') or link.startswith('./') or not link.startswith('http'):
+            # Only include markdown links that point to .md files or internal paths
+            # Exclude PDFs, images, and other external resources
+            if (link.endswith('.md') or
+                (not link.startswith('http') and
+                 not link.endswith('.pdf') and
+                 not link.endswith('.png') and
+                 not link.endswith('.jpg') and
+                 not link.endswith('.jpeg') and
+                 not link.endswith('.gif') and
+                 not link.endswith('.svg') and
+                 not link.endswith('.zip') and
+                 not link.endswith('.tar') and
+                 not '.' in link.split('/')[-1])):  # No extension in filename
                 all_links.append(link)
 
         return all_links

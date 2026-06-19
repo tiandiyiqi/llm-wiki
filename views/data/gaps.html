@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>缺口视图 - LLM Wiki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div x-data="gapsApp()" x-init="init()" x-cloak class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">知识缺口分析</h1>
+            <p class="text-gray-600 mt-2">识别需要补充或验证的知识缺口</p>
+        </header>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                        <span class="text-red-600 font-bold text-xl" x-text="highGaps.length"></span>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">高优先级缺口</p>
+                        <p class="text-xs text-red-600">需要立即处理</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center">
+                        <span class="text-yellow-600 font-bold text-xl" x-text="mediumGaps.length"></span>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">中优先级缺口</p>
+                        <p class="text-xs text-yellow-600">建议近期处理</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                        <span class="text-blue-600 font-bold text-xl" x-text="lowGaps.length"></span>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">低优先级缺口</p>
+                        <p class="text-xs text-blue-600">可延后处理</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Health Tips -->
+        <div class="bg-white rounded-lg shadow p-4 mb-6 border-l-4 border-blue-500">
+            <h3 class="font-semibold text-gray-800 mb-2">健康提示</h3>
+            <ul class="text-sm text-gray-600 space-y-1">
+                <li x-show="highGaps.length > 0">• 有 <span class="font-bold text-red-600" x-text="highGaps.length"></span> 个高优先级缺口需要立即关注</li>
+                <li x-show="unverifiedAtoms > 0">• 有 <span class="font-bold text-yellow-600" x-text="unverifiedAtoms"></span> 个原子待验证</li>
+                <li x-show="lowConfidenceAtoms > 0">• 有 <span class="font-bold text-orange-600" x-text="lowConfidenceAtoms"></span> 个低置信度原子</li>
+                <li x-show="gaps.length === 0" class="text-green-600">• 知识库健康状态良好，无缺口</li>
+            </ul>
+        </div>
+
+        <!-- Priority Tabs -->
+        <div class="bg-white rounded-lg shadow">
+            <!-- Tabs Header -->
+            <div class="border-b">
+                <div class="flex gap-0">
+                    <button @click="activeTab = 'high'" :class="activeTab === 'high' ? 'bg-red-50 text-red-700 border-b-2 border-red-500' : 'text-gray-600'" class="px-6 py-3 font-medium">
+                        高优先级 (<span x-text="highGaps.length"></span>)
+                    </button>
+                    <button @click="activeTab = 'medium'" :class="activeTab === 'medium' ? 'bg-yellow-50 text-yellow-700 border-b-2 border-yellow-500' : 'text-gray-600'" class="px-6 py-3 font-medium">
+                        中优先级 (<span x-text="mediumGaps.length"></span>)
+                    </button>
+                    <button @click="activeTab = 'low'" :class="activeTab === 'low' ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-500' : 'text-gray-600'" class="px-6 py-3 font-medium">
+                        低优先级 (<span x-text="lowGaps.length"></span>)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabs Content -->
+            <div class="p-4">
+                <!-- High Priority -->
+                <div x-show="activeTab === 'high'" class="space-y-3">
+                    <template x-for="gap in highGaps" :key="gap.id">
+                        <div class="flex items-start gap-3 p-3 rounded border border-red-200 bg-red-50">
+                            <div class="flex-shrink-0">
+                                <svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" clip-rule="evenodd"/>
+                                </svg>
+                            </div>
+                            <div class="flex-grow">
+                                <h4 class="font-semibold text-gray-800" x-text="gap.title || gap.id"></h4>
+                                <p class="text-sm text-gray-600 mt-1" x-text="gap.description || gap.reason"></p>
+                                <p x-show="gap.suggestion" class="text-xs text-gray-500 mt-2 italic" x-text="'建议: ' + gap.suggestion"></p>
+                            </div>
+                            <div class="flex-shrink-0 text-xs text-gray-500" x-text="gap.type"></div>
+                        </div>
+                    </template>
+                    <div x-show="highGaps.length === 0" class="text-center py-8 text-gray-500">
+                        无高优先级缺口
+                    </div>
+                </div>
+
+                <!-- Medium Priority -->
+                <div x-show="activeTab === 'medium'" class="space-y-3">
+                    <template x-for="gap in mediumGaps" :key="gap.id">
+                        <div class="flex items-start gap-3 p-3 rounded border border-yellow-200 bg-yellow-50">
+                            <div class="flex-shrink-0">
+                                <svg class="w-5 h-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                </svg>
+                            </div>
+                            <div class="flex-grow">
+                                <h4 class="font-semibold text-gray-800" x-text="gap.title || gap.id"></h4>
+                                <p class="text-sm text-gray-600 mt-1" x-text="gap.description || gap.reason"></p>
+                                <p x-show="gap.suggestion" class="text-xs text-gray-500 mt-2 italic" x-text="'建议: ' + gap.suggestion"></p>
+                            </div>
+                            <div class="flex-shrink-0 text-xs text-gray-500" x-text="gap.type"></div>
+                        </div>
+                    </template>
+                    <div x-show="mediumGaps.length === 0" class="text-center py-8 text-gray-500">
+                        无中优先级缺口
+                    </div>
+                </div>
+
+                <!-- Low Priority -->
+                <div x-show="activeTab === 'low'" class="space-y-3">
+                    <template x-for="gap in lowGaps" :key="gap.id">
+                        <div class="flex items-start gap-3 p-3 rounded border border-blue-200 bg-blue-50">
+                            <div class="flex-shrink-0">
+                                <svg class="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd"/>
+                                </svg>
+                            </div>
+                            <div class="flex-grow">
+                                <h4 class="font-semibold text-gray-800" x-text="gap.title || gap.id"></h4>
+                                <p class="text-sm text-gray-600 mt-1" x-text="gap.description || gap.reason"></p>
+                                <p x-show="gap.suggestion" class="text-xs text-gray-500 mt-2 italic" x-text="'建议: ' + gap.suggestion"></p>
+                            </div>
+                            <div class="flex-shrink-0 text-xs text-gray-500" x-text="gap.type"></div>
+                        </div>
+                    </template>
+                    <div x-show="lowGaps.length === 0" class="text-center py-8 text-gray-500">
+                        无低优先级缺口
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function gapsApp() {
+            return {
+                gaps: [],
+                atoms: [],
+                activeTab: 'high',
+                highGaps: [],
+                mediumGaps: [],
+                lowGaps: [],
+                unverifiedAtoms: 0,
+                lowConfidenceAtoms: 0,
+
+                async init() {
+                    try {
+                        // 注意：gaps.html 位于 views/data/ 目录
+                        // gaps.json 也位于同一目录，所以使用相对路径 'gaps.json'
+                        const gapsRes = await fetch('gaps.json');
+                        this.gaps = await gapsRes.json();
+
+                        // 也加载 atoms.json 用于健康分析
+                        try {
+                            const atomsRes = await fetch('atoms.json');
+                            this.atoms = await atomsRes.json();
+                            this.analyzeHealth();
+                        } catch {
+                            // atoms.json 可能不存在
+                        }
+
+                        this.categorizeGaps();
+                    } catch (err) {
+                        console.error('加载 gaps.json 失败:', err);
+                    }
+                },
+
+                categorizeGaps() {
+                    this.highGaps = this.gaps.filter(g => g.priority === 'high' || g.severity === 'critical');
+                    this.mediumGaps = this.gaps.filter(g => g.priority === 'medium' || g.severity === 'warning');
+                    this.lowGaps = this.gaps.filter(g => g.priority === 'low' || g.severity === 'info' || (!g.priority && !g.severity));
+                },
+
+                analyzeHealth() {
+                    this.unverifiedAtoms = this.atoms.filter(a => !a.verified).length;
+                    this.lowConfidenceAtoms = this.atoms.filter(a => a.confidence < 0.7).length;
+                }
+            };
+        }
+    </script>
+</body>
+</html>

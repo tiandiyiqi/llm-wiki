@@ -85,10 +85,38 @@ class KnowledgeVisualizer:
                 'color': color
             })
 
-            # Add edges from links
+        # Second pass: add edges from links (need all nodes first)
+        for concept in self.validator.concepts:
+            node_id = concept['id']
+
             for link in concept.get('links', []):
-                # Normalize link to node id
-                target_id = link.replace('.md', '').replace('/', '').replace('./', '')
+                # Normalize link to potential node ids
+                # Link could be: "nextcloud-server-cache-factory" or "atoms/methods/nextcloud-server-cache-factory"
+                target_candidates = []
+
+                # Try exact match first
+                target_candidates.append(link.replace('.md', ''))
+
+                # Try with ./ prefix removed
+                if link.startswith('./'):
+                    target_candidates.append(link[2:].replace('.md', ''))
+
+                # Try to find matching node in the nodes list
+                target_id = None
+                for candidate in target_candidates:
+                    # Check if this candidate matches any existing node
+                    for existing_node in nodes:
+                        existing_id = existing_node['id']
+                        # Match if candidate equals the node id or is the last part of the id
+                        if (candidate == existing_id or
+                            candidate == existing_id.split('/')[-1] or
+                            existing_id.endswith('/' + candidate)):
+                            target_id = existing_id
+                            break
+                    if target_id:
+                        break
+
+                # Only add edge if we found a valid target
                 if target_id:
                     edges.append({
                         'id': f"{node_id}->{target_id}",
@@ -164,10 +192,35 @@ class KnowledgeVisualizer:
                 }
             })
 
-            # Add edges from links
+            # Add edges from links - only add edges to existing nodes
             for link in concept.get('links', []):
-                # Normalize link to node id
-                target_id = link.replace('.md', '').replace('/', '').replace('./', '')
+                # Normalize link to potential node ids
+                # Link could be: "nextcloud-server-cache-factory" or "atoms/methods/nextcloud-server-cache-factory"
+                target_candidates = []
+
+                # Try exact match first
+                target_candidates.append(link.replace('.md', ''))
+
+                # Try with ./ prefix removed
+                if link.startswith('./'):
+                    target_candidates.append(link[2:].replace('.md', ''))
+
+                # Try to find matching node in the concepts list
+                target_id = None
+                for candidate in target_candidates:
+                    # Check if this candidate matches any existing node
+                    for existing_node in nodes:
+                        existing_id = existing_node['data']['id']
+                        # Match if candidate equals the node id or is the last part of the id
+                        if (candidate == existing_id or
+                            candidate == existing_id.split('/')[-1] or
+                            existing_id.endswith('/' + candidate)):
+                            target_id = existing_id
+                            break
+                    if target_id:
+                        break
+
+                # Only add edge if we found a valid target
                 if target_id:
                     edges.append({
                         'data': {
@@ -198,6 +251,20 @@ class KnowledgeVisualizer:
             height: 100vh;
             display: flex;
         }
+        #back-link {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: #fff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            font-size: 13px;
+            color: #666;
+            text-decoration: none;
+        }
+        #back-link:hover { color: #3498db; }
         #sidebar {
             width: 300px;
             background: #fff;
@@ -294,7 +361,17 @@ class KnowledgeVisualizer:
                     'curve-style': 'bezier'
                 }}
             ],
-            layout: {name: 'cose', animate: true, animationDuration: 500}
+            layout: {
+                name: 'cose',
+                animate: false,
+                randomize: true,
+                fit: true,
+                padding: 30,
+                idealEdgeLength: 100,
+                nodeOverlap: 20,
+                refresh: 20,
+                maxSimulationTime: 4000
+            }
         });
         cy.on('tap', 'node', function(evt) {
             var node = evt.target;

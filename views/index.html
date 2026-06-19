@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Wiki - 知识库浏览</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.x.x/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        [x-cloak] { display: none !important; }
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .prose-sm { font-size: 0.875rem; line-height: 1.5; }
+        .prose-sm h1, .prose-sm h2, .prose-sm h3 { font-weight: 600; margin-top: 0.5em; margin-bottom: 0.25em; }
+        .prose-sm p { margin: 0.25em 0; }
+        .prose-sm code { background: #f3f4f6; padding: 0.1em 0.3em; border-radius: 3px; font-size: 0.85em; }
+        .prose-sm pre { background: #f3f4f6; padding: 0.5em; border-radius: 4px; overflow-x: auto; }
+        .prose-sm ul, .prose-sm ol { padding-left: 1.5em; margin: 0.25em 0; }
+        .prose-sm a { color: #2563eb; text-decoration: underline; }
+        .prose-sm blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75em; color: #6b7280; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen" x-data="app()" x-cloak>
+
+<!-- Header -->
+<header class="bg-white shadow-sm border-b border-gray-200 fixed top-0 left-0 right-0 z-50">
+    <div class="flex items-center justify-between px-4 py-3">
+        <h1 class="text-xl font-semibold text-gray-800">📚 LLM Wiki</h1>
+        <div class="flex items-center space-x-4">
+            <span class="text-sm text-gray-500" x-text="atoms.length + ' 个原子'"></span>
+            <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">静态浏览</span>
+        </div>
+    </div>
+</header>
+
+<div class="flex pt-14">
+    <!-- Sidebar -->
+    <aside class="w-48 bg-white border-r border-gray-200 fixed left-0 top-14 bottom-0 overflow-y-auto">
+        <nav class="p-4">
+            <div class="space-y-1">
+                <button @click="view='browse'"
+                        :class="view === 'browse' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'"
+                        class="w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                    📚 浏览
+                </button>
+                <button @click="view='graph'"
+                        :class="view === 'graph' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'"
+                        class="w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                    🕸️ 图谱
+                </button>
+                <button @click="view='timeline'"
+                        :class="view === 'timeline' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'"
+                        class="w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                    📅 时间线
+                </button>
+                <button @click="view='gaps'"
+                        :class="view === 'gaps' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'"
+                        class="w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                    🔍 缺口
+                    <span class="ml-1 text-xs bg-yellow-100 text-yellow-700 px-1 rounded"
+                          x-text="gaps.length" x-show="gaps.length > 0"></span>
+                </button>
+            </div>
+
+            <!-- Heads Up -->
+            <div class="mt-6 pt-4 border-t border-gray-200">
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Heads Up</h3>
+                <div class="space-y-1">
+                    <template x-for="gap in gaps.slice(0, 5)" :key="gap.description">
+                        <div class="text-xs text-gray-600 px-3 py-1 hover:bg-gray-50 rounded cursor-pointer"
+                             @click="view='gaps'">
+                            💡 <span x-text="gap.description ? gap.description.slice(0, 30) + '...' : ''"></span>
+                        </div>
+                    </template>
+                    <div x-show="gaps.length === 0" class="text-xs text-gray-400 px-3">
+                        暂无推荐
+                    </div>
+                </div>
+            </div>
+
+            <!-- 类型统计 -->
+            <div class="mt-6 pt-4 border-t border-gray-200">
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">类型分布</h3>
+                <div class="space-y-1">
+                    <template x-for="item in typeStats" :key="item.type">
+                        <div class="flex items-center justify-between px-3 py-1 text-xs">
+                            <span class="text-gray-600" x-text="item.type"></span>
+                            <span class="text-gray-400" x-text="item.count"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="ml-48 flex-1 p-6">
+
+        <!-- 浏览视图 -->
+        <div x-show="view === 'browse'" x-cloak>
+            <div class="grid grid-cols-3 gap-6">
+                <!-- 原子列表 -->
+                <div class="col-span-2">
+                    <div class="bg-white rounded-lg shadow">
+                        <div class="p-4 border-b border-gray-200">
+                            <div class="flex items-center justify-between">
+                                <h2 class="text-lg font-medium text-gray-900">知识原子</h2>
+                                <select x-model="typeFilter" class="text-sm border border-gray-300 rounded-md px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="">全部类型</option>
+                                    <template x-for="type in types" :key="type">
+                                        <option :value="type" x-text="type"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="divide-y divide-gray-200 max-h-[calc(100vh-250px)] overflow-y-auto">
+                            <template x-for="atom in filteredAtoms" :key="atom.id">
+                                <div @click="selectAtom(atom)"
+                                     :class="selectedAtom && selectedAtom.id === atom.id ? 'bg-blue-50 border-l-4 border-blue-500' : 'hover:bg-gray-50 border-l-4 border-transparent'"
+                                     class="p-4 cursor-pointer transition-colors">
+                                    <div class="flex items-start">
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex items-center space-x-2">
+                                                <span class="inline-block px-2 py-0.5 text-xs rounded"
+                                                      :class="typeColor(atom.type)"
+                                                      x-text="atom.type"></span>
+                                                <h3 class="text-sm font-medium text-gray-900 truncate" x-text="atom.title"></h3>
+                                            </div>
+                                            <p class="mt-1 text-xs text-gray-500 line-clamp-2" x-text="atom.description || '无描述'"></p>
+                                            <div class="mt-2 flex items-center space-x-2" x-show="atom.tags && atom.tags.length > 0">
+                                                <template x-for="tag in atom.tags ? atom.tags.slice(0, 3) : []" :key="tag">
+                                                    <span class="inline-block px-1.5 py-0.5 text-xs rounded bg-blue-50 text-blue-600"
+                                                          x-text="tag"></span>
+                                                </template>
+                                                <span x-show="atom.tags && atom.tags.length > 3"
+                                                      class="text-xs text-gray-400"
+                                                      x-text="'+' + (atom.tags.length - 3)"></span>
+                                            </div>
+                                        </div>
+                                        <div class="ml-2 flex-shrink-0" x-show="atom.confidence">
+                                            <span class="text-xs"
+                                                  :class="atom.confidence >= 0.8 ? 'text-green-600' : atom.confidence >= 0.5 ? 'text-yellow-600' : 'text-red-600'"
+                                                  x-text="Math.round(atom.confidence * 100) + '%'"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                            <div x-show="filteredAtoms.length === 0" class="p-8 text-center text-gray-400">
+                                没有找到匹配的原子
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 详情面板 -->
+                <div class="col-span-1">
+                    <div class="bg-white rounded-lg shadow sticky top-20" x-show="selectedAtom">
+                        <div class="p-4 border-b border-gray-200">
+                            <h2 class="text-lg font-medium text-gray-900" x-text="selectedAtom ? selectedAtom.title : ''"></h2>
+                        </div>
+                        <div class="p-4 space-y-4">
+                            <div>
+                                <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">类型</label>
+                                <p class="mt-1">
+                                    <span class="inline-block px-2 py-0.5 text-xs rounded"
+                                          :class="selectedAtom ? typeColor(selectedAtom.type) : ''"
+                                          x-text="selectedAtom ? selectedAtom.type : ''"></span>
+                                </p>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">路径</label>
+                                <p class="mt-1 text-sm text-gray-600 font-mono break-all" x-text="selectedAtom ? selectedAtom.path : ''"></p>
+                            </div>
+                            <div x-show="selectedAtom && selectedAtom.description">
+                                <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">描述</label>
+                                <p class="mt-1 text-sm text-gray-700" x-text="selectedAtom ? selectedAtom.description : ''"></p>
+                            </div>
+                            <div x-show="selectedAtom && selectedAtom.confidence">
+                                <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">置信度</label>
+                                <p class="mt-1 text-sm">
+                                    <span :class="selectedAtom && selectedAtom.confidence >= 0.8 ? 'text-green-600' : selectedAtom && selectedAtom.confidence >= 0.5 ? 'text-yellow-600' : 'text-red-600'"
+                                          x-text="selectedAtom ? Math.round(selectedAtom.confidence * 100) + '%' : ''"></span>
+                                </p>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">内容预览</label>
+                                <div class="mt-1 text-sm text-gray-700 prose prose-sm max-w-none"
+                                     x-html="selectedAtom && selectedAtom.content ? marked.parse(selectedAtom.content) : ''"></div>
+                            </div>
+                            <div x-show="selectedAtom && selectedAtom.tags && selectedAtom.tags.length > 0">
+                                <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">标签</label>
+                                <div class="mt-1 flex flex-wrap gap-1">
+                                    <template x-for="tag in selectedAtom ? (selectedAtom.tags || []) : []" :key="tag">
+                                        <span class="inline-block px-2 py-0.5 text-xs rounded bg-blue-50 text-blue-600"
+                                              x-text="tag"></span>
+                                    </template>
+                                </div>
+                            </div>
+                            <div x-show="selectedAtom && selectedAtom.timestamp">
+                                <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">时间</label>
+                                <p class="mt-1 text-xs text-gray-500" x-text="selectedAtom ? selectedAtom.timestamp : ''"></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div x-show="!selectedAtom" class="bg-white rounded-lg shadow p-8 text-center text-gray-400">
+                        点击左侧原子查看详情
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图谱视图 -->
+        <div x-show="view === 'graph'" x-cloak>
+            <iframe src="knowledge-graph.html" class="w-full border-0 rounded-lg shadow"
+                    style="height: calc(100vh - 120px);"
+                    sandbox="allow-scripts allow-same-origin"></iframe>
+        </div>
+
+        <!-- 时间线视图 -->
+        <div x-show="view === 'timeline'" x-cloak>
+            <iframe src="timeline.html" class="w-full border-0 rounded-lg shadow"
+                    style="height: calc(100vh - 120px);"
+                    sandbox="allow-scripts allow-same-origin"></iframe>
+        </div>
+
+        <!-- 缺口视图 -->
+        <div x-show="view === 'gaps'" x-cloak>
+            <div class="bg-white rounded-lg shadow">
+                <div class="p-4 border-b border-gray-200">
+                    <h2 class="text-lg font-medium text-gray-900">知识缺口</h2>
+                </div>
+                <div class="divide-y divide-gray-200">
+                    <template x-for="gap in gaps" :key="gap.description">
+                        <div class="p-4">
+                            <div class="flex items-start">
+                                <span class="inline-block px-2 py-0.5 text-xs rounded mr-3 flex-shrink-0"
+                                      :class="gap.severity === 'high' ? 'bg-red-100 text-red-800' : gap.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'"
+                                      x-text="gap.severity"></span>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-xs text-gray-500" x-text="gap.type"></span>
+                                        <span x-show="gap.title" class="text-sm font-medium text-gray-900" x-text="gap.title"></span>
+                                    </div>
+                                    <p class="mt-1 text-sm text-gray-700" x-text="gap.description"></p>
+                                    <p x-show="gap.suggestion" class="mt-1 text-xs text-gray-500" x-text="gap.suggestion"></p>
+                                    <p x-show="gap.path" class="mt-1 text-xs text-gray-400 font-mono" x-text="gap.path"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="gaps.length === 0" class="p-8 text-center text-gray-400">
+                        ✅ 未发现知识缺口
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script>
+function app() {
+    return {
+        view: 'browse',
+        atoms: [],
+        gaps: [],
+        selectedAtom: null,
+        typeFilter: '',
+        loading: true,
+
+        async init() {
+            await this.loadData();
+            this.loading = false;
+        },
+
+        async loadData() {
+            try {
+                const atomsRes = await fetch('data/atoms.json');
+                if (atomsRes.ok) {
+                    this.atoms = await atomsRes.json();
+                }
+            } catch (e) {
+                console.error('加载 atoms.json 失败:', e);
+            }
+
+            try {
+                const gapsRes = await fetch('data/gaps.json');
+                if (gapsRes.ok) {
+                    this.gaps = await gapsRes.json();
+                }
+            } catch (e) {
+                console.error('加载 gaps.json 失败:', e);
+            }
+        },
+
+        get filteredAtoms() {
+            if (!this.typeFilter) return this.atoms;
+            return this.atoms.filter(a => a.type === this.typeFilter);
+        },
+
+        get types() {
+            const typeSet = new Set(this.atoms.map(a => a.type));
+            return Array.from(typeSet).sort();
+        },
+
+        get typeStats() {
+            const counts = {};
+            for (const atom of this.atoms) {
+                counts[atom.type] = (counts[atom.type] || 0) + 1;
+            }
+            return Object.entries(counts)
+                .map(([type, count]) => ({ type, count }))
+                .sort((a, b) => b.count - a.count);
+        },
+
+        selectAtom(atom) {
+            this.selectedAtom = atom;
+        },
+
+        typeColor(type) {
+            const colors = {
+                'method': 'bg-blue-100 text-blue-800',
+                'fact': 'bg-green-100 text-green-800',
+                'definition': 'bg-purple-100 text-purple-800',
+                'opinion': 'bg-red-100 text-red-800',
+                'data': 'bg-orange-100 text-orange-800',
+                'question': 'bg-teal-100 text-teal-800',
+                'reference': 'bg-gray-100 text-gray-800',
+                'config': 'bg-yellow-100 text-yellow-800'
+            };
+            return colors[type] || 'bg-gray-100 text-gray-800';
+        }
+    }
+}
+</script>
+
+</body>
+</html>

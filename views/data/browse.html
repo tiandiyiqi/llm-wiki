@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>浏览视图 - LLM Wiki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div x-data="browseApp()" x-init="init()" x-cloak class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">浏览知识原子</h1>
+            <p class="text-gray-600 mt-2">按类型、标签搜索和浏览所有知识原子</p>
+        </header>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-lg shadow p-4 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Type Filter -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">类型</label>
+                    <select x-model="selectedType" @change="filterAtoms()" class="w-full border rounded px-3 py-2">
+                        <option value="">全部类型</option>
+                        <template x-for="type in types" :key="type">
+                            <option :value="type" x-text="type"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <!-- Tag Filter -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">标签</label>
+                    <select x-model="selectedTag" @change="filterAtoms()" class="w-full border rounded px-3 py-2">
+                        <option value="">全部标签</option>
+                        <template x-for="tag in tags" :key="tag">
+                            <option :value="tag" x-text="tag"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <!-- Search -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">搜索</label>
+                    <input x-model="searchQuery" @input="filterAtoms()" type="text" placeholder="搜索标题或描述..." class="w-full border rounded px-3 py-2">
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="bg-white rounded-lg shadow p-4 mb-6">
+            <div class="flex items-center gap-6">
+                <div>
+                    <span class="text-sm text-gray-500">总数</span>
+                    <span class="text-2xl font-bold text-gray-800 ml-2" x-text="filteredAtoms.length"></span>
+                </div>
+                <div>
+                    <span class="text-sm text-gray-500">类型</span>
+                    <span class="text-2xl font-bold text-blue-600 ml-2" x-text="types.length"></span>
+                </div>
+                <div>
+                    <span class="text-sm text-gray-500">标签</span>
+                    <span class="text-2xl font-bold text-green-600 ml-2" x-text="tags.length"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Atom List -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <template x-for="atom in filteredAtoms" :key="atom.id">
+                <div class="bg-white rounded-lg shadow hover:shadow-md transition p-4">
+                    <!-- Type Badge -->
+                    <div class="flex items-center gap-2 mb-2">
+                        <span :class="getTypeColor(atom.type)" class="px-2 py-1 rounded text-xs font-medium" x-text="atom.type"></span>
+                        <span x-show="atom.confidence >= 0.9" class="px-2 py-1 rounded bg-green-100 text-green-700 text-xs">高置信度</span>
+                    </div>
+
+                    <!-- Title -->
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2" x-text="atom.title"></h3>
+
+                    <!-- Description -->
+                    <p class="text-gray-600 text-sm mb-3 line-clamp-2" x-text="atom.description || '无描述'"></p>
+
+                    <!-- Tags -->
+                    <div class="flex flex-wrap gap-1 mb-3">
+                        <template x-for="tag in atom.tags" :key="tag">
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs" x-text="tag"></span>
+                        </template>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="flex items-center justify-between text-xs text-gray-500">
+                        <span x-text="formatDate(atom.timestamp)"></span>
+                        <span class="text-gray-400" x-text="atom.confidence.toFixed(2)"></span>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- Empty State -->
+        <div x-show="filteredAtoms.length === 0" class="text-center py-12">
+            <p class="text-gray-500">未找到符合条件的知识原子</p>
+        </div>
+    </div>
+
+    <script>
+        function browseApp() {
+            return {
+                atoms: [],
+                filteredAtoms: [],
+                types: [],
+                tags: [],
+                selectedType: '',
+                selectedTag: '',
+                searchQuery: '',
+
+                async init() {
+                    try {
+                        // 注意：browse.html 位于 views/data/ 目录
+                        // atoms.json 也位于同一目录，所以使用相对路径 'atoms.json'
+                        const res = await fetch('atoms.json');
+                        this.atoms = await res.json();
+                        this.extractTypesAndTags();
+                        this.filteredAtoms = this.atoms;
+                    } catch (err) {
+                        console.error('加载 atoms.json 失败:', err);
+                    }
+                },
+
+                extractTypesAndTags() {
+                    const typeSet = new Set();
+                    const tagSet = new Set();
+                    this.atoms.forEach(atom => {
+                        if (atom.type) typeSet.add(atom.type);
+                        if (atom.tags) atom.tags.forEach(tag => tagSet.add(tag));
+                    });
+                    this.types = Array.from(typeSet).sort();
+                    this.tags = Array.from(tagSet).sort();
+                },
+
+                filterAtoms() {
+                    this.filteredAtoms = this.atoms.filter(atom => {
+                        const matchType = !this.selectedType || atom.type === this.selectedType;
+                        const matchTag = !this.selectedTag || (atom.tags && atom.tags.includes(this.selectedTag));
+                        const matchSearch = !this.searchQuery ||
+                            atom.title.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+                            (atom.description && atom.description.toLowerCase().includes(this.searchQuery.toLowerCase()));
+                        return matchType && matchTag && matchSearch;
+                    });
+                },
+
+                getTypeColor(type) {
+                    const colors = {
+                        method: 'bg-blue-100 text-blue-700',
+                        fact: 'bg-green-100 text-green-700',
+                        definition: 'bg-purple-100 text-purple-700',
+                        opinion: 'bg-yellow-100 text-yellow-700',
+                        data: 'bg-orange-100 text-orange-700',
+                        question: 'bg-red-100 text-red-700',
+                        reference: 'bg-gray-100 text-gray-700'
+                    };
+                    return colors[type] || 'bg-gray-100 text-gray-700';
+                },
+
+                formatDate(timestamp) {
+                    if (!timestamp) return '未知时间';
+                    try {
+                        return new Date(timestamp).toLocaleDateString('zh-CN');
+                    } catch {
+                        return timestamp;
+                    }
+                }
+            };
+        }
+    </script>
+</body>
+</html>

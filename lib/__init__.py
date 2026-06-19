@@ -28,6 +28,8 @@ from .timeline import TimelineGenerator
 from .quick_capture import QuickCapture
 from .discovery import DiscoveryEngine
 from .watcher import KnowledgeWatcher
+from .web_data import WebDataExporter
+from .web_ui import create_web_ui
 
 __all__ = [
     'RESERVED_FILES',
@@ -52,5 +54,7 @@ __all__ = [
     'TimelineGenerator',
     'QuickCapture',
     'DiscoveryEngine',
-    'KnowledgeWatcher'
+    'KnowledgeWatcher',
+    'WebDataExporter',
+    'create_web_ui'
 ]

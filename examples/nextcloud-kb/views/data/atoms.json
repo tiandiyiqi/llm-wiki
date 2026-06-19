@@ -1,0 +1,33 @@
+[
+  {
+    "id": "atoms/methods/nextcloud-installation-ubuntu-apache",
+    "path": "atoms/methods/nextcloud-installation-ubuntu-apache.md",
+    "type": "method",
+    "title": "Nextcloud Ubuntu Apache Installation",
+    "description": "Standard installation process for Nextcloud on Ubuntu using Apache web server",
+    "tags": [
+      "installation",
+      "ubuntu",
+      "apache",
+      "nextcloud"
+    ],
+    "timestamp": "2026-06-18T10:00:00Z",
+    "confidence": 0,
+    "content": "# Nextcloud Ubuntu Apache Installation Guide\n\n## Overview\n\nThis guide covers the standard installation process for Nextcloud on Ubuntu Server using Apache as the web server.\n\n## Prerequisites\n\n- Ubuntu Server 22.04 or later\n- Apache 2.4+\n- PHP 8.0+\n- MySQL/MariaDB or PostgreSQL\n- root or sudo access\n\n## Installation Steps\n\n### 1. Install Apache and PHP\n\n```bash\nsudo apt update\nsudo apt install apache2 libapache2-mod-php\nsudo apt install php php-gd php-mysql php-curl php-mbstring php-intl\nsudo ap"
+  },
+  {
+    "id": "atoms/facts/nextcloud-system-requirements",
+    "path": "atoms/facts/nextcloud-system-requirements.md",
+    "type": "fact",
+    "title": "Nextcloud System Requirements",
+    "description": "Minimum and recommended system requirements for Nextcloud server",
+    "tags": [
+      "requirements",
+      "nextcloud",
+      "server"
+    ],
+    "timestamp": "2026-06-18T10:30:00Z",
+    "confidence": 0,
+    "content": "# Nextcloud System Requirements\n\n## Minimum Requirements\n\n| Component | Requirement |\n|-----------|-------------|\n| Database | MySQL/MariaDB, PostgreSQL, or Oracle |\n| Web Server | Apache or Nginx |\n| PHP | 8.0+ (8.1+ recommended) |\n| Memory | 512 MB minimum |\n| Storage | Depends on user data |\n\n## Recommended Requirements\n\n| Component | Recommendation |\n|-----------|----------------|\n| Database | MariaDB 10.3+ or PostgreSQL 12+ |\n| PHP | 8.2+ with required extensions |\n| Memory | 4 GB+ |\n| Stor"
+  }
+]

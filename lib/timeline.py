@@ -351,9 +351,24 @@ class TimelineGenerator:
             padding: 60px 20px;
             color: #999;
         }}
+        #back-link {{
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: #fff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            font-size: 13px;
+            color: #666;
+            text-decoration: none;
+        }}
+        #back-link:hover {{ color: #3498db; }}
     </style>
 </head>
 <body>
+    <a href="index.html" id="back-link">← 返回入口</a>
     <div class="container">
         <div class="header">
             <h1>知识时间线</h1>
