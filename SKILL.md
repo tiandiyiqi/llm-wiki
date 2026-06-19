@@ -758,3 +758,136 @@ knowledge-base/
 | v1.0 | 2026-06-17 | 基于 Karpathy 原始理念 |
 | v2.0 | 2026-06-17 | 六层架构、知识原子、多维视图、智能发现、知识演化 |
 | v3.0 | 2026-06-18 | **OKF 兼容**：符合 Open Knowledge Format 规范，添加 title/description/timestamp，渐进披露，Citations 支持 |
+
+---
+
+## 主动行为 (Heads Up)
+
+### 触发条件
+
+LLM 在以下场景应主动调用 Heads Up 功能：
+
+| 触发场景 | 触发命令 | 说明 |
+|----------|----------|------|
+| 用户询问知识库状态 | `llm-wiki gaps` | 检测知识缺口 |
+| 用户提到某个知识原子 | `llm-wiki relations <atom_id>` | 发现潜在关联 |
+| 用户开始新任务/话题 | `llm-wiki heads-up "<context>"` | 主动推送相关内容 |
+| 定期健康检查 | `llm-wiki gaps` | 每周检查一次 |
+
+### 缺口检测 (Gaps)
+
+**检测类型：**
+
+| 缺口类型 | 严重程度 | 说明 | 处理建议 |
+|----------|----------|------|----------|
+| `isolated` | 中 | 孤立节点，无任何链接 | 添加 `[[相关原子]]` 链接 |
+| `stale` | 低 | 过期知识（90天+） | 验证并更新内容 |
+| `empty_content` | 高 | 内容过少（<100字符） | 补充详细说明 |
+| `missing_fields` | 中 | 缺少 title/description | 补充元数据 |
+
+**输出格式：**
+
+```markdown
+## 知识缺口报告
+
+### 高优先级
+- [empty_content] nextcloud-installation - 内容过少（45 字符）
+
+### 中优先级
+- [isolated] nextcloud-config-php - 孤立节点，没有与其他原子建立关联
+- [missing_fields] nextcloud-system-requirements - 缺少 title, description
+
+### 低优先级
+- [stale] nextcloud-security-config - 过期知识：已 120 天未更新
+```
+
+### 关联发现 (Relations)
+
+**关联类型：**
+
+| 关联类型 | 说明 | 示例 |
+|----------|------|------|
+| `relates_to` | 一般关联 | `[[nextcloud-config]] relates_to [[nextcloud-installation]]` |
+| `defines` | 定义关系 | 方法引用定义 |
+| `supported_by` | 支持关系 | 观点有事实支持 |
+| `supports` | 支持关系 | 事实支持观点 |
+| `answers` | 回答关系 | 方法回答问题 |
+| `contradicts` | 矛盾关系 | 用于争议追踪 |
+
+**输出格式：**
+
+```markdown
+## 潜在关联发现：nextcloud-installation-ubuntu-apache
+
+| 关联原子 | 类型 | 相似度 | 理由 |
+|----------|------|--------|------|
+| [[nextcloud-system-requirements]] | defines | 0.89 | 语义相似度: 89% |
+| [[nextcloud-config-php-extensions]] | relates_to | 0.75 | 关键词重叠: php, extensions |
+| [[apache-ssl-configuration]] | relates_to | 0.68 | 语义相似度: 68% |
+```
+
+### 主动推送 (Heads Up)
+
+**推送场景：**
+
+1. **新话题开始**：用户开始讨论新话题时，推送相关知识
+2. **文档编写**：用户编写文档时，推送相关参考
+3. **问题排查**：用户描述问题时，推送可能的解决方案
+
+**输出格式：**
+
+```markdown
+## 相关知识推荐
+
+基于当前上下文，推荐以下知识原子：
+
+1. **nextcloud-installation-ubuntu-apache** [method]
+   相关性: 92% | 高度相关
+   > Nextcloud 在 Ubuntu 上使用 Apache 的标准安装流程
+
+2. **nextcloud-system-requirements** [fact]
+   相关性: 85% | 中度相关
+   > Nextcloud 服务器系统要求：PHP、数据库、Web 服务器
+
+3. **nextcloud-config-performance** [method]
+   相关性: 78% | 可能相关
+   > 缓存、预览、上传优化配置
+```
+
+### 命令参考
+
+```bash
+# 检测知识缺口
+llm-wiki gaps <knowledge_base>
+
+# 发现原子关联
+llm-wiki relations <knowledge_base> <atom_id>
+
+# 主动推送
+llm-wiki heads-up <knowledge_base> "<context>" --top-k 5
+
+# 示例
+llm-wiki gaps ./my-kb
+llm-wiki relations ./my-kb nextcloud-installation
+llm-wiki heads-up ./my-kb "我想配置 Nextcloud 的缓存优化" --top-k 5
+```
+
+### LLM 行为规范
+
+**必须：**
+
+1. 在开始新话题时，主动调用 `heads-up` 推送相关知识
+2. 定期（如每周）检查知识缺口，报告给用户
+3. 发现孤立节点时，建议添加关联
+
+**应该：**
+
+1. 在回答问题时，引用知识库中的原子
+2. 发现矛盾时，创建争议追踪
+3. 新摄入资料时，自动发现关联
+
+**禁止：**
+
+1. 未经用户确认，自动修改原子内容
+2. 低相似度（<50%）推送过多结果
+3. 忽略缺口报告中的高优先级问题

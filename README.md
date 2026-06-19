@@ -48,7 +48,7 @@ git clone https://github.com/Tiandiyiqi/llm-wiki.git ~/.claude/skills/llm-wiki
 用户: /llm-wiki init ./my-kb
 Claude: 正在初始化知识库...
 
-用户: /llm-wiki query ./my-kb "installation"
+用户: /llm-wiki query "installation" --kb ./my-kb
 Claude: 正在搜索知识...
 ```
 
@@ -67,15 +67,15 @@ alias llm-wiki='python3 /path/to/llm-wiki/llm-wiki.py'
 python3 llm-wiki.py init ./my-kb
 
 # 2. 摄入资料（自动提取知识原子）
-python3 llm-wiki.py ingest ./my-kb raw/document.md
+python3 llm-wiki.py ingest raw/document.md --kb ./my-kb
 
 # 3. 查询知识（关键词搜索）
-python3 llm-wiki.py query ./my-kb "installation"
+python3 llm-wiki.py query "installation" --kb ./my-kb
 
 # 4. 语义搜索（可选，需先安装依赖）
 pip install chromadb sentence-transformers
 python3 llm-wiki.py embed ./my-kb
-python3 llm-wiki.py query ./my-kb "如何部署" --semantic
+python3 llm-wiki.py query "如何部署" --kb ./my-kb --semantic
 
 # 5. 验证 OKF 兼容性
 python3 llm-wiki.py lint ./my-kb --okf-check
@@ -102,10 +102,10 @@ python3 llm-wiki.py list
 python3 llm-wiki.py use my-project
 
 # 4. 省略路径查询（使用当前知识库）
-python3 llm-wiki.py query "installation"
+python3 llm-wiki.py query "installation" --kb my-project
 
 # 5. 通过名称引用
-python3 llm-wiki.py query my-project "installation"
+python3 llm-wiki.py query "installation" --kb my-project
 
 # 6. 查看知识库详情
 python3 llm-wiki.py info my-project
@@ -179,10 +179,10 @@ python3 llm-wiki.py register /path/to/office-kb/word --name word
 
 ```bash
 # 聚合查询（搜索父级 + 所有子级）
-python3 llm-wiki.py query office "格式化"
+python3 llm-wiki.py query "格式化" --kb office
 
 # 仅搜索指定子知识库
-python3 llm-wiki.py query office "格式化" --child word
+python3 llm-wiki.py query "格式化" --kb office --child word
 ```
 
 **输出示例：**
@@ -434,25 +434,29 @@ python3 llm-wiki.py info my-project
 从源文件自动提取知识原子，支持 Markdown 文件。
 
 ```bash
-python3 llm-wiki.py ingest <knowledge_base> <source> [options]
+python3 llm-wiki.py ingest <source> [options]
 ```
 
 **参数：**
 
 | 参数 | 简写 | 说明 |
 |------|------|------|
-| `knowledge_base` | - | 知识库目录路径（必需） |
 | `source` | - | 源文件路径（必需） |
+| `--kb` | `-k` | 知识库路径或名称（默认：当前知识库） |
 | `--type` | `-t` | 原子类型（默认自动检测） |
 | `--auto-type` | - | 自动检测类型（默认开启） |
 
 **示例：**
 ```bash
-# 摄入文档（自动检测类型）
-python3 llm-wiki.py ingest ./my-kb raw/document.md
+# 摄入文档到当前知识库（使用 use 设置）
+llm-wiki use my-project
+llm-wiki ingest raw/document.md
+
+# 指定知识库
+llm-wiki ingest raw/document.md --kb ./my-kb
 
 # 指定类型
-python3 llm-wiki.py ingest ./my-kb raw/tutorial.md --type method
+llm-wiki ingest raw/tutorial.md --kb ./my-kb --type method
 ```
 
 **自动检测规则：**
@@ -468,15 +472,15 @@ python3 llm-wiki.py ingest ./my-kb raw/tutorial.md --type method
 在知识库中搜索知识原子。支持**关键词搜索**和**语义搜索**两种模式。
 
 ```bash
-python3 llm-wiki.py query <knowledge_base> <query> [options]
+python3 llm-wiki.py query <query> [options]
 ```
 
 **参数：**
 
 | 参数 | 简写 | 说明 |
 |------|------|------|
-| `knowledge_base` | - | 知识库目录路径（必需） |
 | `query` | - | 查询关键词或问题（必需） |
+| `--kb` | `-k` | 知识库路径或名称（默认：当前知识库） |
 | `--type` | `-t` | 按类型过滤 |
 | `--limit` | `-l` | 结果数量限制（默认：10） |
 | `--semantic` | `-s` | 启用语义搜索（需要先运行 `embed`） |
@@ -484,23 +488,27 @@ python3 llm-wiki.py query <knowledge_base> <query> [options]
 
 **示例：**
 ```bash
-# 关键词搜索（默认）
-python3 llm-wiki.py query ./my-kb "installation"
+# 关键词搜索（使用当前知识库）
+llm-wiki use my-project
+llm-wiki query "installation"
+
+# 指定知识库搜索
+llm-wiki query "installation" --kb ./my-kb
 
 # 按类型过滤
-python3 llm-wiki.py query ./my-kb "ubuntu" --type method
+llm-wiki query "ubuntu" --kb ./my-kb --type method
 
 # 限制结果数量
-python3 llm-wiki.py query ./my-kb "config" --limit 5
+llm-wiki query "config" --kb ./my-kb --limit 5
 
 # 语义搜索（需要先安装依赖并运行 embed）
-python3 llm-wiki.py query ./my-kb "如何部署服务" --semantic
+llm-wiki query "如何部署服务" --kb ./my-kb --semantic
 
 # 父知识库聚合查询
-python3 llm-wiki.py query office "格式化"
+llm-wiki query "格式化" --kb office
 
 # 仅搜索指定子知识库
-python3 llm-wiki.py query office "格式化" --child word
+llm-wiki query "格式化" --kb office --child word
 ```
 
 **关键词搜索优先级：**
@@ -716,8 +724,8 @@ LLM Wiki 支持两种使用方式：
 
 ```bash
 python3 llm-wiki.py init ./my-kb
-python3 llm-wiki.py ingest ./my-kb raw/doc.md
-python3 llm-wiki.py query ./my-kb "installation"
+python3 llm-wiki.py ingest raw/doc.md --kb ./my-kb
+python3 llm-wiki.py query "installation" --kb ./my-kb
 ```
 
 #### 方式二：自然语言（Claude Code Skill）
@@ -819,13 +827,13 @@ cp ~/Documents/nextcloud-security.md ./nextcloud-kb/raw/
 **CLI 方式：**
 ```bash
 # 摄入安装文档（自动检测类型）
-python3 llm-wiki.py ingest ./nextcloud-kb raw/nextcloud-install.md
+python3 llm-wiki.py ingest raw/nextcloud-install.md --kb ./nextcloud-kb
 
 # 摄入需求文档
-python3 llm-wiki.py ingest ./nextcloud-kb raw/nextcloud-requirements.md
+python3 llm-wiki.py ingest raw/nextcloud-requirements.md --kb ./nextcloud-kb
 
 # 摄入安全文档，指定类型
-python3 llm-wiki.py ingest ./nextcloud-kb raw/nextcloud-security.md --type method
+python3 llm-wiki.py ingest raw/nextcloud-security.md --kb ./nextcloud-kb --type method
 ```
 
 **自然语言方式：**
@@ -937,13 +945,13 @@ Claude: 📦 Generating index.md for: ./nextcloud-kb
 **CLI 方式：**
 ```bash
 # 基本搜索
-python3 llm-wiki.py query ./nextcloud-kb "installation"
+python3 llm-wiki.py query "installation" --kb ./nextcloud-kb
 
 # 按类型过滤
-python3 llm-wiki.py query ./nextcloud-kb "ubuntu" --type method
+python3 llm-wiki.py query "ubuntu" --kb ./nextcloud-kb --type method
 
 # 限制结果数量
-python3 llm-wiki.py query ./nextcloud-kb "config" --limit 5
+python3 llm-wiki.py query "config" --kb ./nextcloud-kb --limit 5
 ```
 
 **自然语言方式：**
@@ -991,7 +999,7 @@ pip install chromadb sentence-transformers
 python3 llm-wiki.py embed ./nextcloud-kb
 
 # 语义搜索
-python3 llm-wiki.py query ./nextcloud-kb "如何配置服务器" --semantic
+python3 llm-wiki.py query "如何配置服务器" --kb ./nextcloud-kb --semantic
 ```
 
 **自然语言方式：**
@@ -1128,9 +1136,9 @@ Claude: 📦 Importing OKF bundle: nextcloud-bundle.tar.gz
 | list | `llm-wiki list` | "列出知识库" | 查看所有知识库 |
 | use | `llm-wiki use my-kb` | "切换知识库" | 设置当前知识库 |
 | info | `llm-wiki info my-kb` | "知识库详情" | 查看详细信息 |
-| ingest | `llm-wiki ingest ./kb raw/doc.md` | "加入文档"、"摄入资料" | 提取知识原子 |
+| ingest | `llm-wiki ingest raw/doc.md --kb ./kb` | "加入文档"、"摄入资料" | 提取知识原子 |
 | embed | `llm-wiki embed ./kb` | "生成嵌入"、"向量化" | 生成语义搜索嵌入 |
-| query | `llm-wiki query ./kb "关键词"` | "搜索"、"查询" | 检索知识 |
+| query | `llm-wiki query "关键词" --kb ./kb` | "搜索"、"查询" | 检索知识 |
 | lint | `llm-wiki lint ./kb` | "检查"、"验证" | OKF 规范检查 |
 | index | `llm-wiki index ./kb` | "生成索引" | 创建目录索引 |
 | export | `llm-wiki export ./kb -o bundle.tar.gz` | "导出"、"打包" | 备份知识库 |
@@ -1155,7 +1163,7 @@ cp ~/Downloads/*.md ./tech-docs/raw/
 
 # 3. 批量摄入
 for f in ./tech-docs/raw/*.md; do
-    llm-wiki ingest ./tech-docs "$f"
+    llm-wiki ingest "$f" --kb ./tech-docs
 done
 
 # 4. 验证
@@ -1175,13 +1183,13 @@ llm-wiki visualize ./tech-docs
 llm-wiki init ./project-kb
 
 # 2. 添加项目文档
-llm-wiki ingest ./project-kb ./README.md --type reference
-llm-wiki ingest ./project-kb ./SETUP.md --type method
-llm-wiki ingest ./project-kb ./API.md --type reference
+llm-wiki ingest ./README.md --kb ./project-kb --type reference
+llm-wiki ingest ./SETUP.md --kb ./project-kb --type method
+llm-wiki ingest ./API.md --kb ./project-kb --type reference
 
 # 3. 查询
-llm-wiki query ./project-kb "api"
-llm-wiki query ./project-kb "setup" --type method
+llm-wiki query "api" --kb ./project-kb
+llm-wiki query "setup" --kb ./project-kb --type method
 ```
 
 #### 场景三：个人学习笔记
@@ -1194,8 +1202,8 @@ llm-wiki query ./project-kb "setup" --type method
 llm-wiki init ./learning-notes
 
 # 2. 摄入笔记
-llm-wiki ingest ./learning-notes notes/python-basics.md
-llm-wiki ingest ./learning-notes notes/python-advanced.md
+llm-wiki ingest notes/python-basics.md --kb ./learning-notes
+llm-wiki ingest notes/python-advanced.md --kb ./learning-notes
 
 # 3. 生成图谱
 llm-wiki visualize ./learning-notes --name "Python Learning"
@@ -1215,8 +1223,8 @@ git clone https://github.com/Tiandiyiqi/llm-wiki.git ~/.claude/skills/llm-wiki
 
 # 2. 在 Claude Code 对话中使用
 /llm-wiki init ./my-knowledge
-/llm-wiki ingest ./my-knowledge raw/article.md
-/llm-wiki query ./my-knowledge "关键词"
+/llm-wiki ingest raw/article.md --kb ./my-knowledge
+/llm-wiki query "关键词" --kb ./my-knowledge
 ```
 
 ---
@@ -1291,6 +1299,36 @@ examples/nextcloud-kb/
     └── facts/
         └── nextcloud-system-requirements.md
 ```
+
+## 模块结构
+
+llm-wiki 采用模块化架构，将原本 2775 行的单体文件拆分为多个独立模块：
+
+```
+llm-wiki/
+├── llm-wiki.py              # CLI 入口（argparse + cmd_*）约 590 行
+├── lib/
+│   ├── __init__.py          # 模块初始化 + 导出
+│   ├── constants.py         # 常量定义（RESERVED_FILES 等）
+│   ├── registry.py          # KBRegistry 知识库注册表
+│   ├── yaml_parser.py       # SimpleYAMLParser YAML 解析
+│   ├── validator.py         # OKFValidator OKF 规范验证
+│   ├── exporter.py          # OKFExporter 导出 Bundle
+│   ├── importer.py          # OKFImporter 导入 Bundle
+│   ├── initializer.py       # KBInitializer 知识库初始化
+│   ├── indexer.py           # IndexGenerator 索引生成
+│   ├── ingestor.py          # KnowledgeIngestor 资料摄入
+│   ├── querier.py           # AggregatedQuerier + KnowledgeQuerier 查询
+│   ├── semantic.py          # SemanticSearchEngine 语义搜索
+│   └── visualizer.py        # KnowledgeVisualizer 可视化
+```
+
+**设计原则：**
+
+- **CLI 入口**：`llm-wiki.py` 仅包含 argparse 和 `cmd_*` 命令函数
+- **核心模块**：每个模块职责单一，文件大小不超过 350 行
+- **类型注解**：所有内部方法添加类型注解
+- **异常处理**：使用具体异常类型而非裸 `except:`
 
 ## 相关资源
 
