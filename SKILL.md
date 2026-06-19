@@ -428,6 +428,11 @@ alias llm-wiki='python3 ~/.claude/skills/llm-wiki/llm-wiki.py'
 | 命令 | 用途 | 示例 |
 |------|------|------|
 | `llm-wiki init` | 初始化知识库 | `llm-wiki init ./my-kb` |
+| `llm-wiki register` | 注册知识库 | `llm-wiki register ./my-kb --name my-project` |
+| `llm-wiki unregister` | 注销知识库 | `llm-wiki unregister my-project` |
+| `llm-wiki list` | 列出所有知识库 | `llm-wiki list` |
+| `llm-wiki use` | 设置当前知识库 | `llm-wiki use my-project` |
+| `llm-wiki info` | 查看知识库详情 | `llm-wiki info my-project` |
 | `llm-wiki ingest` | 摄入资料提取原子 | `llm-wiki ingest ./my-kb raw/doc.md` |
 | `llm-wiki embed` | 生成语义搜索嵌入 | `llm-wiki embed ./my-kb` |
 | `llm-wiki query` | 搜索查询知识 | `llm-wiki query ./my-kb "关键词"` |

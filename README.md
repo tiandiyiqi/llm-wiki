@@ -10,7 +10,8 @@
 
 - ✅ **OKF v0.1 完全兼容** - 符合 Google Cloud Platform 提出的开放知识格式规范
 - ✅ **零外部依赖** - 核心功能仅使用 Python 标准库
-- ✅ **九大核心命令** - init/ingest/embed/query/lint/index/export/import/visualize
+- ✅ **十四大核心命令** - init/register/unregister/list/use/info/ingest/embed/query/lint/index/export/import/visualize
+- ✅ **多知识库管理** - 注册、切换、列出多个知识库
 - ✅ **智能提取** - 自动检测知识类型、提取标题和标签
 - ✅ **语义搜索** - 支持向量嵌入和语义查询（可选）
 - ✅ **知识图谱** - 生成交互式 HTML 可视化
@@ -86,6 +87,150 @@ python3 llm-wiki.py visualize ./my-kb
 python3 llm-wiki.py export ./my-kb -o bundle.tar.gz
 ```
 
+## 多知识库管理
+
+当创建多个知识库时，可以使用注册表管理：
+
+```bash
+# 1. 注册知识库
+python3 llm-wiki.py register ./my-kb --name my-project --description "项目知识库"
+
+# 2. 列出所有知识库
+python3 llm-wiki.py list
+
+# 3. 设置当前知识库
+python3 llm-wiki.py use my-project
+
+# 4. 省略路径查询（使用当前知识库）
+python3 llm-wiki.py query "installation"
+
+# 5. 通过名称引用
+python3 llm-wiki.py query my-project "installation"
+
+# 6. 查看知识库详情
+python3 llm-wiki.py info my-project
+
+# 7. 注销知识库
+python3 llm-wiki.py unregister my-project
+```
+
+**注册表存储：**
+- 全局：`~/.llm-wiki/registry.json`
+- 项目级：`<project>/.llm-wiki/registry.json`（可选）
+
+**scope 参数：**
+- `--scope global`：注册到全局注册表
+- `--scope project`：注册到项目级注册表
+- `--scope auto`：自动选择（默认）
+
+## 父子知识库架构
+
+当管理一组相关的知识库时，可以使用**父子知识库架构**：
+
+- **物理隔离**：每个子知识库独立目录，便于搬移
+- **父知识库有知识原子**：父级也有 `atoms/` 存放通用知识
+- **独立导出导入**：父和子都可以单独导出/导入
+- **跨主题搜索**：查询父级时聚合搜索所有子库
+- **关联不隔断**：通过链接跨库引用
+
+### 目录结构
+
+```
+office-kb/                        # 父知识库
+├── .kb-meta.json                  # 元数据（记录子知识库关系）
+├── index.md                       # 父级索引
+├── atoms/                         # 父级知识原子（通用知识）
+│   └── methods/
+│       └── common-formatting.md
+├── raw/
+├── views/
+│
+├── word/                          # 子知识库：Word
+│   ├── .kb-meta.json
+│   ├── index.md
+│   ├── atoms/
+│   └── raw/
+│
+└── powerpoint/                    # 子知识库：PowerPoint
+    ├── .kb-meta.json
+    ├── index.md
+    ├── atoms/
+    └── raw/
+```
+
+### 创建父子知识库
+
+```bash
+# 1. 创建父知识库
+python3 llm-wiki.py init /path/to/office-kb --parent --name office
+
+# 2. 创建子知识库
+python3 llm-wiki.py init /path/to/office-kb/word --child --parent-kb /path/to/office-kb --name word
+python3 llm-wiki.py init /path/to/office-kb/powerpoint --child --parent-kb /path/to/office-kb --name powerpoint
+
+# 3. 注册知识库
+python3 llm-wiki.py register /path/to/office-kb --name office
+python3 llm-wiki.py register /path/to/office-kb/word --name word
+```
+
+### 聚合查询
+
+查询父知识库时，自动聚合搜索所有子知识库：
+
+```bash
+# 聚合查询（搜索父级 + 所有子级）
+python3 llm-wiki.py query office "格式化"
+
+# 仅搜索指定子知识库
+python3 llm-wiki.py query office "格式化" --child word
+```
+
+**输出示例：**
+```
+🔍 Aggregated query: '格式化'
+   Parent knowledge base: /path/to/office-kb
+   Child knowledge bases: 2
+      - word
+      - powerpoint
+
+   Total concepts (aggregated): 5
+
+📋 Results (3):
+
+1. [method] Word 文档格式化
+   Source: word [子知识库]
+   Path: word/atoms/methods/word-formatting.md
+
+2. [method] Office 通用格式设置
+   Source: office [父知识库]
+   Path: atoms/methods/common-formatting.md
+```
+
+### 导出导入
+
+```bash
+# 子知识库独立导出
+python3 llm-wiki.py export word -o word-bundle.tar.gz
+
+# 父知识库包含子库导出
+python3 llm-wiki.py export office -o office-full-bundle.tar.gz --include-children
+
+# 仅导出父知识库（不含子库）
+python3 llm-wiki.py export office -o office-bundle.tar.gz
+```
+
+### 跨库链接
+
+使用相对路径进行跨库引用：
+
+```markdown
+<!-- 在子知识库中引用父级 -->
+参见 [[../atoms/methods/common-formatting]] 获取通用格式设置方法。
+
+<!-- 在父知识库中引用子级 -->
+参见 [[word/atoms/methods/word-formatting]] 获取 Word 特定格式化方法。
+```
+
 ## 命令参考
 
 ### 查看帮助
@@ -105,9 +250,33 @@ python3 llm-wiki.py <command> --help  # 查看子命令帮助
 python3 llm-wiki.py init <knowledge_base>
 ```
 
+**参数：**
+
+| 参数 | 简写 | 说明 |
+|------|------|------|
+| `knowledge_base` | - | 知识库目录路径（必需） |
+| `--register` | - | 初始化后注册 |
+| `--name` | `-n` | 知识库别名 |
+| `--description` | `-d` | 描述 |
+| `--tags` | `-t` | 标签（逗号分隔） |
+| `--scope` | `-s` | 注册范围（auto/project/global） |
+| `--parent` | - | 创建父知识库 |
+| `--child` | - | 创建子知识库 |
+| `--parent-kb` | - | 父知识库路径（创建子知识库时必需） |
+
 **示例：**
 ```bash
+# 基本初始化
 python3 llm-wiki.py init ./my-kb
+
+# 初始化并注册
+python3 llm-wiki.py init ./my-kb --register --name my-project --description "项目知识库"
+
+# 创建父知识库
+python3 llm-wiki.py init ./office-kb --parent --name office
+
+# 创建子知识库
+python3 llm-wiki.py init ./office-kb/word --child --parent-kb ./office-kb --name word
 ```
 
 **创建的目录结构：**
@@ -125,6 +294,137 @@ my-kb/
 │   └── references/   # 参考
 ├── raw/              # 原始资料
 └── views/            # 视图/可视化
+```
+
+---
+
+### register - 注册知识库
+
+将现有知识库注册到注册表，支持通过名称引用。
+
+```bash
+python3 llm-wiki.py register <path> [options]
+```
+
+**参数：**
+
+| 参数 | 简写 | 说明 |
+|------|------|------|
+| `path` | - | 知识库路径（必需） |
+| `--name` | `-n` | 知识库别名（默认：目录名） |
+| `--description` | `-d` | 描述 |
+| `--tags` | `-t` | 标签（逗号分隔） |
+| `--scope` | `-s` | 注册范围（auto/project/global，默认：auto） |
+| `--parent` | `-p` | 父知识库名称（注册子知识库时使用） |
+
+**示例：**
+```bash
+# 注册到全局
+python3 llm-wiki.py register ./my-kb --name my-project --description "项目知识库"
+
+# 注册到项目级
+python3 llm-wiki.py register ./my-kb --name my-project --scope project
+
+# 注册子知识库
+python3 llm-wiki.py register ./office-kb/word --name word --parent office
+```
+
+---
+
+### unregister - 注销知识库
+
+从注册表中移除知识库。
+
+```bash
+python3 llm-wiki.py unregister <name> [options]
+```
+
+**参数：**
+
+| 参数 | 简写 | 说明 |
+|------|------|------|
+| `name` | - | 知识库别名（必需） |
+| `--scope` | `-s` | 注销范围（auto/project/global/all，默认：all） |
+
+**示例：**
+```bash
+# 从所有注册表注销
+python3 llm-wiki.py unregister my-project
+
+# 仅从全局注销
+python3 llm-wiki.py unregister my-project --scope global
+```
+
+---
+
+### list - 列出所有知识库
+
+列出已注册的所有知识库。
+
+```bash
+python3 llm-wiki.py list [options]
+```
+
+**参数：**
+
+| 参数 | 简写 | 说明 |
+|------|------|------|
+| `--scope` | `-s` | 列出范围（all/project/global，默认：all） |
+| `--verbose` | `-v` | 详细输出 |
+
+**示例：**
+```bash
+# 列出所有
+python3 llm-wiki.py list
+
+# 详细输出
+python3 llm-wiki.py list -v
+
+# 仅列出全局
+python3 llm-wiki.py list --scope global
+```
+
+---
+
+### use - 设置当前知识库
+
+设置当前知识库，后续命令可省略知识库路径。
+
+```bash
+python3 llm-wiki.py use <name>
+```
+
+**示例：**
+```bash
+python3 llm-wiki.py use my-project
+
+# 之后的命令可省略路径
+python3 llm-wiki.py query "installation"
+```
+
+---
+
+### info - 查看知识库详情
+
+查看知识库的详细信息。
+
+```bash
+python3 llm-wiki.py info [<name>]
+```
+
+**参数：**
+
+| 参数 | 说明 |
+|------|------|
+| `name` | 知识库别名（默认：当前知识库） |
+
+**示例：**
+```bash
+# 查看当前知识库
+python3 llm-wiki.py info
+
+# 查看指定知识库
+python3 llm-wiki.py info my-project
 ```
 
 ---
@@ -180,6 +480,7 @@ python3 llm-wiki.py query <knowledge_base> <query> [options]
 | `--type` | `-t` | 按类型过滤 |
 | `--limit` | `-l` | 结果数量限制（默认：10） |
 | `--semantic` | `-s` | 启用语义搜索（需要先运行 `embed`） |
+| `--child` | `-c` | 仅搜索指定子知识库（父知识库聚合查询时） |
 
 **示例：**
 ```bash
@@ -194,6 +495,12 @@ python3 llm-wiki.py query ./my-kb "config" --limit 5
 
 # 语义搜索（需要先安装依赖并运行 embed）
 python3 llm-wiki.py query ./my-kb "如何部署服务" --semantic
+
+# 父知识库聚合查询
+python3 llm-wiki.py query office "格式化"
+
+# 仅搜索指定子知识库
+python3 llm-wiki.py query office "格式化" --child word
 ```
 
 **关键词搜索优先级：**
@@ -206,6 +513,11 @@ python3 llm-wiki.py query ./my-kb "如何部署服务" --semantic
 - 理解查询意图，而非字面匹配
 - 支持同义词、相关概念
 - 需要 ChromaDB 和 sentence-transformers
+
+**父知识库聚合查询：**
+- 查询父知识库时自动聚合所有子知识库
+- 结果显示来源（父级 vs 子级）
+- 使用 `--child` 参数限定搜索范围
 
 ---
 
@@ -310,6 +622,7 @@ python3 llm-wiki.py export <knowledge_base> [options]
 | `--validate` | `-v` | 验证 OKF 符合性（默认开启） |
 | `--no-validate` | - | 跳过验证 |
 | `--force` | `-f` | 强制导出（忽略验证错误） |
+| `--include-children` | - | 包含子知识库（仅父知识库） |
 
 **示例：**
 ```bash
@@ -318,6 +631,12 @@ python3 llm-wiki.py export ./my-kb -o bundle.tar.gz
 
 # 强制导出
 python3 llm-wiki.py export ./my-kb -o bundle.tar.gz --force
+
+# 子知识库独立导出
+python3 llm-wiki.py export word -o word-bundle.tar.gz
+
+# 父知识库包含子库导出
+python3 llm-wiki.py export office -o office-full-bundle.tar.gz --include-children
 ```
 
 ---
@@ -804,6 +1123,11 @@ Claude: 📦 Importing OKF bundle: nextcloud-bundle.tar.gz
 | 命令 | CLI | 自然语言关键词 | 用途 |
 |------|-----|---------------|------|
 | init | `llm-wiki init ./kb` | "初始化知识库" | 创建目录结构 |
+| register | `llm-wiki register ./kb --name my-kb` | "注册知识库" | 注册到管理器 |
+| unregister | `llm-wiki unregister my-kb` | "注销知识库" | 从管理器移除 |
+| list | `llm-wiki list` | "列出知识库" | 查看所有知识库 |
+| use | `llm-wiki use my-kb` | "切换知识库" | 设置当前知识库 |
+| info | `llm-wiki info my-kb` | "知识库详情" | 查看详细信息 |
 | ingest | `llm-wiki ingest ./kb raw/doc.md` | "加入文档"、"摄入资料" | 提取知识原子 |
 | embed | `llm-wiki embed ./kb` | "生成嵌入"、"向量化" | 生成语义搜索嵌入 |
 | query | `llm-wiki query ./kb "关键词"` | "搜索"、"查询" | 检索知识 |
