@@ -3,6 +3,7 @@
  *
  * 为 LLM Wiki 提供交互式知识图谱可视化功能
  * 使用 cose 布局算法（内置），支持节点选择、筛选、搜索等交互
+ * 主题感知：从 CSS 变量读取颜色，支持运行时主题切换
  */
 
 // 全局变量
@@ -24,16 +25,35 @@ try {
     console.warn('fcose 注册失败，将使用 cose 布局:', e.message);
 }
 
-// 类型颜色映射（与 visualizer.py 保持一致）
-const TYPE_COLORS = {
-    'method': '#3b82f6',
-    'fact': '#22c55e',
-    'definition': '#a855f7',
-    'opinion': '#ef4444',
-    'data': '#f97316',
-    'question': '#14b8a6',
-    'reference': '#6b7280'
+// 类型到 CSS 变量名的映射
+const TYPE_CSS_VARS = {
+    'method': '--color-type-method',
+    'fact': '--color-type-fact',
+    'definition': '--color-type-definition',
+    'opinion': '--color-type-opinion',
+    'data': '--color-type-data',
+    'question': '--color-type-question',
+    'reference': '--color-type-reference'
 };
+
+/**
+ * 从 CSS 变量读取主题颜色
+ * @param {string} varName - CSS 变量名（如 '--color-accent-primary'）
+ * @returns {string} 颜色值
+ */
+function getThemeColor(varName) {
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
+/**
+ * 获取类型颜色（从 CSS 变量读取）
+ * @param {string} type - 知识原子类型
+ * @returns {string} 颜色值
+ */
+function getTypeColor(type) {
+    const cssVar = TYPE_CSS_VARS[type] || TYPE_CSS_VARS['reference'];
+    return getThemeColor(cssVar) || '#95a5a6';
+}
 
 /**
  * 初始化 Cytoscape 图谱
@@ -98,7 +118,7 @@ function convertToElements(data) {
                 type: node.type,
                 description: node.description || '',
                 path: node.path,
-                color: TYPE_COLORS[node.type] || '#95a5a6',
+                color: getTypeColor(node.type),
                 in_degree: node.in_degree || 0,
                 out_degree: node.out_degree || 0,
                 tags: node.tags || []
@@ -121,10 +141,17 @@ function convertToElements(data) {
 }
 
 /**
- * 获取 Cytoscape 样式定义
+ * 获取 Cytoscape 样式定义（主题感知）
  * @returns {Array} 样式数组
  */
 function getStylesheet() {
+    const accentPrimary = getThemeColor('--color-accent-primary');
+    const accentMedium = getThemeColor('--color-accent-medium');
+    const textPrimary = getThemeColor('--color-text-primary');
+    const bgSurface = getThemeColor('--color-bg-surface');
+    const confidenceHigh = getThemeColor('--color-confidence-high');
+    const confidenceMedium = getThemeColor('--color-confidence-medium');
+
     return [
         // 节点默认样式
         {
@@ -134,8 +161,8 @@ function getStylesheet() {
                 'text-valign': 'center',
                 'text-halign': 'center',
                 'font-size': '10px',
-                'color': '#333',
-                'text-outline-color': '#fff',
+                'color': textPrimary || '#333',
+                'text-outline-color': bgSurface || '#fff',
                 'text-outline-width': '2px',
                 'background-color': 'data(color)',
                 'width': function(ele) {
@@ -154,7 +181,7 @@ function getStylesheet() {
         {
             selector: 'node:active',
             style: {
-                'overlay-color': '#667eea',
+                'overlay-color': accentPrimary || '#667eea',
                 'overlay-padding': '5px',
                 'overlay-opacity': '0.3'
             }
@@ -164,9 +191,9 @@ function getStylesheet() {
             selector: 'node.selected',
             style: {
                 'border-width': '3px',
-                'border-color': '#667eea',
+                'border-color': accentPrimary || '#667eea',
                 'border-style': 'solid',
-                'shadow-color': '#667eea',
+                'shadow-color': accentPrimary || '#667eea',
                 'shadow-blur': '10px',
                 'shadow-offset-x': '0',
                 'shadow-offset-y': '0'
@@ -177,7 +204,7 @@ function getStylesheet() {
             selector: 'node.highlighted',
             style: {
                 'border-width': '2px',
-                'border-color': '#a855f7',
+                'border-color': accentMedium || '#a855f7',
                 'border-style': 'solid'
             }
         },
@@ -193,7 +220,7 @@ function getStylesheet() {
             selector: 'node.orphan',
             style: {
                 'border-width': '1px',
-                'border-color': '#fbbf24',
+                'border-color': confidenceMedium || '#fbbf24',
                 'border-style': 'dashed'
             }
         },
@@ -214,8 +241,8 @@ function getStylesheet() {
             selector: 'edge.highlighted',
             style: {
                 'width': function() { return 3 * edgeWidthScale; },
-                'line-color': '#667eea',
-                'target-arrow-color': '#667eea',
+                'line-color': accentPrimary || '#667eea',
+                'target-arrow-color': accentPrimary || '#667eea',
                 'opacity': 1
             }
         },
@@ -231,13 +258,33 @@ function getStylesheet() {
             selector: 'node.search-match',
             style: {
                 'border-width': '3px',
-                'border-color': '#22c55e',
+                'border-color': confidenceHigh || '#22c55e',
                 'border-style': 'solid',
-                'shadow-color': '#22c55e',
+                'shadow-color': confidenceHigh || '#22c55e',
                 'shadow-blur': '15px'
             }
         }
     ];
+}
+
+/**
+ * 主题切换时重新应用图谱样式
+ */
+function applyThemeToGraph() {
+    if (!cy) return;
+
+    // 重新应用样式表
+    cy.style(getStylesheet());
+
+    // 更新每个节点的类型颜色
+    cy.nodes().forEach(node => {
+        const type = node.data('type');
+        node.data('color', getTypeColor(type));
+    });
+
+    // 重置连线颜色为默认
+    const borderColor = getThemeColor('--color-border');
+    edgeColorValue = borderColor || '#ccc';
 }
 
 /**
@@ -255,7 +302,7 @@ function getLayoutOptions(layoutName, settings = {}) {
             animate: true,
             animationDuration: 500,
             fit: true,
-            padding: 30,
+            padding: 50,
             nodeDimensionsIncludeLabels: true,
             idealEdgeLength: 80,
             nodeRepulsion: 8000,
@@ -267,7 +314,6 @@ function getLayoutOptions(layoutName, settings = {}) {
             randomize: true,
             componentSpacing: 100,
             nestingFactor: 1.2,
-            // 关键参数：让节点更紧凑
             edgeElasticity: 0.45,
             nodeOverlap: 20
         },
@@ -288,7 +334,6 @@ function getLayoutOptions(layoutName, settings = {}) {
             randomize: true,
             componentSpacing: 100,
             nestingFactor: 1.2,
-            // 关键参数：让节点更紧凑
             edgeElasticity: 0.45,
             nodeOverlap: 20
         },
@@ -435,7 +480,9 @@ function showTooltip(node) {
     if (!tooltipEl) {
         tooltipEl = document.createElement('div');
         tooltipEl.className = 'graph-tooltip';
-        tooltipEl.style.cssText = 'position: absolute; background: rgba(0,0,0,0.8); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; z-index: 1000; pointer-events: none;';
+        const bgOverlay = getThemeColor('--color-bg-overlay') || 'rgba(0,0,0,0.8)';
+        const textInverse = getThemeColor('--color-text-inverse') || '#fff';
+        tooltipEl.style.cssText = `position: absolute; background: ${bgOverlay}; color: ${textInverse}; padding: 4px 8px; border-radius: 4px; font-size: 12px; z-index: 1000; pointer-events: none;`;
         document.body.appendChild(tooltipEl);
     }
 
@@ -566,10 +613,11 @@ function resetCytoscapeGraph() {
     // 清除所有状态
     cy.elements().removeClass('selected highlighted faded hidden search-match');
 
-    // 重置大小比例和颜色
+    // 重置大小比例
     nodeSizeScale = 1.0;
     edgeWidthScale = 1.0;
-    edgeColorValue = '#ccc';
+    // 重置连线颜色为主题 border 色
+    edgeColorValue = getThemeColor('--color-border') || '#ccc';
 
     // 重新应用样式
     cy.style(getStylesheet());
@@ -630,6 +678,7 @@ window.updateGraphEdgeWidth = updateGraphEdgeWidth;
 window.updateGraphEdgeColor = updateGraphEdgeColor;
 window.resetCytoscapeGraph = resetCytoscapeGraph;
 window.searchAndFocusNode = searchAndFocusNode;
+window.applyThemeToGraph = applyThemeToGraph;
 
 /**
  * 备用布局初始化（使用 cose）

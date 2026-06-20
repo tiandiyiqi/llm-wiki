@@ -4,48 +4,317 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LLM Wiki - 知识库浏览</title>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.28/dist/cytoscape.min.js"></script>
-    <!-- fcose 布局依赖 -->
-    <script src="lib/layout-base.js"></script>
-    <script src="lib/cose-base.js"></script>
-    <script src="lib/cytoscape-fcose.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.x.x/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    'bg-base': 'var(--color-bg-base)',
+                    'bg-surface': 'var(--color-bg-surface)',
+                    'bg-surface-alt': 'var(--color-bg-surface-alt)',
+                    'bg-hover': 'var(--color-bg-hover)',
+                    'bg-overlay': 'var(--color-bg-overlay)',
+                    'on-base': 'var(--color-text-primary)',
+                    'on-surface': 'var(--color-text-secondary)',
+                    'on-muted': 'var(--color-text-tertiary)',
+                    'on-accent': 'var(--color-text-inverse)',
+                    'accent': 'var(--color-accent-primary)',
+                    'accent-2': 'var(--color-accent-secondary)',
+                    'accent-soft': 'var(--color-accent-soft)',
+                    'accent-med': 'var(--color-accent-medium)',
+                    'border-th': 'var(--color-border)',
+                    'focus': 'var(--color-focus-ring)',
+                    'conf-high': 'var(--color-confidence-high)',
+                    'conf-med': 'var(--color-confidence-medium)',
+                    'conf-low': 'var(--color-confidence-low)',
+                    'type-method-badge': 'var(--color-type-method-badge-text)',
+                    'type-method-badge-bg': 'var(--color-type-method-badge-bg)',
+                    'type-fact-badge': 'var(--color-type-fact-badge-text)',
+                    'type-fact-badge-bg': 'var(--color-type-fact-badge-bg)',
+                    'type-definition-badge': 'var(--color-type-definition-badge-text)',
+                    'type-definition-badge-bg': 'var(--color-type-definition-badge-bg)',
+                    'type-opinion-badge': 'var(--color-type-opinion-badge-text)',
+                    'type-opinion-badge-bg': 'var(--color-type-opinion-badge-bg)',
+                    'type-data-badge': 'var(--color-type-data-badge-text)',
+                    'type-data-badge-bg': 'var(--color-type-data-badge-bg)',
+                    'type-question-badge': 'var(--color-type-question-badge-text)',
+                    'type-question-badge-bg': 'var(--color-type-question-badge-bg)',
+                    'type-reference-badge': 'var(--color-type-reference-badge-text)',
+                    'type-reference-badge-bg': 'var(--color-type-reference-badge-bg)',
+                },
+                backgroundImage: {
+                    'gradient-brand': 'linear-gradient(135deg, var(--color-accent-primary), var(--color-accent-secondary))',
+                }
+            }
+        }
+    }
+    </script>
     <style>
+        /* Theme: Classic (default) */
+        .theme-classic {
+            --color-bg-base: #f3f4f6;
+            --color-bg-surface: #ffffff;
+            --color-bg-surface-alt: #f9fafb;
+            --color-bg-hover: #f3f4f6;
+            --color-bg-overlay: rgba(0,0,0,0.8);
+            --color-text-primary: #111827;
+            --color-text-secondary: #4b5563;
+            --color-text-tertiary: #9ca3af;
+            --color-text-inverse: #ffffff;
+            --color-accent-primary: #667eea;
+            --color-accent-secondary: #764ba2;
+            --color-accent-soft: #eef2ff;
+            --color-accent-medium: #c7d2fe;
+            --color-border: #e5e7eb;
+            --color-focus-ring: #6366f1;
+            --color-shadow: rgba(0,0,0,0.1);
+            --shadow-card: 0 10px 30px rgba(0,0,0,0.1);
+            --shadow-card-hover: 0 15px 40px rgba(0,0,0,0.15);
+            --color-type-method: #3b82f6;
+            --color-type-fact: #22c55e;
+            --color-type-definition: #a855f7;
+            --color-type-opinion: #ef4444;
+            --color-type-data: #f97316;
+            --color-type-question: #14b8a6;
+            --color-type-reference: #6b7280;
+            --color-type-method-badge-bg: #dbeafe;
+            --color-type-method-badge-text: #1d4ed8;
+            --color-type-fact-badge-bg: #dcfce7;
+            --color-type-fact-badge-text: #15803d;
+            --color-type-definition-badge-bg: #f3e8ff;
+            --color-type-definition-badge-text: #7c3aed;
+            --color-type-opinion-badge-bg: #fee2e2;
+            --color-type-opinion-badge-text: #b91c1c;
+            --color-type-data-badge-bg: #ffedd5;
+            --color-type-data-badge-text: #c2410c;
+            --color-type-question-badge-bg: #ccfbf1;
+            --color-type-question-badge-text: #0f766e;
+            --color-type-reference-badge-bg: #f3f4f6;
+            --color-type-reference-badge-text: #374151;
+            --color-confidence-high: #16a34a;
+            --color-confidence-medium: #ca8a04;
+            --color-confidence-low: #dc2626;
+        }
+
+        /* Theme: Dark Tech */
+        .theme-dark-tech {
+            --color-bg-base: #0f172a;
+            --color-bg-surface: #1e293b;
+            --color-bg-surface-alt: #334155;
+            --color-bg-hover: #475569;
+            --color-bg-overlay: rgba(0,0,0,0.9);
+            --color-text-primary: #e2e8f0;
+            --color-text-secondary: #94a3b8;
+            --color-text-tertiary: #64748b;
+            --color-text-inverse: #0f172a;
+            --color-accent-primary: #22d3ee;
+            --color-accent-secondary: #4ade80;
+            --color-accent-soft: rgba(34,211,238,0.1);
+            --color-accent-medium: rgba(34,211,238,0.25);
+            --color-border: #334155;
+            --color-focus-ring: #22d3ee;
+            --color-shadow: rgba(0,0,0,0.4);
+            --shadow-card: 0 10px 30px rgba(0,0,0,0.3);
+            --shadow-card-hover: 0 15px 40px rgba(0,0,0,0.4);
+            --color-type-method: #22d3ee;
+            --color-type-fact: #4ade80;
+            --color-type-definition: #c084fc;
+            --color-type-opinion: #f87171;
+            --color-type-data: #fb923c;
+            --color-type-question: #2dd4bf;
+            --color-type-reference: #64748b;
+            --color-type-method-badge-bg: rgba(34,211,238,0.15);
+            --color-type-method-badge-text: #22d3ee;
+            --color-type-fact-badge-bg: rgba(74,222,128,0.15);
+            --color-type-fact-badge-text: #4ade80;
+            --color-type-definition-badge-bg: rgba(192,132,252,0.15);
+            --color-type-definition-badge-text: #c084fc;
+            --color-type-opinion-badge-bg: rgba(248,113,113,0.15);
+            --color-type-opinion-badge-text: #f87171;
+            --color-type-data-badge-bg: rgba(251,146,60,0.15);
+            --color-type-data-badge-text: #fb923c;
+            --color-type-question-badge-bg: rgba(45,212,191,0.15);
+            --color-type-question-badge-text: #2dd4bf;
+            --color-type-reference-badge-bg: rgba(100,116,139,0.15);
+            --color-type-reference-badge-text: #94a3b8;
+            --color-confidence-high: #4ade80;
+            --color-confidence-medium: #fbbf24;
+            --color-confidence-low: #f87171;
+        }
+
+        /* Theme: Forest */
+        .theme-forest {
+            --color-bg-base: #1a2e1a;
+            --color-bg-surface: #243524;
+            --color-bg-surface-alt: #2d4a2d;
+            --color-bg-hover: #3a5c3a;
+            --color-bg-overlay: rgba(0,0,0,0.85);
+            --color-text-primary: #e8e0d0;
+            --color-text-secondary: #b8b0a0;
+            --color-text-tertiary: #8a8472;
+            --color-text-inverse: #1a2e1a;
+            --color-accent-primary: #d4a574;
+            --color-accent-secondary: #8fbc8f;
+            --color-accent-soft: rgba(212,165,116,0.12);
+            --color-accent-medium: rgba(212,165,116,0.3);
+            --color-border: #3a5c3a;
+            --color-focus-ring: #d4a574;
+            --color-shadow: rgba(0,0,0,0.25);
+            --shadow-card: 0 10px 30px rgba(0,0,0,0.2);
+            --shadow-card-hover: 0 15px 40px rgba(0,0,0,0.3);
+            --color-type-method: #5dade2;
+            --color-type-fact: #4ade80;
+            --color-type-definition: #c084fc;
+            --color-type-opinion: #f87171;
+            --color-type-data: #fbbf24;
+            --color-type-question: #2dd4bf;
+            --color-type-reference: #8a8472;
+            --color-type-method-badge-bg: rgba(93,173,226,0.15);
+            --color-type-method-badge-text: #5dade2;
+            --color-type-fact-badge-bg: rgba(74,222,128,0.15);
+            --color-type-fact-badge-text: #4ade80;
+            --color-type-definition-badge-bg: rgba(192,132,252,0.15);
+            --color-type-definition-badge-text: #c084fc;
+            --color-type-opinion-badge-bg: rgba(248,113,113,0.15);
+            --color-type-opinion-badge-text: #f87171;
+            --color-type-data-badge-bg: rgba(251,191,36,0.15);
+            --color-type-data-badge-text: #fbbf24;
+            --color-type-question-badge-bg: rgba(45,212,191,0.15);
+            --color-type-question-badge-text: #2dd4bf;
+            --color-type-reference-badge-bg: rgba(138,132,114,0.15);
+            --color-type-reference-badge-text: #b8b0a0;
+            --color-confidence-high: #4ade80;
+            --color-confidence-medium: #fbbf24;
+            --color-confidence-low: #f87171;
+        }
+
+        /* Theme: Terracotta */
+        .theme-terracotta {
+            --color-bg-base: #e8e0d8;
+            --color-bg-surface: #f5f0eb;
+            --color-bg-surface-alt: #ede5dd;
+            --color-bg-hover: #ddd5cc;
+            --color-bg-overlay: rgba(0,0,0,0.8);
+            --color-text-primary: #3d2b1f;
+            --color-text-secondary: #6b5344;
+            --color-text-tertiary: #9a8678;
+            --color-text-inverse: #f5f0eb;
+            --color-accent-primary: #c4553a;
+            --color-accent-secondary: #a0522d;
+            --color-accent-soft: rgba(196,85,58,0.1);
+            --color-accent-medium: rgba(196,85,58,0.25);
+            --color-border: #ccc0b5;
+            --color-focus-ring: #c4553a;
+            --color-shadow: rgba(0,0,0,0.12);
+            --shadow-card: 0 10px 30px rgba(0,0,0,0.08);
+            --shadow-card-hover: 0 15px 40px rgba(0,0,0,0.12);
+            --color-type-method: #5b8db8;
+            --color-type-fact: #6b9e6b;
+            --color-type-definition: #8b6db5;
+            --color-type-opinion: #c4553a;
+            --color-type-data: #d4893a;
+            --color-type-question: #5ba8a0;
+            --color-type-reference: #9a8678;
+            --color-type-method-badge-bg: rgba(91,141,184,0.12);
+            --color-type-method-badge-text: #5b8db8;
+            --color-type-fact-badge-bg: rgba(107,158,107,0.12);
+            --color-type-fact-badge-text: #6b9e6b;
+            --color-type-definition-badge-bg: rgba(139,109,181,0.12);
+            --color-type-definition-badge-text: #8b6db5;
+            --color-type-opinion-badge-bg: rgba(196,85,58,0.12);
+            --color-type-opinion-badge-text: #c4553a;
+            --color-type-data-badge-bg: rgba(212,137,58,0.12);
+            --color-type-data-badge-text: #d4893a;
+            --color-type-question-badge-bg: rgba(91,168,160,0.12);
+            --color-type-question-badge-text: #5ba8a0;
+            --color-type-reference-badge-bg: rgba(154,134,120,0.12);
+            --color-type-reference-badge-text: #9a8678;
+            --color-confidence-high: #6b9e6b;
+            --color-confidence-medium: #d4893a;
+            --color-confidence-low: #c4553a;
+        }
+
+        /* Theme: Monochrome */
+        .theme-monochrome {
+            --color-bg-base: #1a1a1a;
+            --color-bg-surface: #2a2a2a;
+            --color-bg-surface-alt: #333333;
+            --color-bg-hover: #3a3a3a;
+            --color-bg-overlay: rgba(0,0,0,0.9);
+            --color-text-primary: #f0f0f0;
+            --color-text-secondary: #a0a0a0;
+            --color-text-tertiary: #666666;
+            --color-text-inverse: #1a1a1a;
+            --color-accent-primary: #2563eb;
+            --color-accent-secondary: #2563eb;
+            --color-accent-soft: rgba(37,99,235,0.1);
+            --color-accent-medium: rgba(37,99,235,0.25);
+            --color-border: #3a3a3a;
+            --color-focus-ring: #2563eb;
+            --color-shadow: rgba(0,0,0,0.4);
+            --shadow-card: 0 10px 30px rgba(0,0,0,0.3);
+            --shadow-card-hover: 0 15px 40px rgba(0,0,0,0.4);
+            --color-type-method: #6090d0;
+            --color-type-fact: #70b070;
+            --color-type-definition: #9070b0;
+            --color-type-opinion: #d06060;
+            --color-type-data: #d09060;
+            --color-type-question: #60b0a0;
+            --color-type-reference: #808080;
+            --color-type-method-badge-bg: rgba(96,144,208,0.15);
+            --color-type-method-badge-text: #6090d0;
+            --color-type-fact-badge-bg: rgba(112,176,112,0.15);
+            --color-type-fact-badge-text: #70b070;
+            --color-type-definition-badge-bg: rgba(144,112,176,0.15);
+            --color-type-definition-badge-text: #9070b0;
+            --color-type-opinion-badge-bg: rgba(208,96,96,0.15);
+            --color-type-opinion-badge-text: #d06060;
+            --color-type-data-badge-bg: rgba(208,144,96,0.15);
+            --color-type-data-badge-text: #d09060;
+            --color-type-question-badge-bg: rgba(96,176,160,0.15);
+            --color-type-question-badge-text: #60b0a0;
+            --color-type-reference-badge-bg: rgba(128,128,128,0.15);
+            --color-type-reference-badge-text: #a0a0a0;
+            --color-confidence-high: #70b070;
+            --color-confidence-medium: #d09060;
+            --color-confidence-low: #d06060;
+        }
+
         [x-cloak] { display: none !important; }
 
-        /* 概览页样式 - 参考 index2.html */
+        /* 概览页样式 */
         .overview-container {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--color-accent-primary) 0%, var(--color-accent-secondary) 100%);
             min-height: calc(100vh - 56px);
             padding: 30px 20px;
         }
 
         .overview-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: var(--color-bg-surface);
             border-radius: 16px;
             padding: 25px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--shadow-card);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
+            color: var(--color-text-primary);
         }
 
         .overview-card:hover {
             transform: translateY(-3px);
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+            box-shadow: var(--shadow-card-hover);
         }
 
         .gradient-number {
             font-size: 2.5rem;
             font-weight: 700;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, var(--color-accent-primary), var(--color-accent-secondary));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
 
         .gradient-title {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, var(--color-accent-primary), var(--color-accent-secondary));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -58,16 +327,16 @@
             display: inline-block;
         }
 
-        .type-method { background: #3b82f6; }
-        .type-fact { background: #22c55e; }
-        .type-definition { background: #a855f7; }
-        .type-opinion { background: #ef4444; }
-        .type-data { background: #f97316; }
-        .type-question { background: #14b8a6; }
-        .type-reference { background: #6b7280; }
-        .type-Bug { background: #dc2626; }
-        .type-Enhancement { background: #0ea5e9; }
-        .type-observation { background: #8b5cf6; }
+        .type-method { background: var(--color-type-method); }
+        .type-fact { background: var(--color-type-fact); }
+        .type-definition { background: var(--color-type-definition); }
+        .type-opinion { background: var(--color-type-opinion); }
+        .type-data { background: var(--color-type-data); }
+        .type-question { background: var(--color-type-question); }
+        .type-reference { background: var(--color-type-reference); }
+        .type-Bug { background: var(--color-type-opinion); }
+        .type-Enhancement { background: var(--color-type-method); }
+        .type-observation { background: var(--color-type-definition); }
 
         /* Line clamp */
         .line-clamp-2 {
@@ -79,14 +348,14 @@
         }
 
         /* Prose styles */
-        .prose-sm { font-size: 0.875rem; line-height: 1.5; }
+        .prose-sm { font-size: 0.875rem; line-height: 1.5; color: var(--color-text-primary); }
         .prose-sm h1, .prose-sm h2, .prose-sm h3 { font-weight: 600; margin-top: 0.5em; margin-bottom: 0.25em; }
         .prose-sm p { margin: 0.25em 0; }
-        .prose-sm code { background: #f3f4f6; padding: 0.1em 0.3em; border-radius: 3px; font-size: 0.85em; }
-        .prose-sm pre { background: #f3f4f6; padding: 0.5em; border-radius: 4px; overflow-x: auto; }
+        .prose-sm code { background: var(--color-bg-surface-alt); padding: 0.1em 0.3em; border-radius: 3px; font-size: 0.85em; }
+        .prose-sm pre { background: var(--color-bg-surface-alt); padding: 0.5em; border-radius: 4px; overflow-x: auto; }
         .prose-sm ul, .prose-sm ol { padding-left: 1.5em; margin: 0.25em 0; }
-        .prose-sm a { color: #2563eb; text-decoration: underline; }
-        .prose-sm blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75em; color: #6b7280; }
+        .prose-sm a { color: var(--color-accent-primary); text-decoration: underline; }
+        .prose-sm blockquote { border-left: 3px solid var(--color-border); padding-left: 0.75em; color: var(--color-text-tertiary); }
 
         /* 动画 */
         @keyframes fadeIn {
@@ -97,82 +366,131 @@
         .animate-fade-in {
             animation: fadeIn 0.3s ease-out;
         }
+
+        /* Theme transition */
+        html {
+            transition: background-color 0.2s ease;
+        }
+        html * {
+            transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        }
     </style>
+    <!-- Apply theme immediately to prevent flash -->
+    <script>
+        (function() {
+            var theme = localStorage.getItem('llm-wiki-theme') || 'classic';
+            document.documentElement.className = 'theme-' + theme;
+        })();
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.28/dist/cytoscape.min.js"></script>
+    <!-- fcose 布局依赖 -->
+    <script src="lib/layout-base.js"></script>
+    <script src="lib/cose-base.js"></script>
+    <script src="lib/cytoscape-fcose.js"></script>
 </head>
-<body class="bg-gray-100 min-h-screen" x-data="app()" x-cloak>
+<body class="bg-bg-base min-h-screen" x-data="app()" x-cloak>
 
 <!-- Header -->
-<header class="bg-white shadow-sm border-b border-gray-200 fixed top-0 left-0 right-0 z-50">
+<header class="bg-bg-surface shadow-sm border-b border-border-th fixed top-0 left-0 right-0 z-50">
     <div class="flex items-center justify-between px-4 py-3">
-        <h1 class="text-xl font-semibold gradient-title">📚 LLM Wiki</h1>
+        <h1 class="text-xl font-semibold gradient-title">LLM Wiki</h1>
         <div class="flex items-center space-x-4">
-            <span class="text-sm text-gray-500" x-text="atoms.length + ' 个原子'"></span>
-            <span class="text-xs bg-gradient-to-r from-purple-500 to-indigo-500 text-white px-2 py-1 rounded">OKF v0.1</span>
+            <span class="text-sm text-on-muted" x-text="atoms.length + ' 个原子'"></span>
+
+            <!-- Theme Switcher -->
+            <div class="relative" @click.away="themeMenuOpen = false">
+                <button @click="themeMenuOpen = !themeMenuOpen"
+                        class="flex items-center space-x-1 text-sm text-on-surface hover:text-on-base px-2 py-1 rounded hover:bg-bg-hover"
+                        title="切换主题">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/>
+                    </svg>
+                    <span x-text="themes.find(t => t.id === currentTheme)?.name"></span>
+                </button>
+                <div x-show="themeMenuOpen" x-transition
+                     class="absolute right-0 mt-2 w-44 bg-bg-surface rounded-lg shadow-lg border border-border-th overflow-hidden z-50">
+                    <template x-for="theme in themes" :key="theme.id">
+                        <button @click="setTheme(theme.id)"
+                                :class="currentTheme === theme.id ? 'bg-accent-soft text-accent' : 'text-on-base hover:bg-bg-hover'"
+                                class="w-full flex items-center space-x-3 px-3 py-2 text-sm">
+                            <span class="w-4 h-4 rounded-full border border-border-th flex-shrink-0"
+                                  :style="'background:' + theme.swatch"></span>
+                            <span x-text="theme.name"></span>
+                            <span x-show="currentTheme === theme.id" class="ml-auto text-accent">&#10003;</span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <span class="text-xs bg-gradient-brand text-on-accent px-2 py-1 rounded">OKF v0.1</span>
         </div>
     </div>
 </header>
 
 <div class="flex pt-14">
     <!-- Sidebar -->
-    <aside class="w-48 bg-white border-r border-gray-200 fixed left-0 top-14 bottom-0 overflow-y-auto z-10">
+    <aside class="w-48 bg-bg-surface border-r border-border-th fixed left-0 top-14 bottom-0 overflow-y-auto z-10">
         <nav class="p-4">
             <div class="space-y-1">
                 <button @click="view='overview'"
-                        :class="view === 'overview' ? 'bg-gradient-to-r from-purple-50 to-indigo-50 text-indigo-700 border-l-4 border-indigo-500' : 'text-gray-700 hover:bg-gray-100'"
-                        class="w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors">
-                    🏠 概览
+                        :class="view === 'overview' ? 'bg-accent-soft text-accent border-l-4 border-accent' : 'text-on-surface hover:bg-bg-hover border-l-4 border-transparent'"
+                        class="w-full text-left px-3 py-2 rounded-md text-sm font-medium">
+                    概览
                 </button>
                 <button @click="view='browse'"
-                        :class="view === 'browse' ? 'bg-gradient-to-r from-blue-50 to-cyan-50 text-blue-700 border-l-4 border-blue-500' : 'text-gray-700 hover:bg-gray-100'"
-                        class="w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors">
-                    📚 浏览
+                        :class="view === 'browse' ? 'bg-accent-soft text-accent border-l-4 border-accent' : 'text-on-surface hover:bg-bg-hover border-l-4 border-transparent'"
+                        class="w-full text-left px-3 py-2 rounded-md text-sm font-medium">
+                    浏览
                 </button>
                 <button @click="view='graph'"
-                        :class="view === 'graph' ? 'bg-gradient-to-r from-green-50 to-teal-50 text-green-700 border-l-4 border-green-500' : 'text-gray-700 hover:bg-gray-100'"
-                        class="w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors">
-                    🕸️ 图谱
+                        :class="view === 'graph' ? 'bg-accent-soft text-accent border-l-4 border-accent' : 'text-on-surface hover:bg-bg-hover border-l-4 border-transparent'"
+                        class="w-full text-left px-3 py-2 rounded-md text-sm font-medium">
+                    图谱
                 </button>
                 <button @click="view='timeline'"
-                        :class="view === 'timeline' ? 'bg-gradient-to-r from-orange-50 to-yellow-50 text-orange-700 border-l-4 border-orange-500' : 'text-gray-700 hover:bg-gray-100'"
-                        class="w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors">
-                    📅 时间线
+                        :class="view === 'timeline' ? 'bg-accent-soft text-accent border-l-4 border-accent' : 'text-on-surface hover:bg-bg-hover border-l-4 border-transparent'"
+                        class="w-full text-left px-3 py-2 rounded-md text-sm font-medium">
+                    时间线
                 </button>
                 <button @click="view='gaps'"
-                        :class="view === 'gaps' ? 'bg-gradient-to-r from-red-50 to-pink-50 text-red-700 border-l-4 border-red-500' : 'text-gray-700 hover:bg-gray-100'"
-                        class="w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors">
-                    🔍 缺口
-                    <span class="ml-1 text-xs bg-yellow-100 text-yellow-700 px-1 rounded"
+                        :class="view === 'gaps' ? 'bg-accent-soft text-accent border-l-4 border-accent' : 'text-on-surface hover:bg-bg-hover border-l-4 border-transparent'"
+                        class="w-full text-left px-3 py-2 rounded-md text-sm font-medium">
+                    缺口
+                    <span class="ml-1 text-xs bg-accent-soft text-accent px-1 rounded"
                           x-text="gaps.length" x-show="gaps.length > 0"></span>
                 </button>
             </div>
 
             <!-- Heads Up -->
-            <div class="mt-6 pt-4 border-t border-gray-200">
-                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Heads Up</h3>
+            <div class="mt-6 pt-4 border-t border-border-th">
+                <h3 class="text-xs font-semibold text-on-muted uppercase tracking-wider mb-2">Heads Up</h3>
                 <div class="space-y-1">
                     <template x-for="gap in gaps.slice(0, 5)" :key="gap.description">
-                        <div class="text-xs text-gray-600 px-3 py-1 hover:bg-gray-50 rounded cursor-pointer"
+                        <div class="text-xs text-on-surface px-3 py-1 hover:bg-bg-hover rounded cursor-pointer"
                              @click="view='gaps'">
-                            💡 <span x-text="gap.description ? gap.description.slice(0, 30) + '...' : ''"></span>
+                            <span x-text="gap.description ? gap.description.slice(0, 30) + '...' : ''"></span>
                         </div>
                     </template>
-                    <div x-show="gaps.length === 0" class="text-xs text-gray-400 px-3">
+                    <div x-show="gaps.length === 0" class="text-xs text-on-muted px-3">
                         暂无推荐
                     </div>
                 </div>
             </div>
 
             <!-- 类型统计 -->
-            <div class="mt-6 pt-4 border-t border-gray-200">
-                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">类型分布</h3>
+            <div class="mt-6 pt-4 border-t border-border-th">
+                <h3 class="text-xs font-semibold text-on-muted uppercase tracking-wider mb-2">类型分布</h3>
                 <div class="space-y-1">
                     <template x-for="item in typeStats.slice(0, 8)" :key="item.type">
                         <div class="flex items-center justify-between px-3 py-1 text-xs">
                             <div class="flex items-center space-x-2">
                                 <span class="type-dot" :class="'type-' + item.type"></span>
-                                <span class="text-gray-600" x-text="item.type"></span>
+                                <span class="text-on-surface" x-text="item.type"></span>
                             </div>
-                            <span class="bg-gradient-to-r from-purple-100 to-indigo-100 text-indigo-700 px-2 rounded-full"
+                            <span class="bg-accent-soft text-accent px-2 rounded-full"
                                   x-text="item.count"></span>
                         </div>
                     </template>
@@ -191,26 +509,26 @@
                 <!-- Header Card -->
                 <div class="overview-card text-center mb-6" style="padding: 40px;">
                     <h1 class="text-3xl font-bold gradient-title mb-2" x-text="kbName || '知识库'"></h1>
-                    <p class="text-gray-600">基于 OKF v0.1 规范的知识管理系统</p>
+                    <p class="text-on-surface">基于 OKF v0.1 规范的知识管理系统</p>
                 </div>
 
                 <!-- Stats Grid -->
                 <div class="grid grid-cols-4 gap-5 mb-6">
                     <div class="overview-card text-center">
                         <div class="gradient-number" x-text="atoms.length"></div>
-                        <div class="text-gray-600 text-sm mt-1">知识原子总数</div>
+                        <div class="text-on-surface text-sm mt-1">知识原子总数</div>
                     </div>
                     <div class="overview-card text-center">
                         <div class="gradient-number" x-text="types.length"></div>
-                        <div class="text-gray-600 text-sm mt-1">知识类型</div>
+                        <div class="text-on-surface text-sm mt-1">知识类型</div>
                     </div>
                     <div class="overview-card text-center">
                         <div class="gradient-number" x-text="totalTags"></div>
-                        <div class="text-gray-600 text-sm mt-1">标签总数</div>
+                        <div class="text-on-surface text-sm mt-1">标签总数</div>
                     </div>
                     <div class="overview-card text-center">
                         <div class="gradient-number" x-text="gaps.length"></div>
-                        <div class="text-gray-600 text-sm mt-1">知识缺口</div>
+                        <div class="text-on-surface text-sm mt-1">知识缺口</div>
                     </div>
                 </div>
 
@@ -219,47 +537,47 @@
                     <div class="overview-card cursor-pointer" @click="view='browse'">
                         <div class="text-center">
                             <div class="text-4xl mb-3">📚</div>
-                            <h3 class="text-lg font-semibold text-gray-800 mb-2">浏览原子</h3>
-                            <p class="text-gray-600 text-sm">按类型、标签浏览所有知识原子</p>
+                            <h3 class="text-lg font-semibold text-on-base mb-2">浏览原子</h3>
+                            <p class="text-on-surface text-sm">按类型、标签浏览所有知识原子</p>
                         </div>
                     </div>
                     <div class="overview-card cursor-pointer" @click="view='graph'">
                         <div class="text-center">
                             <div class="text-4xl mb-3">🕸️</div>
-                            <h3 class="text-lg font-semibold text-gray-800 mb-2">知识图谱</h3>
-                            <p class="text-gray-600 text-sm">交互式图谱视图，探索关系</p>
+                            <h3 class="text-lg font-semibold text-on-base mb-2">知识图谱</h3>
+                            <p class="text-on-surface text-sm">交互式图谱视图，探索关系</p>
                         </div>
                     </div>
                     <div class="overview-card cursor-pointer" @click="view='timeline'">
                         <div class="text-center">
                             <div class="text-4xl mb-3">📅</div>
-                            <h3 class="text-lg font-semibold text-gray-800 mb-2">时间线</h3>
-                            <p class="text-gray-600 text-sm">按时间顺序浏览更新</p>
+                            <h3 class="text-lg font-semibold text-on-base mb-2">时间线</h3>
+                            <p class="text-on-surface text-sm">按时间顺序浏览更新</p>
                         </div>
                     </div>
                     <div class="overview-card cursor-pointer" @click="view='gaps'">
                         <div class="text-center">
                             <div class="text-4xl mb-3">🔍</div>
-                            <h3 class="text-lg font-semibold text-gray-800 mb-2">知识缺口</h3>
-                            <p class="text-gray-600 text-sm">发现需要改进的地方</p>
+                            <h3 class="text-lg font-semibold text-on-base mb-2">知识缺口</h3>
+                            <p class="text-on-surface text-sm">发现需要改进的地方</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Type Distribution -->
                 <div class="overview-card mb-6">
-                    <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                    <h2 class="text-xl font-semibold text-on-base mb-4 flex items-center">
                         <span class="text-2xl mr-2">📊</span>
                         类型分布
                     </h2>
                     <div class="grid grid-cols-4 gap-4">
                         <template x-for="item in typeStats" :key="item.type">
-                            <div class="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                            <div class="flex items-center justify-between px-4 py-3 bg-bg-surface-alt rounded-lg hover:bg-bg-hover">
                                 <div class="flex items-center space-x-2">
                                     <span class="type-dot" :class="'type-' + item.type"></span>
-                                    <span class="font-medium text-gray-700" x-text="item.type"></span>
+                                    <span class="font-medium text-on-surface" x-text="item.type"></span>
                                 </div>
-                                <span class="bg-gradient-to-r from-purple-500 to-indigo-500 text-white px-3 py-1 rounded-full text-sm font-semibold"
+                                <span class="bg-gradient-brand text-on-accent px-3 py-1 rounded-full text-sm font-semibold"
                                       x-text="item.count"></span>
                             </div>
                         </template>
@@ -268,27 +586,27 @@
 
                 <!-- Recent Updates -->
                 <div class="overview-card mb-6">
-                    <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                    <h2 class="text-xl font-semibold text-on-base mb-4 flex items-center">
                         <span class="text-2xl mr-2">🕐</span>
                         最近更新
                     </h2>
                     <div class="space-y-2">
                         <template x-for="atom in recentAtoms" :key="atom.id">
-                            <div class="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                            <div class="flex items-center justify-between px-4 py-3 bg-bg-surface-alt rounded-lg hover:bg-bg-hover cursor-pointer"
                                  @click="selectAtom(atom); view='browse'">
                                 <div class="flex items-center space-x-3">
                                     <span class="type-dot" :class="'type-' + atom.type"></span>
-                                    <span class="font-medium text-gray-800" x-text="atom.title || atom.id"></span>
+                                    <span class="font-medium text-on-base" x-text="atom.title || atom.id"></span>
                                 </div>
                                 <div class="flex items-center space-x-3">
                                     <span class="text-xs px-2 py-1 rounded"
                                           :class="typeBadgeColor(atom.type)"
                                           x-text="atom.type"></span>
-                                    <span class="text-xs text-gray-500" x-text="atom.timestamp"></span>
+                                    <span class="text-xs text-on-muted" x-text="atom.timestamp"></span>
                                 </div>
                             </div>
                         </template>
-                        <div x-show="recentAtoms.length === 0" class="text-center text-gray-400 py-4">
+                        <div x-show="recentAtoms.length === 0" class="text-center text-on-muted py-4">
                             暂无最近更新
                         </div>
                     </div>
@@ -296,27 +614,27 @@
 
                 <!-- High Confidence -->
                 <div class="overview-card mb-6">
-                    <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                    <h2 class="text-xl font-semibold text-on-base mb-4 flex items-center">
                         <span class="text-2xl mr-2">⭐</span>
                         高置信度原子 (≥80%)
                     </h2>
                     <div class="space-y-2">
                         <template x-for="atom in highConfidenceAtoms" :key="atom.id">
-                            <div class="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                            <div class="flex items-center justify-between px-4 py-3 bg-bg-surface-alt rounded-lg hover:bg-bg-hover cursor-pointer"
                                  @click="selectAtom(atom); view='browse'">
                                 <div class="flex items-center space-x-3">
                                     <span class="type-dot" :class="'type-' + atom.type"></span>
-                                    <span class="font-medium text-gray-800" x-text="atom.title || atom.id"></span>
+                                    <span class="font-medium text-on-base" x-text="atom.title || atom.id"></span>
                                 </div>
                                 <div class="flex items-center space-x-3">
                                     <span class="text-xs px-2 py-1 rounded"
                                           :class="typeBadgeColor(atom.type)"
                                           x-text="atom.type"></span>
-                                    <span class="text-sm font-semibold text-green-600" x-text="Math.round(atom.confidence * 100) + '%'"></span>
+                                    <span class="text-sm font-semibold text-conf-high" x-text="Math.round(atom.confidence * 100) + '%'"></span>
                                 </div>
                             </div>
                         </template>
-                        <div x-show="highConfidenceAtoms.length === 0" class="text-center text-gray-400 py-4">
+                        <div x-show="highConfidenceAtoms.length === 0" class="text-center text-on-muted py-4">
                             暂无高置信度原子
                         </div>
                     </div>
@@ -324,24 +642,24 @@
 
                 <!-- Tags Cloud -->
                 <div class="overview-card">
-                    <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                    <h2 class="text-xl font-semibold text-on-base mb-4 flex items-center">
                         <span class="text-2xl mr-2">🏷️</span>
                         热门标签
                     </h2>
                     <div class="flex flex-wrap gap-3">
                         <template x-for="tag in topTags" :key="tag.name">
-                            <span class="inline-block px-4 py-2 rounded-full bg-gradient-to-r from-blue-50 to-indigo-50 text-indigo-700 text-sm font-medium hover:from-blue-100 hover:to-indigo-100 cursor-pointer transition-colors"
+                            <span class="inline-block px-4 py-2 rounded-full bg-accent-soft text-accent text-sm font-medium hover:bg-accent-med cursor-pointer"
                                   x-text="tag.name + ' (' + tag.count + ')'"
                                   @click="view='browse'"></span>
                         </template>
-                        <div x-show="topTags.length === 0" class="text-center text-gray-400 py-4">
+                        <div x-show="topTags.length === 0" class="text-center text-on-muted py-4">
                             暂无标签
                         </div>
                     </div>
                 </div>
 
                 <!-- Footer -->
-                <div class="text-center text-white text-sm mt-6 opacity-80">
+                <div class="text-center text-on-accent text-sm mt-6 opacity-80">
                     Powered by <a href="https://github.com/GoogleCloudPlatform/knowledge-catalog" class="underline hover:opacity-100">OKF</a> | LLM Wiki v3.0
                 </div>
             </div>
@@ -352,11 +670,11 @@
             <div class="grid grid-cols-3 gap-6">
                 <!-- 原子列表 -->
                 <div class="col-span-2">
-                    <div class="bg-white rounded-lg shadow-lg">
-                        <div class="p-4 border-b border-gray-200">
+                    <div class="bg-bg-surface rounded-lg shadow-lg">
+                        <div class="p-4 border-b border-border-th">
                             <div class="flex items-center justify-between">
-                                <h2 class="text-lg font-medium text-gray-900">知识原子</h2>
-                                <select x-model="typeFilter" class="text-sm border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <h2 class="text-lg font-medium text-on-base">知识原子</h2>
+                                <select x-model="typeFilter" class="text-sm border border-border-th rounded-md px-3 py-2 bg-bg-surface text-on-base focus:ring-2 focus:ring-focus focus:border-focus">
                                     <option value="">全部类型</option>
                                     <template x-for="type in types" :key="type">
                                         <option :value="type" x-text="type"></option>
@@ -364,11 +682,11 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="divide-y divide-gray-200 max-h-[calc(100vh-250px)] overflow-y-auto">
+                        <div class="divide-y divide-border-th max-h-[calc(100vh-250px)] overflow-y-auto">
                             <template x-for="atom in filteredAtoms" :key="atom.id">
                                 <div @click="selectAtom(atom)"
-                                     :class="selectedAtom && selectedAtom.id === atom.id ? 'bg-gradient-to-r from-indigo-50 to-purple-50 border-l-4 border-indigo-500' : 'hover:bg-gray-50 border-l-4 border-transparent'"
-                                     class="p-4 cursor-pointer transition-colors">
+                                     :class="selectedAtom && selectedAtom.id === atom.id ? 'bg-accent-soft border-l-4 border-accent' : 'hover:bg-bg-hover border-l-4 border-transparent'"
+                                     class="p-4 cursor-pointer">
                                     <div class="flex items-start">
                                         <div class="flex-1 min-w-0">
                                             <div class="flex items-center space-x-2">
@@ -376,28 +694,28 @@
                                                 <span class="inline-block px-2 py-0.5 text-xs rounded"
                                                       :class="typeBadgeColor(atom.type)"
                                                       x-text="atom.type"></span>
-                                                <h3 class="text-sm font-medium text-gray-900 truncate" x-text="atom.title"></h3>
+                                                <h3 class="text-sm font-medium text-on-base truncate" x-text="atom.title"></h3>
                                             </div>
-                                            <p class="mt-1 text-xs text-gray-500 line-clamp-2" x-text="atom.description || '无描述'"></p>
+                                            <p class="mt-1 text-xs text-on-muted line-clamp-2" x-text="atom.description || '无描述'"></p>
                                             <div class="mt-2 flex items-center space-x-2" x-show="atom.tags && atom.tags.length > 0">
                                                 <template x-for="tag in atom.tags ? atom.tags.slice(0, 3) : []" :key="tag">
-                                                    <span class="inline-block px-2 py-0.5 text-xs rounded-full bg-indigo-50 text-indigo-600"
+                                                    <span class="inline-block px-2 py-0.5 text-xs rounded-full bg-accent-soft text-accent"
                                                           x-text="tag"></span>
                                                 </template>
                                                 <span x-show="atom.tags && atom.tags.length > 3"
-                                                      class="text-xs text-gray-400"
+                                                      class="text-xs text-on-muted"
                                                       x-text="'+' + (atom.tags.length - 3)"></span>
                                             </div>
                                         </div>
                                         <div class="ml-2 flex-shrink-0" x-show="atom.confidence">
                                             <span class="text-xs font-semibold"
-                                                  :class="atom.confidence >= 0.8 ? 'text-green-600' : atom.confidence >= 0.5 ? 'text-yellow-600' : 'text-red-600'"
+                                                  :class="atom.confidence >= 0.8 ? 'text-conf-high' : atom.confidence >= 0.5 ? 'text-conf-med' : 'text-conf-low'"
                                                   x-text="Math.round(atom.confidence * 100) + '%'"></span>
                                         </div>
                                     </div>
                                 </div>
                             </template>
-                            <div x-show="filteredAtoms.length === 0" class="p-8 text-center text-gray-400">
+                            <div x-show="filteredAtoms.length === 0" class="p-8 text-center text-on-muted">
                                 没有找到匹配的原子
                             </div>
                         </div>
@@ -406,13 +724,13 @@
 
                 <!-- 详情面板 -->
                 <div class="col-span-1">
-                    <div class="bg-white rounded-lg shadow-lg sticky top-20" x-show="selectedAtom">
-                        <div class="p-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
-                            <h2 class="text-lg font-semibold text-gray-900" x-text="selectedAtom ? selectedAtom.title : ''"></h2>
+                    <div class="bg-bg-surface rounded-lg shadow-lg sticky top-20" x-show="selectedAtom">
+                        <div class="p-4 border-b border-border-th bg-accent-soft">
+                            <h2 class="text-lg font-semibold text-on-base" x-text="selectedAtom ? selectedAtom.title : ''"></h2>
                         </div>
                         <div class="p-4 space-y-4">
                             <div>
-                                <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">类型</label>
+                                <label class="text-xs font-medium text-on-muted uppercase tracking-wider">类型</label>
                                 <p class="mt-1">
                                     <span class="inline-block px-2 py-1 text-xs rounded"
                                           :class="selectedAtom ? typeBadgeColor(selectedAtom.type) : ''"
@@ -420,42 +738,42 @@
                                 </p>
                             </div>
                             <div>
-                                <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">路径</label>
-                                <p class="mt-1 text-sm text-gray-600 font-mono break-all" x-text="selectedAtom ? selectedAtom.path : ''"></p>
+                                <label class="text-xs font-medium text-on-muted uppercase tracking-wider">路径</label>
+                                <p class="mt-1 text-sm text-on-surface font-mono break-all" x-text="selectedAtom ? selectedAtom.path : ''"></p>
                             </div>
                             <div x-show="selectedAtom && selectedAtom.description">
-                                <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">描述</label>
-                                <p class="mt-1 text-sm text-gray-700" x-text="selectedAtom ? selectedAtom.description : ''"></p>
+                                <label class="text-xs font-medium text-on-muted uppercase tracking-wider">描述</label>
+                                <p class="mt-1 text-sm text-on-surface" x-text="selectedAtom ? selectedAtom.description : ''"></p>
                             </div>
                             <div x-show="selectedAtom && selectedAtom.confidence">
-                                <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">置信度</label>
+                                <label class="text-xs font-medium text-on-muted uppercase tracking-wider">置信度</label>
                                 <p class="mt-1 text-sm">
                                     <span class="font-semibold"
-                                          :class="selectedAtom && selectedAtom.confidence >= 0.8 ? 'text-green-600' : selectedAtom && selectedAtom.confidence >= 0.5 ? 'text-yellow-600' : 'text-red-600'"
+                                          :class="selectedAtom && selectedAtom.confidence >= 0.8 ? 'text-conf-high' : selectedAtom && selectedAtom.confidence >= 0.5 ? 'text-conf-med' : 'text-conf-low'"
                                           x-text="selectedAtom ? Math.round(selectedAtom.confidence * 100) + '%' : ''"></span>
                                 </p>
                             </div>
                             <div>
-                                <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">内容预览</label>
-                                <div class="mt-1 text-sm text-gray-700 prose prose-sm max-w-none"
+                                <label class="text-xs font-medium text-on-muted uppercase tracking-wider">内容预览</label>
+                                <div class="mt-1 text-sm text-on-surface prose prose-sm max-w-none"
                                      x-html="selectedAtom && selectedAtom.content ? marked.parse(selectedAtom.content) : ''"></div>
                             </div>
                             <div x-show="selectedAtom && selectedAtom.tags && selectedAtom.tags.length > 0">
-                                <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">标签</label>
+                                <label class="text-xs font-medium text-on-muted uppercase tracking-wider">标签</label>
                                 <div class="mt-1 flex flex-wrap gap-2">
                                     <template x-for="tag in selectedAtom ? (selectedAtom.tags || []) : []" :key="tag">
-                                        <span class="inline-block px-2 py-1 text-xs rounded-full bg-indigo-50 text-indigo-600"
+                                        <span class="inline-block px-2 py-1 text-xs rounded-full bg-accent-soft text-accent"
                                               x-text="tag"></span>
                                     </template>
                                 </div>
                             </div>
                             <div x-show="selectedAtom && selectedAtom.timestamp">
-                                <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">时间</label>
-                                <p class="mt-1 text-xs text-gray-500" x-text="selectedAtom ? selectedAtom.timestamp : ''"></p>
+                                <label class="text-xs font-medium text-on-muted uppercase tracking-wider">时间</label>
+                                <p class="mt-1 text-xs text-on-muted" x-text="selectedAtom ? selectedAtom.timestamp : ''"></p>
                             </div>
                         </div>
                     </div>
-                    <div x-show="!selectedAtom" class="bg-white rounded-lg shadow-lg p-8 text-center text-gray-400">
+                    <div x-show="!selectedAtom" class="bg-bg-surface rounded-lg shadow-lg p-8 text-center text-on-muted">
                         点击左侧原子查看详情
                     </div>
                 </div>
@@ -463,18 +781,18 @@
         </div>
 
         <!-- 图谱视图 - Cytoscape.js 全屏交互式图谱 -->
-        <div x-show="view === 'graph'" x-cloak class="animate-fade-in absolute inset-0 pt-14 pl-48 bg-gray-100">
+        <div x-show="view === 'graph'" x-cloak class="animate-fade-in absolute inset-0 pt-14 pl-48 bg-bg-base">
             <!-- 全屏图谱画布 -->
-            <div class="absolute inset-0 ml-48 mt-14 bg-white">
+            <div class="absolute inset-0 ml-48 mt-14 bg-bg-surface">
                 <div id="cy" class="w-full h-full"></div>
 
                 <!-- 空知识库提示 -->
                 <div x-show="graphData.nodes.length === 0"
-                     class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-90 z-10">
+                     class="absolute inset-0 flex items-center justify-center bg-bg-surface bg-opacity-90 z-10">
                     <div class="text-center">
                         <div class="text-6xl mb-4">🕸️</div>
-                        <h3 class="text-xl font-semibold text-gray-700 mb-2">暂无知识原子</h3>
-                        <p class="text-gray-500">请先添加知识原子以生成图谱</p>
+                        <h3 class="text-xl font-semibold text-on-base mb-2">暂无知识原子</h3>
+                        <p class="text-on-muted">请先添加知识原子以生成图谱</p>
                     </div>
                 </div>
             </div>
@@ -485,14 +803,14 @@
                        x-model="graphSearchQuery"
                        @input="searchGraphNodes()"
                        placeholder="搜索节点..."
-                       class="px-3 py-2 text-sm border border-gray-300 rounded-lg shadow-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-48">
+                       class="px-3 py-2 text-sm border border-border-th rounded-lg shadow-sm bg-bg-surface text-on-base focus:ring-2 focus:ring-focus focus:border-focus w-48">
                 <button @click="resetGraphView()"
-                        class="px-3 py-2 text-sm bg-white border border-gray-300 hover:bg-gray-50 rounded-lg shadow-sm transition-colors">
-                    🔄 重置
+                        class="px-3 py-2 text-sm bg-bg-surface border border-border-th hover:bg-bg-hover rounded-lg shadow-sm">
+                    重置
                 </button>
                 <button @click="graphShowPanel = !graphShowPanel"
-                        class="px-3 py-2 text-sm bg-white border border-gray-300 hover:bg-gray-50 rounded-lg shadow-sm transition-colors">
-                    ⚙️ 设置
+                        class="px-3 py-2 text-sm bg-bg-surface border border-border-th hover:bg-bg-hover rounded-lg shadow-sm">
+                    设置
                 </button>
             </div>
 
@@ -501,19 +819,19 @@
                  x-transition:enter="transition ease-out duration-200"
                  x-transition:enter-start="opacity-0 translate-x-4"
                  x-transition:enter-end="opacity-100 translate-x-0"
-                 class="absolute top-20 right-4 z-20 w-64 bg-white rounded-lg shadow-lg border border-gray-200 overflow-y-auto max-h-[calc(100vh-100px)]">
+                 class="absolute top-20 right-4 z-20 w-64 bg-bg-surface rounded-lg shadow-lg border border-border-th overflow-y-auto max-h-[calc(100vh-100px)]">
                 <div class="p-4">
-                    <h3 class="text-sm font-semibold text-gray-700 mb-3 flex items-center justify-between">
-                        <span><span class="mr-2">⚙️</span>控制面板</span>
-                        <button @click="graphShowPanel = false" class="text-gray-400 hover:text-gray-600">✕</button>
+                    <h3 class="text-sm font-semibold text-on-base mb-3 flex items-center justify-between">
+                        <span>控制面板</span>
+                        <button @click="graphShowPanel = false" class="text-on-muted hover:text-on-base">✕</button>
                     </h3>
 
                     <!-- 布局选择 -->
                     <div class="mb-3">
-                        <label class="text-xs text-gray-500 mb-1 block">布局算法</label>
+                        <label class="text-xs text-on-muted mb-1 block">布局算法</label>
                         <select x-model="graphSettings.layout"
                                 @change="changeGraphLayout()"
-                                class="w-full text-sm border border-gray-300 rounded px-2 py-1">
+                                class="w-full text-sm border border-border-th rounded px-2 py-1 bg-bg-surface text-on-base">
                             <option value="fcose">fcose（快速力导向）</option>
                             <option value="cose">cose（力导向）</option>
                             <option value="grid">grid（网格）</option>
@@ -524,12 +842,12 @@
 
                     <!-- 类型筛选 -->
                     <div class="mb-3">
-                        <label class="text-xs text-gray-500 mb-1 block">类型筛选</label>
+                        <label class="text-xs text-on-muted mb-1 block">类型筛选</label>
                         <div class="flex flex-wrap gap-1">
                             <template x-for="type in graphAvailableTypes" :key="type">
                                 <button @click="toggleTypeFilter(type)"
-                                        :class="graphFilters.types.includes(type) ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'bg-gray-100 text-gray-600 border-gray-200'"
-                                        class="px-2 py-1 text-xs rounded border transition-colors"
+                                        :class="graphFilters.types.includes(type) ? 'bg-accent-soft text-accent border-accent' : 'bg-bg-surface-alt text-on-muted border-border-th'"
+                                        class="px-2 py-1 text-xs rounded border"
                                         x-text="type"></button>
                             </template>
                         </div>
@@ -539,104 +857,108 @@
                     <div class="mb-3">
                         <label class="flex items-center cursor-pointer">
                             <input type="checkbox" x-model="graphSettings.showOrphans" @change="toggleOrphanNodes()" class="mr-2">
-                            <span class="text-xs text-gray-600">显示孤立节点</span>
+                            <span class="text-xs text-on-surface">显示孤立节点</span>
                         </label>
                     </div>
 
                     <!-- 连线颜色 -->
                     <div class="mb-3">
-                        <label class="text-xs text-gray-500 mb-1 block">连线颜色</label>
+                        <label class="text-xs text-on-muted mb-1 block">连线颜色</label>
                         <div class="flex gap-1">
                             <button @click="graphSettings.edgeColor = '#ccc'; adjustEdgeColor()"
-                                    :class="graphSettings.edgeColor === '#ccc' ? 'ring-2 ring-indigo-500' : ''"
-                                    class="w-6 h-6 rounded bg-gray-300 border border-gray-400"></button>
-                            <button @click="graphSettings.edgeColor = '#667eea'; adjustEdgeColor()"
-                                    :class="graphSettings.edgeColor === '#667eea' ? 'ring-2 ring-indigo-500' : ''"
-                                    class="w-6 h-6 rounded bg-indigo-500 border border-indigo-600"></button>
-                            <button @click="graphSettings.edgeColor = '#22c55e'; adjustEdgeColor()"
-                                    :class="graphSettings.edgeColor === '#22c55e' ? 'ring-2 ring-indigo-500' : ''"
-                                    class="w-6 h-6 rounded bg-green-500 border border-green-600"></button>
-                            <button @click="graphSettings.edgeColor = '#f97316'; adjustEdgeColor()"
-                                    :class="graphSettings.edgeColor === '#f97316' ? 'ring-2 ring-indigo-500' : ''"
-                                    class="w-6 h-6 rounded bg-orange-500 border border-orange-600"></button>
-                            <button @click="graphSettings.edgeColor = '#a855f7'; adjustEdgeColor()"
-                                    :class="graphSettings.edgeColor === '#a855f7' ? 'ring-2 ring-indigo-500' : ''"
-                                    class="w-6 h-6 rounded bg-purple-500 border border-purple-600"></button>
+                                    :class="graphSettings.edgeColor === '#ccc' ? 'ring-2 ring-focus' : ''"
+                                    class="w-6 h-6 rounded bg-gray-300 border border-border-th"></button>
+                            <button @click="graphSettings.edgeColor = getThemeAccent(); adjustEdgeColor()"
+                                    :class="graphSettings.edgeColor === getThemeAccent() ? 'ring-2 ring-focus' : ''"
+                                    class="w-6 h-6 rounded border border-border-th"
+                                    :style="'background:' + getThemeAccent()"></button>
+                            <button @click="graphSettings.edgeColor = getThemeTypeColor('fact'); adjustEdgeColor()"
+                                    :class="graphSettings.edgeColor === getThemeTypeColor('fact') ? 'ring-2 ring-focus' : ''"
+                                    class="w-6 h-6 rounded border border-border-th"
+                                    :style="'background:' + getThemeTypeColor('fact')"></button>
+                            <button @click="graphSettings.edgeColor = getThemeTypeColor('data'); adjustEdgeColor()"
+                                    :class="graphSettings.edgeColor === getThemeTypeColor('data') ? 'ring-2 ring-focus' : ''"
+                                    class="w-6 h-6 rounded border border-border-th"
+                                    :style="'background:' + getThemeTypeColor('data')"></button>
+                            <button @click="graphSettings.edgeColor = getThemeTypeColor('definition'); adjustEdgeColor()"
+                                    :class="graphSettings.edgeColor === getThemeTypeColor('definition') ? 'ring-2 ring-focus' : ''"
+                                    class="w-6 h-6 rounded border border-border-th"
+                                    :style="'background:' + getThemeTypeColor('definition')"></button>
                         </div>
                     </div>
 
                     <!-- 节点大小滑块 -->
                     <div class="mb-3">
-                        <label class="text-xs text-gray-500 mb-1 block">节点大小 <span class="text-gray-400" x-text="graphSettings.nodeSize"></span></label>
+                        <label class="text-xs text-on-muted mb-1 block">节点大小 <span class="text-on-muted" x-text="graphSettings.nodeSize"></span></label>
                         <input type="range" x-model="graphSettings.nodeSize" @input="adjustNodeSize()" min="0.5" max="2" step="0.1" class="w-full">
                     </div>
 
                     <!-- 连线粗细滑块 -->
                     <div class="mb-3">
-                        <label class="text-xs text-gray-500 mb-1 block">连线粗细 <span class="text-gray-400" x-text="graphSettings.edgeWidth"></span></label>
+                        <label class="text-xs text-on-muted mb-1 block">连线粗细 <span class="text-on-muted" x-text="graphSettings.edgeWidth"></span></label>
                         <input type="range" x-model="graphSettings.edgeWidth" @input="adjustEdgeWidth()" min="0.5" max="3" step="0.5" class="w-full">
                     </div>
 
                     <!-- 向心力滑块 -->
                     <div class="mb-3">
-                        <label class="text-xs text-gray-500 mb-1 block">向心力 <span class="text-gray-400" x-text="graphSettings.gravity"></span></label>
+                        <label class="text-xs text-on-muted mb-1 block">向心力 <span class="text-on-muted" x-text="graphSettings.gravity"></span></label>
                         <input type="range" x-model="graphSettings.gravity" @input="runGraphLayout()" min="0.1" max="1" step="0.1" class="w-full">
                     </div>
                 </div>
 
                 <!-- 节点详情（选中时显示） -->
-                <div class="border-t border-gray-200 p-4" x-show="graphSelectedNode">
-                    <h3 class="text-sm font-semibold text-gray-700 mb-2 flex items-center">
-                        <span class="mr-2">📋</span>节点详情
+                <div class="border-t border-border-th p-4" x-show="graphSelectedNode">
+                    <h3 class="text-sm font-semibold text-on-base mb-2 flex items-center">
+                        节点详情
                     </h3>
                     <div class="space-y-2">
                         <div>
-                            <label class="text-xs text-gray-500">标题</label>
-                            <p class="text-sm font-medium text-gray-800" x-text="graphSelectedNode?.label"></p>
+                            <label class="text-xs text-on-muted">标题</label>
+                            <p class="text-sm font-medium text-on-base" x-text="graphSelectedNode?.label"></p>
                         </div>
                         <div>
-                            <label class="text-xs text-gray-500">类型</label>
+                            <label class="text-xs text-on-muted">类型</label>
                             <span class="inline-block px-2 py-1 text-xs rounded mt-1"
                                   :class="typeBadgeColor(graphSelectedNode?.type)"
                                   x-text="graphSelectedNode?.type"></span>
                         </div>
                         <div>
-                            <label class="text-xs text-gray-500">连接数</label>
-                            <p class="text-sm text-gray-600">
+                            <label class="text-xs text-on-muted">连接数</label>
+                            <p class="text-sm text-on-surface">
                                 入: <span class="font-medium" x-text="graphSelectedNode?.in_degree"></span> |
                                 出: <span class="font-medium" x-text="graphSelectedNode?.out_degree"></span>
                             </p>
                         </div>
                         <div x-show="graphSelectedNode?.tags?.length > 0">
-                            <label class="text-xs text-gray-500">标签</label>
+                            <label class="text-xs text-on-muted">标签</label>
                             <div class="flex flex-wrap gap-1 mt-1">
                                 <template x-for="tag in graphSelectedNode?.tags" :key="tag">
-                                    <span class="px-2 py-0.5 text-xs rounded-full bg-indigo-50 text-indigo-600" x-text="tag"></span>
+                                    <span class="px-2 py-0.5 text-xs rounded-full bg-accent-soft text-accent" x-text="tag"></span>
                                 </template>
                             </div>
                         </div>
                         <button @click="goToAtomDetail(graphSelectedNode)"
-                                class="w-full mt-2 px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100 transition-colors">
-                            📖 查看完整内容
+                                class="w-full mt-2 px-3 py-2 text-sm bg-accent-soft text-accent rounded hover:bg-accent-med">
+                            查看完整内容
                         </button>
                     </div>
                 </div>
 
                 <!-- 统计信息（无选中时显示） -->
-                <div class="border-t border-gray-200 p-4" x-show="!graphSelectedNode">
-                    <h3 class="text-sm font-semibold text-gray-700 mb-2">📊 统计</h3>
-                    <div class="text-sm text-gray-600 space-y-1">
+                <div class="border-t border-border-th p-4" x-show="!graphSelectedNode">
+                    <h3 class="text-sm font-semibold text-on-base mb-2">统计</h3>
+                    <div class="text-sm text-on-surface space-y-1">
                         <p>节点: <span class="font-medium" x-text="graphData.nodes.length"></span></p>
                         <p>连线: <span class="font-medium" x-text="graphData.edges.length"></span></p>
-                        <p x-show="graphOrphanCount > 0">孤立: <span class="font-medium text-yellow-600" x-text="graphOrphanCount"></span></p>
+                        <p x-show="graphOrphanCount > 0">孤立: <span class="font-medium text-conf-med" x-text="graphOrphanCount"></span></p>
                     </div>
-                    <p class="text-xs text-gray-400 mt-2">点击节点查看详情，双击跳转</p>
+                    <p class="text-xs text-on-muted mt-2">点击节点查看详情，双击跳转</p>
                 </div>
             </div>
 
             <!-- 统计信息徽章（左下角） -->
-            <div class="absolute bottom-4 left-52 z-20 bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 text-xs text-gray-600">
-                📊 <span x-text="graphData.nodes.length"></span> 节点 · <span x-text="graphData.edges.length"></span> 连线
+            <div class="absolute bottom-4 left-52 z-20 bg-bg-surface px-3 py-2 rounded-lg shadow-sm border border-border-th text-xs text-on-surface">
+                <span x-text="graphData.nodes.length"></span> 节点 · <span x-text="graphData.edges.length"></span> 连线
             </div>
         </div>
 
@@ -649,31 +971,31 @@
 
         <!-- 缺口视图 -->
         <div x-show="view === 'gaps'" x-cloak class="p-6 animate-fade-in">
-            <div class="bg-white rounded-lg shadow-lg">
-                <div class="p-4 border-b border-gray-200 bg-gradient-to-r from-red-50 to-orange-50">
-                    <h2 class="text-lg font-semibold text-gray-900">知识缺口</h2>
+            <div class="bg-bg-surface rounded-lg shadow-lg">
+                <div class="p-4 border-b border-border-th bg-accent-soft">
+                    <h2 class="text-lg font-semibold text-on-base">知识缺口</h2>
                 </div>
-                <div class="divide-y divide-gray-200">
+                <div class="divide-y divide-border-th">
                     <template x-for="gap in gaps" :key="gap.description">
-                        <div class="p-4 hover:bg-gray-50 transition-colors">
+                        <div class="p-4 hover:bg-bg-hover">
                             <div class="flex items-start">
                                 <span class="inline-block px-3 py-1 text-xs rounded mr-3 flex-shrink-0"
-                                      :class="gap.severity === 'high' ? 'bg-red-100 text-red-800' : gap.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'"
+                                      :class="gap.severity === 'high' ? 'bg-conf-low/15 text-conf-low' : gap.severity === 'medium' ? 'bg-conf-med/15 text-conf-med' : 'bg-conf-high/15 text-conf-high'"
                                       x-text="gap.severity"></span>
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center space-x-2">
-                                        <span class="text-xs text-gray-500" x-text="gap.type"></span>
-                                        <span x-show="gap.title" class="text-sm font-medium text-gray-900" x-text="gap.title"></span>
+                                        <span class="text-xs text-on-muted" x-text="gap.type"></span>
+                                        <span x-show="gap.title" class="text-sm font-medium text-on-base" x-text="gap.title"></span>
                                     </div>
-                                    <p class="mt-1 text-sm text-gray-700" x-text="gap.description"></p>
-                                    <p x-show="gap.suggestion" class="mt-1 text-xs text-gray-500" x-text="gap.suggestion"></p>
-                                    <p x-show="gap.path" class="mt-1 text-xs text-gray-400 font-mono" x-text="gap.path"></p>
+                                    <p class="mt-1 text-sm text-on-surface" x-text="gap.description"></p>
+                                    <p x-show="gap.suggestion" class="mt-1 text-xs text-on-muted" x-text="gap.suggestion"></p>
+                                    <p x-show="gap.path" class="mt-1 text-xs text-on-muted font-mono" x-text="gap.path"></p>
                                 </div>
                             </div>
                         </div>
                     </template>
-                    <div x-show="gaps.length === 0" class="p-8 text-center text-gray-400">
-                        ✅ 未发现知识缺口
+                    <div x-show="gaps.length === 0" class="p-8 text-center text-on-muted">
+                        未发现知识缺口
                     </div>
                 </div>
             </div>
@@ -686,30 +1008,44 @@
 <script>
 function app() {
     return {
-        view: 'overview',  // 默认显示概览页
+        view: 'overview',
         atoms: [],
         gaps: [],
         selectedAtom: null,
         typeFilter: '',
         loading: true,
-        kbName: '知识库',  // 知识库名称
+        kbName: '知识库',
+
+        // 主题系统
+        currentTheme: localStorage.getItem('llm-wiki-theme') || 'classic',
+        themes: [
+            { id: 'classic',     name: 'Classic',     swatch: '#667eea' },
+            { id: 'dark-tech',   name: 'Dark Tech',   swatch: '#22d3ee' },
+            { id: 'forest',      name: 'Forest',      swatch: '#d4a574' },
+            { id: 'terracotta',  name: 'Terracotta',  swatch: '#c4553a' },
+            { id: 'monochrome',  name: 'Monochrome',  swatch: '#2563eb' }
+        ],
+        themeMenuOpen: false,
 
         // 图谱相关数据
         graphData: { nodes: [], edges: [] },
         graphSelectedNode: null,
         graphSearchQuery: '',
         graphFilters: { types: [] },
-        graphShowPanel: true,  // 控制面板显示状态
+        graphShowPanel: true,
         graphSettings: {
             layout: 'fcose',
             nodeSize: 1.0,
             edgeWidth: 1.0,
-            edgeColor: '#ccc',  // 连线颜色
+            edgeColor: '#ccc',
             gravity: 0.25,
             showOrphans: true
         },
 
         async init() {
+            // 确保主题已应用
+            document.documentElement.className = 'theme-' + this.currentTheme;
+
             await this.loadData();
             this.loading = false;
             // 从路径推断知识库名称
@@ -729,6 +1065,25 @@ function app() {
                     });
                 }
             });
+        },
+
+        setTheme(themeId) {
+            this.currentTheme = themeId;
+            document.documentElement.className = 'theme-' + themeId;
+            localStorage.setItem('llm-wiki-theme', themeId);
+            this.themeMenuOpen = false;
+            // 重绘图谱
+            if (typeof applyThemeToGraph === 'function') {
+                applyThemeToGraph();
+            }
+        },
+
+        getThemeAccent() {
+            return getComputedStyle(document.documentElement).getPropertyValue('--color-accent-primary').trim();
+        },
+
+        getThemeTypeColor(type) {
+            return getComputedStyle(document.documentElement).getPropertyValue('--color-type-' + type).trim();
         },
 
         async loadData() {
@@ -755,7 +1110,6 @@ function app() {
                 const graphRes = await fetch('data/graph-data.json');
                 if (graphRes.ok) {
                     this.graphData = await graphRes.json();
-                    // 初始化图谱（延迟执行，确保 DOM 已渲染）
                     this.$nextTick(() => {
                         if (typeof initCytoscapeGraph === 'function') {
                             initCytoscapeGraph(this);
@@ -787,7 +1141,6 @@ function app() {
                 .sort((a, b) => b.count - a.count);
         },
 
-        // 概览页计算属性
         get totalTags() {
             const tagSet = new Set();
             for (const atom of this.atoms) {
@@ -831,38 +1184,25 @@ function app() {
             this.selectedAtom = atom;
         },
 
-        typeColor(type) {
-            const colors = {
-                'method': 'bg-blue-100 text-blue-800',
-                'fact': 'bg-green-100 text-green-800',
-                'definition': 'bg-purple-100 text-purple-800',
-                'opinion': 'bg-red-100 text-red-800',
-                'data': 'bg-orange-100 text-orange-800',
-                'question': 'bg-teal-100 text-teal-800',
-                'reference': 'bg-gray-100 text-gray-800',
-                'config': 'bg-yellow-100 text-yellow-800',
-                'Bug': 'bg-red-100 text-red-800',
-                'Enhancement': 'bg-blue-100 text-blue-800',
-                'observation': 'bg-purple-100 text-purple-800'
+        typeBadgeColor(type) {
+            const classes = {
+                'method': 'bg-type-method-badge-bg text-type-method-badge',
+                'fact': 'bg-type-fact-badge-bg text-type-fact-badge',
+                'definition': 'bg-type-definition-badge-bg text-type-definition-badge',
+                'opinion': 'bg-type-opinion-badge-bg text-type-opinion-badge',
+                'data': 'bg-type-data-badge-bg text-type-data-badge',
+                'question': 'bg-type-question-badge-bg text-type-question-badge',
+                'reference': 'bg-type-reference-badge-bg text-type-reference-badge',
+                'config': 'bg-type-data-badge-bg text-type-data-badge',
+                'Bug': 'bg-type-opinion-badge-bg text-type-opinion-badge',
+                'Enhancement': 'bg-type-method-badge-bg text-type-method-badge',
+                'observation': 'bg-type-definition-badge-bg text-type-definition-badge'
             };
-            return colors[type] || 'bg-gray-100 text-gray-800';
+            return classes[type] || 'bg-type-reference-badge-bg text-type-reference-badge';
         },
 
-        typeBadgeColor(type) {
-            const colors = {
-                'method': 'bg-blue-50 text-blue-700',
-                'fact': 'bg-green-50 text-green-700',
-                'definition': 'bg-purple-50 text-purple-700',
-                'opinion': 'bg-red-50 text-red-700',
-                'data': 'bg-orange-50 text-orange-700',
-                'question': 'bg-teal-50 text-teal-700',
-                'reference': 'bg-gray-50 text-gray-700',
-                'config': 'bg-yellow-50 text-yellow-700',
-                'Bug': 'bg-red-50 text-red-700',
-                'Enhancement': 'bg-blue-50 text-blue-700',
-                'observation': 'bg-purple-50 text-purple-700'
-            };
-            return colors[type] || 'bg-gray-50 text-gray-700';
+        typeColor(type) {
+            return this.typeBadgeColor(type);
         },
 
         // 图谱相关计算属性
@@ -949,7 +1289,6 @@ function app() {
 
         goToAtomDetail(node) {
             if (node && node.id) {
-                // 切换到浏览视图并选中该 atom
                 const atom = this.atoms.find(a => a.id === node.id);
                 if (atom) {
                     this.selectAtom(atom);

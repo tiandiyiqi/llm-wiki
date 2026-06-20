@@ -153,15 +153,15 @@ class TimelineGenerator:
         events = data['events']
         stats = data['stats']
 
-        # Type color mapping
+        # Type color mapping（与前端 CSS 变量 theme-classic 保持一致）
         type_colors = {
-            'method': '#3498db',
-            'fact': '#2ecc71',
-            'definition': '#9b59b6',
-            'opinion': '#e74c3c',
-            'data': '#f39c12',
-            'question': '#1abc9c',
-            'reference': '#34495e'
+            'method': '#3b82f6',
+            'fact': '#22c55e',
+            'definition': '#a855f7',
+            'opinion': '#ef4444',
+            'data': '#f97316',
+            'question': '#14b8a6',
+            'reference': '#6b7280'
         }
 
         # Generate events HTML
