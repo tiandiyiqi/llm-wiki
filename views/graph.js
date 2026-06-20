@@ -13,6 +13,82 @@ let nodeSizeScale = 1.0;
 let edgeWidthScale = 1.0;
 let edgeColorValue = '#ccc';  // 连线颜色
 
+// fcose 四档预置参数（基于原子数量）
+const FCOSE_PRESETS = {
+    small: {   // ≤20 个节点：舒展、边长大、斥力小
+        label: '小',
+        idealEdgeLength: 150,
+        nodeRepulsion: 5000,
+        gravity: 0.25,
+        gravityRange: 3.0,
+        edgeElasticity: 0.30,
+        numIter: 2000,
+        initialTemp: 250,
+        componentSpacing: 60,
+    },
+    medium: {  // 21–60 个节点：均衡
+        label: '中',
+        idealEdgeLength: 100,
+        nodeRepulsion: 9000,
+        gravity: 0.35,
+        gravityRange: 3.8,
+        edgeElasticity: 0.40,
+        numIter: 2500,
+        initialTemp: 200,
+        componentSpacing: 80,
+    },
+    large: {   // 61–150 个节点：紧凑、向心力增强
+        label: '大',
+        idealEdgeLength: 75,
+        nodeRepulsion: 13000,
+        gravity: 0.45,
+        gravityRange: 4.5,
+        edgeElasticity: 0.45,
+        numIter: 3000,
+        initialTemp: 150,
+        componentSpacing: 100,
+    },
+    xlarge: {  // >150 个节点：强向心、高斥力防重叠
+        label: '超大',
+        idealEdgeLength: 55,
+        nodeRepulsion: 20000,
+        gravity: 0.60,
+        gravityRange: 5.5,
+        edgeElasticity: 0.50,
+        numIter: 4000,
+        initialTemp: 120,
+        componentSpacing: 120,
+    }
+};
+
+/**
+ * 根据节点数量推断最适合的预置档位名称
+ * @param {number} nodeCount
+ * @returns {'small'|'medium'|'large'|'xlarge'}
+ */
+function getFcosePresetName(nodeCount) {
+    if (nodeCount <= 20) return 'small';
+    if (nodeCount <= 60) return 'medium';
+    if (nodeCount <= 150) return 'large';
+    return 'xlarge';
+}
+
+/**
+ * 获取 fcose 预置参数对象（不含 label）
+ * @param {string} presetName
+ * @returns {Object}
+ */
+function getFcosePreset(presetName) {
+    const preset = FCOSE_PRESETS[presetName] || FCOSE_PRESETS['medium'];
+    const { label, ...params } = preset;
+    return params;
+}
+
+// 暴露给 Alpine.js
+window.FCOSE_PRESETS = FCOSE_PRESETS;
+window.getFcosePresetName = getFcosePresetName;
+window.getFcosePreset = getFcosePreset;
+
 // 尝试注册 fcose（如果可用）
 let fcoseAvailable = false;
 try {
@@ -79,6 +155,18 @@ function initCytoscapeGraph(app) {
     // 确定布局：优先使用 fcose，如果不可用则使用 cose
     const layoutName = fcoseAvailable ? 'fcose' : 'cose';
     console.log('使用布局:', layoutName);
+
+    // 根据节点数量自动选择预置，并合并到 graphSettings（首次初始化）
+    if (layoutName === 'fcose' && app.graphSettings) {
+        const nodeCount = app.graphData.nodes.length;
+        const autoPreset = getFcosePresetName(nodeCount);
+        const presetParams = getFcosePreset(autoPreset);
+        // 仅当用户未手动调整过时，自动应用预置
+        if (!app.graphSettings._presetApplied) {
+            Object.assign(app.graphSettings, presetParams, { _presetApplied: true, _currentPreset: autoPreset });
+            console.log(`自动应用 fcose 预置「${FCOSE_PRESETS[autoPreset].label}」（${nodeCount} 节点）`);
+        }
+    }
 
     // 初始化 Cytoscape
     cy = cytoscape({
@@ -290,32 +378,41 @@ function applyThemeToGraph() {
 /**
  * 获取布局选项
  * @param {string} layoutName - 布局名称
- * @param {Object} settings - 图谱设置
+ * @param {Object} settings - 图谱设置（含 fcose 专属参数）
  * @returns {Object} 布局配置
  */
 function getLayoutOptions(layoutName, settings = {}) {
-    const gravity = settings.gravity || 0.25;
-
     const layouts = {
         'fcose': {
             name: 'fcose',
             animate: true,
-            animationDuration: 500,
+            animationDuration: 600,
             fit: true,
-            padding: 50,
+            padding: 60,
             nodeDimensionsIncludeLabels: true,
-            idealEdgeLength: 80,
-            nodeRepulsion: 8000,
-            gravity: 0.3,
-            numIter: 1000,
-            initialTemp: 200,
+            // 核心力学参数——从 settings 读取，保证 UI 控件生效
+            idealEdgeLength: Number(settings.idealEdgeLength) || 100,
+            nodeRepulsion: Number(settings.nodeRepulsion) || 9000,
+            gravity: Number(settings.gravity) || 0.35,
+            gravityRange: Number(settings.gravityRange) || 3.8,
+            edgeElasticity: Number(settings.edgeElasticity) || 0.40,
+            numIter: Number(settings.numIter) || 2500,
+            initialTemp: Number(settings.initialTemp) || 200,
+            componentSpacing: Number(settings.componentSpacing) || 80,
+            // 固定参数
             coolingFactor: 0.95,
             minTemp: 1.0,
             randomize: true,
-            componentSpacing: 100,
             nestingFactor: 1.2,
-            edgeElasticity: 0.45,
-            nodeOverlap: 20
+            nodeOverlap: 10,
+            uniformNodeDimensions: false,
+            samplingType: true,
+            sampleSize: 25,
+            nodeSeparation: 75,
+            piTol: 0.0000001,
+            // 孤立子图聚拢：向中心的牵引（防止散落边角）
+            gravityCompound: 1.0,
+            gravityRangeCompound: 1.5,
         },
         'cose': {
             name: 'cose',
@@ -324,18 +421,18 @@ function getLayoutOptions(layoutName, settings = {}) {
             fit: true,
             padding: 50,
             nodeDimensionsIncludeLabels: true,
-            idealEdgeLength: 80,
-            nodeRepulsion: 8000,
-            gravity: 0.3,
-            numIter: 1000,
+            idealEdgeLength: Number(settings.idealEdgeLength) || 100,
+            nodeRepulsion: Number(settings.nodeRepulsion) || 9000,
+            gravity: Number(settings.gravity) || 0.35,
+            numIter: Number(settings.numIter) || 2000,
             initialTemp: 200,
             coolingFactor: 0.95,
             minTemp: 1.0,
             randomize: true,
-            componentSpacing: 100,
+            componentSpacing: 80,
             nestingFactor: 1.2,
-            edgeElasticity: 0.45,
-            nodeOverlap: 20
+            edgeElasticity: Number(settings.edgeElasticity) || 0.40,
+            nodeOverlap: 20,
         },
         'grid': {
             name: 'grid',

@@ -840,6 +840,98 @@
                         </select>
                     </div>
 
+                    <!-- fcose 预置档位（仅 fcose/cose 时显示） -->
+                    <div class="mb-3" x-show="graphSettings.layout === 'fcose' || graphSettings.layout === 'cose'">
+                        <label class="text-xs text-on-muted mb-1 block">原子规模预置</label>
+                        <div class="grid grid-cols-4 gap-1">
+                            <template x-for="[key, preset] in Object.entries(typeof FCOSE_PRESETS !== 'undefined' ? FCOSE_PRESETS : {})" :key="key">
+                                <button
+                                    @click="applyFcosePreset(key)"
+                                    :class="graphSettings._currentPreset === key
+                                        ? 'bg-accent-soft text-accent border-accent font-semibold'
+                                        : 'bg-bg-surface-alt text-on-muted border-border-th hover:border-accent hover:text-on-base'"
+                                    class="px-1 py-1.5 text-xs rounded border transition-colors"
+                                    x-text="preset.label">
+                                </button>
+                            </template>
+                        </div>
+                        <p class="text-xs text-on-muted mt-1 opacity-60">
+                            当前：<span x-text="graphData.nodes.length"></span> 个节点
+                        </p>
+                    </div>
+
+                    <!-- fcose 高级参数（可折叠） -->
+                    <div class="mb-3" x-show="graphSettings.layout === 'fcose' || graphSettings.layout === 'cose'"
+                         x-data="{ fcoseExpanded: false }">
+                        <button @click="fcoseExpanded = !fcoseExpanded"
+                                class="text-xs text-on-muted flex items-center gap-1 mb-2 hover:text-on-base w-full">
+                            <span x-text="fcoseExpanded ? '▼' : '▶'"></span>
+                            <span>力导向高级参数</span>
+                        </button>
+                        <div x-show="fcoseExpanded" class="space-y-2 pl-2 border-l border-border-th">
+                            <!-- 向心力 -->
+                            <div>
+                                <label class="text-xs text-on-muted flex justify-between">
+                                    <span>向心力</span>
+                                    <span class="font-mono" x-text="Number(graphSettings.gravity).toFixed(2)"></span>
+                                </label>
+                                <input type="range" x-model.number="graphSettings.gravity"
+                                       @change="runGraphLayout()"
+                                       min="0.1" max="1.0" step="0.05" class="w-full h-1 mt-1">
+                            </div>
+                            <!-- 节点斥力 -->
+                            <div>
+                                <label class="text-xs text-on-muted flex justify-between">
+                                    <span>节点斥力</span>
+                                    <span class="font-mono" x-text="Number(graphSettings.nodeRepulsion).toLocaleString()"></span>
+                                </label>
+                                <input type="range" x-model.number="graphSettings.nodeRepulsion"
+                                       @change="runGraphLayout()"
+                                       min="1000" max="30000" step="1000" class="w-full h-1 mt-1">
+                            </div>
+                            <!-- 理想边长 -->
+                            <div>
+                                <label class="text-xs text-on-muted flex justify-between">
+                                    <span>理想边长</span>
+                                    <span class="font-mono" x-text="graphSettings.idealEdgeLength"></span>
+                                </label>
+                                <input type="range" x-model.number="graphSettings.idealEdgeLength"
+                                       @change="runGraphLayout()"
+                                       min="30" max="250" step="10" class="w-full h-1 mt-1">
+                            </div>
+                            <!-- 弹性系数 -->
+                            <div>
+                                <label class="text-xs text-on-muted flex justify-between">
+                                    <span>弹性系数</span>
+                                    <span class="font-mono" x-text="Number(graphSettings.edgeElasticity).toFixed(2)"></span>
+                                </label>
+                                <input type="range" x-model.number="graphSettings.edgeElasticity"
+                                       @change="runGraphLayout()"
+                                       min="0.10" max="1.0" step="0.05" class="w-full h-1 mt-1">
+                            </div>
+                            <!-- 向心力范围 -->
+                            <div>
+                                <label class="text-xs text-on-muted flex justify-between">
+                                    <span>向心范围</span>
+                                    <span class="font-mono" x-text="Number(graphSettings.gravityRange).toFixed(1)"></span>
+                                </label>
+                                <input type="range" x-model.number="graphSettings.gravityRange"
+                                       @change="runGraphLayout()"
+                                       min="1.0" max="8.0" step="0.5" class="w-full h-1 mt-1">
+                            </div>
+                            <!-- 迭代次数 -->
+                            <div>
+                                <label class="text-xs text-on-muted flex justify-between">
+                                    <span>迭代次数</span>
+                                    <span class="font-mono" x-text="graphSettings.numIter"></span>
+                                </label>
+                                <input type="range" x-model.number="graphSettings.numIter"
+                                       @change="runGraphLayout()"
+                                       min="500" max="5000" step="500" class="w-full h-1 mt-1">
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- 类型筛选 -->
                     <div class="mb-3">
                         <label class="text-xs text-on-muted mb-1 block">类型筛选</label>
@@ -899,11 +991,6 @@
                         <input type="range" x-model="graphSettings.edgeWidth" @input="adjustEdgeWidth()" min="0.5" max="3" step="0.5" class="w-full">
                     </div>
 
-                    <!-- 向心力滑块 -->
-                    <div class="mb-3">
-                        <label class="text-xs text-on-muted mb-1 block">向心力 <span class="text-on-muted" x-text="graphSettings.gravity"></span></label>
-                        <input type="range" x-model="graphSettings.gravity" @input="runGraphLayout()" min="0.1" max="1" step="0.1" class="w-full">
-                    </div>
                 </div>
 
                 <!-- 节点详情（选中时显示） -->
@@ -1038,8 +1125,18 @@ function app() {
             nodeSize: 1.0,
             edgeWidth: 1.0,
             edgeColor: '#ccc',
-            gravity: 0.25,
-            showOrphans: true
+            showOrphans: true,
+            // fcose 专属参数（由预置档位统一管理）
+            gravity: 0.35,
+            gravityRange: 3.8,
+            nodeRepulsion: 9000,
+            idealEdgeLength: 100,
+            edgeElasticity: 0.40,
+            numIter: 2500,
+            initialTemp: 200,
+            componentSpacing: 80,
+            _currentPreset: 'medium',
+            _presetApplied: false,
         },
 
         async init() {
@@ -1264,6 +1361,18 @@ function app() {
             }
         },
 
+        applyFcosePreset(presetName) {
+            if (typeof getFcosePreset !== 'function') return;
+            const params = getFcosePreset(presetName);
+            Object.assign(this.graphSettings, params, {
+                _currentPreset: presetName,
+                _presetApplied: true,
+            });
+            if (typeof runGraphLayoutWithSettings === 'function') {
+                runGraphLayoutWithSettings(this.graphSettings);
+            }
+        },
+
         resetGraphView() {
             this.graphFilters.types = [];
             this.graphSettings = {
@@ -1271,8 +1380,17 @@ function app() {
                 nodeSize: 1.0,
                 edgeWidth: 1.0,
                 edgeColor: '#ccc',
-                gravity: 0.25,
-                showOrphans: true
+                showOrphans: true,
+                gravity: 0.35,
+                gravityRange: 3.8,
+                nodeRepulsion: 9000,
+                idealEdgeLength: 100,
+                edgeElasticity: 0.40,
+                numIter: 2500,
+                initialTemp: 200,
+                componentSpacing: 80,
+                _currentPreset: 'medium',
+                _presetApplied: false,
             };
             this.graphSelectedNode = null;
             this.graphSearchQuery = '';
