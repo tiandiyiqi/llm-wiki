@@ -372,17 +372,33 @@ def cmd_import(args):
 
 
 def cmd_visualize(args):
-    """生成知识图谱"""
+    """生成知识图谱数据
+
+    将知识库中的原子数据导出为 JSON 格式，用于前端图谱渲染。
+    不再生成 HTML 文件，由前端 JavaScript 库负责渲染。
+
+    输出文件: views/data/graph-data.json
+    """
     kb_dir = resolve_kb(args)
     if not kb_dir:
         sys.exit(1)
 
-    output = args.output or kb_dir / 'views' / 'knowledge-graph.html'
+    # 输出到 data 目录，便于前端加载
+    output = args.output or kb_dir / 'views' / 'data' / 'graph-data.json'
     output.parent.mkdir(parents=True, exist_ok=True)
 
     visualizer = KnowledgeVisualizer(kb_dir, output)
-    visualizer.visualize(name=args.name or kb_dir.name)
-    print(f"✅ Knowledge graph: {output}")
+    success = visualizer.export_graph_data()
+
+    if success:
+        print(f"\n💡 提示：")
+        print(f"   图谱数据已导出为 JSON 格式")
+        print(f"   请使用前端 JavaScript 库渲染图谱")
+        print(f"   推荐库: Cytoscape.js, D3.js, vis-network, Sigma.js")
+        print(f"\n   启动 HTTP 服务器查看：")
+        print(f"   cd {kb_dir}/views && python3 -m http.server 8080")
+    else:
+        sys.exit(1)
 
 
 def cmd_timeline(args):

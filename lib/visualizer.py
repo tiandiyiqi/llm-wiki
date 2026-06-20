@@ -1,17 +1,207 @@
-"""Generates interactive knowledge graph HTML."""
+"""
+知识图谱数据生成模块
 
-import html
+本模块负责从知识库中提取原子数据，生成用于图谱可视化的 JSON 数据。
+实际的图谱渲染由前端 JavaScript 库完成。
+
+## 数据格式说明
+
+### 节点 (Node) 格式
+
+每个节点代表一个知识原子，包含以下字段：
+
+```json
+{
+    "id": "atoms/methods/nextcloud-install",
+    "label": "Nextcloud 安装方法",
+    "type": "method",
+    "description": "在 Ubuntu 上安装 Nextcloud 的完整步骤",
+    "path": "atoms/methods/nextcloud-install.md",
+    "color": "#3498db",
+    "tags": ["ubuntu", "nextcloud"],
+    "in_degree": 2,
+    "out_degree": 3
+}
+```
+
+字段说明：
+- id: 唯一标识符，通常是原子的相对路径（不含 .md 后缀）
+- label: 显示标签，用于图谱节点上的文字（建议 ≤30 字符）
+- type: 知识类型（method/fact/definition/opinion/data/question/reference）
+- description: 详细描述，用于节点详情面板
+- path: 原子文件的相对路径
+- color: 节点颜色，根据类型自动分配
+- tags: 标签列表，用于筛选
+- in_degree: 入度（被引用次数），用于节点大小计算
+- out_degree: 出度（引用次数），用于节点大小计算
+
+### 边 (Edge) 格式
+
+边表示原子之间的链接关系，通过解析 Markdown 中的 [[链接]] 语法生成：
+
+```json
+{
+    "id": "atoms/methods/nextcloud-install->atoms/facts/nextcloud-requirements",
+    "source": "atoms/methods/nextcloud-install",
+    "target": "atoms/facts/nextcloud-requirements"
+}
+```
+
+字段说明：
+- id: 边的唯一标识符，格式为 "{source}->{target}"
+- source: 源节点 ID
+- target: 目标节点 ID
+
+### 类型颜色映射
+
+| 类型       | 颜色代码 | 说明           |
+|-----------|---------|----------------|
+| method    | #3498db | 操作步骤、方法  |
+| fact      | #2ecc71 | 可验证的事实    |
+| definition| #9b59b6 | 概念定义        |
+| opinion   | #e74c3c | 主观观点        |
+| data      | #f39c12 | 数值、统计数据  |
+| question  | #1abc9c | 待解答问题      |
+| reference | #34495e | 外部参考链接    |
+
+## 前端渲染建议
+
+### 推荐的 JavaScript 图可视化库
+
+1. **Cytoscape.js** (https://js.cytoscape.org/)
+   - 适合中小规模图谱（<500 节点）
+   - 内置多种布局算法（COSE、Grid、Circle 等）
+   - 支持交互（拖拽、缩放、点击）
+
+2. **D3.js + Canvas** (https://d3js.org/)
+   - 适合大规模图谱（500-5000 节点）
+   - 高度可定制
+   - 使用 Canvas 渲染以提升性能
+
+3. **vis-network** (https://visjs.github.io/vis-network/docs/network/)
+   - 轻量级，易于集成
+   - 自动物理模拟
+   - 支持大量节点
+
+4. **Sigma.js** (http://sigmajs.org/)
+   - 专门为大规模图谱设计
+   - WebGL 渲染
+   - 支持 10,000+ 节点
+
+### 布局算法选择
+
+| 节点数量    | 推荐布局        | 说明                          |
+|-----------|----------------|------------------------------|
+| <50       | Grid/Circle    | 整齐排列，易于浏览              |
+| 50-200    | COSE/Force     | 自动调整位置，显示关系           |
+| 200-1000  | Concentric     | 按类型分组，减少重叠             |
+| >1000     | 层次聚类 + 缩放  | 先聚类显示，点击展开              |
+
+### 性能优化建议
+
+对于 1000+ 节点的大型知识库：
+
+1. **分页/虚拟滚动**
+   - 只渲染可见区域的节点
+   - 使用 Intersection Observer API
+
+2. **节点聚类**
+   - 按类型聚合显示
+   - 点击聚类展开详细节点
+
+3. **延迟加载**
+   - 初始只加载节点 ID 和标签
+   - 点击后才加载详细内容
+
+4. **Canvas 替代 SVG**
+   - SVG 渲染在大规模时性能差
+   - Canvas 可以渲染数万个节点
+
+5. **抽样显示**
+   - 默认只显示高置信度/高连接度节点
+   - 提供"显示更多"按钮
+
+## 使用示例
+
+### Python 后端生成数据
+
+```python
+from lib.visualizer import KnowledgeVisualizer
+from pathlib import Path
+
+# 初始化可视化器
+kb_dir = Path('/path/to/knowledge-base')
+output_path = kb_dir / 'views' / 'data' / 'graph-data.json'
+
+# 生成图谱数据
+visualizer = KnowledgeVisualizer(kb_dir, output_path)
+graph_data = visualizer.generate_json_data()
+
+# graph_data = {
+#     'nodes': [...],
+#     'edges': [...]
+# }
+```
+
+### 前端加载数据
+
+```javascript
+// 从 JSON 文件加载
+const response = await fetch('data/graph-data.json');
+const graphData = await response.json();
+
+// 使用 Cytoscape.js 渲染
+const cy = cytoscape({
+    container: document.getElementById('graph'),
+    elements: [
+        ...graphData.nodes.map(n => ({ data: n })),
+        ...graphData.edges.map(e => ({ data: e }))
+    ],
+    style: [
+        {
+            selector: 'node',
+            style: {
+                'label': 'data(label)',
+                'background-color': 'data(color)'
+            }
+        }
+    ],
+    layout: { name: 'grid' }
+});
+```
+
+## 注意事项
+
+1. **浏览器安全策略**
+   - 直接打开本地 HTML 文件时，浏览器会阻止 fetch() 加载本地 JSON
+   - 解决方案：使用 HTTP 服务器（python -m http.server 8080）
+
+2. **节点 ID 唯一性**
+   - 确保 ID 不重复
+   - 建议使用相对路径作为 ID
+
+3. **边的有效性**
+   - 只添加目标节点存在的边
+   - 避免悬空引用
+
+4. **标签长度**
+   - 限制标签长度（≤30 字符）
+   - 过长标签会影响渲染效果
+"""
+
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
-
+from typing import Dict, List
 from .validator import OKFValidator
 
 
 class KnowledgeVisualizer:
-    """Generates interactive knowledge graph HTML."""
+    """知识图谱数据生成器
 
-    # Color mapping for types
+    负责从知识库中提取原子数据，生成用于前端图谱渲染的 JSON 数据。
+    """
+
+    # 类型颜色映射
     TYPE_COLORS = {
         'method': '#3498db',
         'fact': '#2ecc71',
@@ -23,24 +213,149 @@ class KnowledgeVisualizer:
     }
 
     def __init__(self, kb_dir: Path, output_path: Path):
+        """初始化可视化器
+
+        Args:
+            kb_dir: 知识库目录路径
+            output_path: 输出 JSON 文件路径
+        """
         self.kb_dir = kb_dir
         self.output_path = output_path
         self.validator = OKFValidator()
         self._concepts_loaded = False
 
     def _ensure_concepts_loaded(self):
-        """Load concepts if not already loaded."""
+        """确保概念数据已加载"""
         if not self._concepts_loaded:
             self.validator.validate_bundle(self.kb_dir)
             self._concepts_loaded = True
 
-    def visualize(self, name: Optional[str] = None) -> bool:
-        print(f"📊 Generating knowledge graph: {self.kb_dir}")
-        print(f"   Output: {self.output_path}")
+    def generate_json_data(self) -> Dict:
+        """生成图谱数据
 
-        # Validate and load concepts
-        is_valid, errors, warnings = self.validator.validate_bundle(self.kb_dir)
-        self._concepts_loaded = True
+        从知识库中提取原子数据，生成 nodes 和 edges 列表。
+
+        Returns:
+            Dict with 'nodes' and 'edges' lists for graph visualization.
+
+        示例输出:
+            {
+                'nodes': [
+                    {
+                        'id': 'atoms/methods/nextcloud-install',
+                        'label': 'Nextcloud 安装',
+                        'type': 'method',
+                        'description': '...',
+                        'path': 'atoms/methods/nextcloud-install.md',
+                        'color': '#3498db'
+                    },
+                    ...
+                ],
+                'edges': [
+                    {
+                        'id': 'atoms/methods/a->atoms/facts/b',
+                        'source': 'atoms/methods/a',
+                        'target': 'atoms/facts/b'
+                    },
+                    ...
+                ]
+            }
+        """
+        self._ensure_concepts_loaded()
+
+        nodes: List[Dict] = []
+        edges: List[Dict] = []
+
+        # 预计算度数：in_degree（被引用次数），out_degree（引用次数）
+        in_degree: Dict[str, int] = {}
+        out_degree: Dict[str, int] = {}
+
+        # 第一遍：生成所有节点
+        for concept in self.validator.concepts:
+            node_id = concept['id']
+            node_type = concept['type']
+            color = self.TYPE_COLORS.get(node_type, '#95a5a6')
+
+            # 初始化度数
+            in_degree[node_id] = 0
+            out_degree[node_id] = 0
+
+            nodes.append({
+                'id': node_id,
+                'label': concept['title'][:30],  # 限制标签长度
+                'type': node_type,
+                'description': concept.get('description', ''),
+                'path': concept['path'],
+                'color': color,
+                'tags': concept.get('tags', [])
+            })
+
+        # 第二遍：生成边（解析 [[链接]]）
+        # 注意：需要先生成所有节点，才能验证边的目标是否存在
+        node_ids = {n['id'] for n in nodes}
+
+        for concept in self.validator.concepts:
+            node_id = concept['id']
+
+            for link in concept.get('links', []):
+                # 标准化链接为目标节点 ID
+                # 链接格式可能是：
+                # - "nextcloud-server-cache"
+                # - "atoms/methods/nextcloud-server-cache"
+                # - "./atoms/methods/nextcloud-server-cache"
+
+                target_candidates = []
+
+                # 尝试精确匹配
+                target_candidates.append(link.replace('.md', ''))
+
+                # 移除 ./ 前缀
+                if link.startswith('./'):
+                    target_candidates.append(link[2:].replace('.md', ''))
+
+                # 查找匹配的节点
+                target_id = None
+                for candidate in target_candidates:
+                    # 精确匹配
+                    if candidate in node_ids:
+                        target_id = candidate
+                        break
+                    # 部分匹配（链接是节点 ID 的最后部分）
+                    for existing_id in node_ids:
+                        if existing_id.endswith('/' + candidate):
+                            target_id = existing_id
+                            break
+                    if target_id:
+                        break
+
+                # 只添加有效边（目标节点存在）
+                if target_id and target_id != node_id:
+                    edges.append({
+                        'id': f"{node_id}->{target_id}",
+                        'source': node_id,
+                        'target': target_id
+                    })
+                    # 统计度数
+                    out_degree[node_id] = out_degree.get(node_id, 0) + 1
+                    in_degree[target_id] = in_degree.get(target_id, 0) + 1
+
+        # 第三遍：将度数添加到节点
+        for node in nodes:
+            node_id = node['id']
+            node['in_degree'] = in_degree.get(node_id, 0)
+            node['out_degree'] = out_degree.get(node_id, 0)
+
+        return {'nodes': nodes, 'edges': edges}
+
+    def export_graph_data(self) -> bool:
+        """导出图谱数据到 JSON 文件
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        print(f"📊 Generating graph data: {self.kb_dir}")
+
+        self._ensure_concepts_loaded()
 
         if not self.validator.concepts:
             print("   No concepts found in knowledge base")
@@ -48,759 +363,24 @@ class KnowledgeVisualizer:
 
         print(f"   Concepts: {len(self.validator.concepts)}")
 
-        # Generate HTML
-        html_content = self._generate_html(name or self.kb_dir.name)
+        # 生成数据
+        graph_data = self.generate_json_data()
 
-        # Write output
+        print(f"   Nodes: {len(graph_data['nodes'])}")
+        print(f"   Edges: {len(graph_data['edges'])}")
+
+        # 写入文件
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
-        self.output_path.write_text(html_content, encoding='utf-8')
+        with open(self.output_path, 'w', encoding='utf-8') as f:
+            json.dump(graph_data, f, ensure_ascii=False, indent=2)
 
-        print(f"\n✅ Visualization created: {self.output_path}")
-        print(f"   Open in browser to view interactive graph")
+        print(f"\n✅ Graph data exported: {self.output_path}")
 
         return True
 
-    def generate_json_data(self) -> Dict:
-        """Generate graph data as JSON-compatible dictionary.
-
-        Returns:
-            Dict with 'nodes' and 'edges' lists for graph visualization.
-        """
-        self._ensure_concepts_loaded()
-
-        nodes: List[Dict] = []
-        edges: List[Dict] = []
-
-        for concept in self.validator.concepts:
-            node_id = concept['id']
-            node_type = concept['type']
-            color = self.TYPE_COLORS.get(node_type, '#95a5a6')
-
-            nodes.append({
-                'id': node_id,
-                'label': concept['title'][:50],  # Allow longer labels in JSON
-                'type': node_type,
-                'description': concept['description'],
-                'path': concept['path'],
-                'color': color
-            })
-
-        # Second pass: add edges from links (need all nodes first)
-        for concept in self.validator.concepts:
-            node_id = concept['id']
-
-            for link in concept.get('links', []):
-                # Normalize link to potential node ids
-                # Link could be: "nextcloud-server-cache-factory" or "atoms/methods/nextcloud-server-cache-factory"
-                target_candidates = []
-
-                # Try exact match first
-                target_candidates.append(link.replace('.md', ''))
-
-                # Try with ./ prefix removed
-                if link.startswith('./'):
-                    target_candidates.append(link[2:].replace('.md', ''))
-
-                # Try to find matching node in the nodes list
-                target_id = None
-                for candidate in target_candidates:
-                    # Check if this candidate matches any existing node
-                    for existing_node in nodes:
-                        existing_id = existing_node['id']
-                        # Match if candidate equals the node id or is the last part of the id
-                        if (candidate == existing_id or
-                            candidate == existing_id.split('/')[-1] or
-                            existing_id.endswith('/' + candidate)):
-                            target_id = existing_id
-                            break
-                    if target_id:
-                        break
-
-                # Only add edge if we found a valid target
-                if target_id:
-                    edges.append({
-                        'id': f"{node_id}->{target_id}",
-                        'source': node_id,
-                        'target': target_id
-                    })
-
-        return {'nodes': nodes, 'edges': edges}
-
-    def generate_interactive_html(self, output_path: Path) -> bool:
-        """Generate interactive HTML with enhanced features.
-
-        Features:
-        - Force-directed layout with D3.js-style physics
-        - Drag and drop nodes
-        - Click to show details
-        - Search filtering
-        - Type filtering
-        - Zoom and pan
-
-        Args:
-            output_path: Path to write the HTML file.
-
-        Returns:
-            True if successful, False otherwise.
-        """
-        self._ensure_concepts_loaded()
-
-        if not self.validator.concepts:
-            print("   No concepts found in knowledge base")
-            return False
-
-        json_data = self.generate_json_data()
-        html_content = self._generate_enhanced_html(json_data)
-
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(html_content, encoding='utf-8')
-
-        print(f"✅ Interactive HTML created: {output_path}")
-        return True
-
-    def _generate_html(self, name: str) -> str:
-        """Generate single-file HTML visualization."""
-
-        # Prepare nodes and edges for Cytoscape.js
-        nodes = []
-        edges = []
-
-        # Color mapping for types
-        type_colors = {
-            'method': '#3498db',
-            'fact': '#2ecc71',
-            'definition': '#9b59b6',
-            'opinion': '#e74c3c',
-            'data': '#f39c12',
-            'question': '#1abc9c',
-            'reference': '#34495e'
-        }
-
-        for concept in self.validator.concepts:
-            node_id = concept['id']
-            node_type = concept['type']
-            color = type_colors.get(node_type, '#95a5a6')
-
-            nodes.append({
-                'data': {
-                    'id': node_id,
-                    'label': concept['title'][:30],
-                    'type': node_type,
-                    'description': concept['description'],
-                    'path': concept['path'],
-                    'color': color
-                }
-            })
-
-            # Add edges from links - only add edges to existing nodes
-            for link in concept.get('links', []):
-                # Normalize link to potential node ids
-                # Link could be: "nextcloud-server-cache-factory" or "atoms/methods/nextcloud-server-cache-factory"
-                target_candidates = []
-
-                # Try exact match first
-                target_candidates.append(link.replace('.md', ''))
-
-                # Try with ./ prefix removed
-                if link.startswith('./'):
-                    target_candidates.append(link[2:].replace('.md', ''))
-
-                # Try to find matching node in the concepts list
-                target_id = None
-                for candidate in target_candidates:
-                    # Check if this candidate matches any existing node
-                    for existing_node in nodes:
-                        existing_id = existing_node['data']['id']
-                        # Match if candidate equals the node id or is the last part of the id
-                        if (candidate == existing_id or
-                            candidate == existing_id.split('/')[-1] or
-                            existing_id.endswith('/' + candidate)):
-                            target_id = existing_id
-                            break
-                    if target_id:
-                        break
-
-                # Only add edge if we found a valid target
-                if target_id:
-                    edges.append({
-                        'data': {
-                            'id': f"{node_id}->{target_id}",
-                            'source': node_id,
-                            'target': target_id
-                        }
-                    })
-
-        # Build nodes JSON
-        nodes_json = json.dumps(nodes)
-        edges_json = json.dumps(edges)
-        escaped_name = html.escape(name)
-
-        # Generate HTML template using string concatenation to avoid f-string issues
-        html_content = '''<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>''' + escaped_name + ''' - Knowledge Graph</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f5f5;
-            height: 100vh;
-            display: flex;
-        }
-        #back-link {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            z-index: 1000;
-            background: #fff;
-            padding: 6px 12px;
-            border-radius: 4px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            font-size: 13px;
-            color: #666;
-            text-decoration: none;
-        }
-        #back-link:hover { color: #3498db; }
-        #sidebar {
-            width: 300px;
-            background: #fff;
-            border-right: 1px solid #ddd;
-            display: flex;
-            flex-direction: column;
-        }
-        #header {
-            padding: 20px;
-            border-bottom: 1px solid #ddd;
-        }
-        #header h1 { font-size: 18px; margin-bottom: 5px; }
-        #header p { color: #666; font-size: 14px; }
-        #search { padding: 10px 20px; border-bottom: 1px solid #ddd; }
-        #search input {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-        #filters { padding: 10px 20px; border-bottom: 1px solid #ddd; }
-        #filters label {
-            display: inline-block;
-            margin: 2px 4px;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            cursor: pointer;
-        }
-        #stats { padding: 10px 20px; border-bottom: 1px solid #ddd; font-size: 12px; color: #666; }
-        #detail {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-        }
-        #detail h2 { margin-bottom: 10px; }
-        #detail .meta { color: #666; font-size: 14px; margin-bottom: 10px; }
-        #graph { flex: 1; background: #fff; }
-        .type-method { background: #3498db; color: #fff; }
-        .type-fact { background: #2ecc71; color: #fff; }
-        .type-definition { background: #9b59b6; color: #fff; }
-        .type-opinion { background: #e74c3c; color: #fff; }
-        .type-data { background: #f39c12; color: #fff; }
-        .type-question { background: #1abc9c; color: #fff; }
-        .type-reference { background: #34495e; color: #fff; }
-    </style>
-</head>
-<body>
-    <div id="sidebar">
-        <div id="header">
-            <h1>''' + escaped_name + '''</h1>
-            <p>Knowledge Graph Visualization</p>
-        </div>
-        <div id="search">
-            <input type="text" placeholder="Search..." id="searchInput">
-        </div>
-        <div id="filters">
-            <label class="type-method"><input type="checkbox" checked data-type="method"> method</label>
-            <label class="type-fact"><input type="checkbox" checked data-type="fact"> fact</label>
-            <label class="type-definition"><input type="checkbox" checked data-type="definition"> definition</label>
-            <label class="type-opinion"><input type="checkbox" checked data-type="opinion"> opinion</label>
-            <label class="type-data"><input type="checkbox" checked data-type="data"> data</label>
-            <label class="type-question"><input type="checkbox" checked data-type="question"> question</label>
-            <label class="type-reference"><input type="checkbox" checked data-type="reference"> reference</label>
-        </div>
-        <div id="stats">
-            Concepts: ''' + str(len(nodes)) + ''' | Links: ''' + str(len(edges)) + '''
-        </div>
-        <div id="detail">
-            <p style="color: #999;">Click a node to view details</p>
-        </div>
-    </div>
-    <div id="graph"></div>
-    <script>
-        var nodes = ''' + nodes_json + ''';
-        var edges = ''' + edges_json + ''';
-        var cy = cytoscape({
-            container: document.getElementById('graph'),
-            elements: nodes.concat(edges),
-            style: [
-                {selector: 'node', style: {
-                    'label': 'data(label)',
-                    'background-color': 'data(color)',
-                    'width': 60, 'height': 60,
-                    'font-size': 10,
-                    'text-valign': 'center',
-                    'text-halign': 'center',
-                    'color': '#fff'
-                }},
-                {selector: 'edge', style: {
-                    'width': 1,
-                    'line-color': '#ccc',
-                    'curve-style': 'bezier'
-                }}
-            ],
-            layout: {
-                name: 'cose',
-                animate: false,
-                randomize: true,
-                fit: true,
-                padding: 30,
-                idealEdgeLength: 100,
-                nodeOverlap: 20,
-                refresh: 20,
-                maxSimulationTime: 4000
-            }
-        });
-        cy.on('tap', 'node', function(evt) {
-            var node = evt.target;
-            var data = node.data();
-            document.getElementById('detail').innerHTML =
-                '<h2>' + data.label + '</h2>' +
-                '<div class="meta"><span class="type-' + data.type + '">' + data.type + '</span> | ' + data.path + '</div>' +
-                '<p>' + data.description + '</p>';
-        });
-        document.getElementById('searchInput').addEventListener('input', function(e) {
-            var query = e.target.value.toLowerCase();
-            cy.nodes().forEach(function(node) {
-                var label = node.data('label').toLowerCase();
-                node.style('display', (query && label.indexOf(query) === -1) ? 'none' : 'element');
-            });
-        });
-        document.querySelectorAll('#filters input').forEach(function(input) {
-            input.addEventListener('change', function() {
-                var type = this.dataset.type;
-                var checked = this.checked;
-                cy.nodes().forEach(function(node) {
-                    if (node.data('type') === type) {
-                        node.style('display', checked ? 'element' : 'none');
-                    }
-                });
-            });
-        });
-    </script>
-</body>
-</html>'''
-
-        return html_content
-
-    def _generate_enhanced_html(self, json_data: Dict) -> str:
-        """Generate enhanced interactive HTML with full features.
-
-        Args:
-            json_data: Graph data with 'nodes' and 'edges'.
-
-        Returns:
-            Complete HTML string.
-        """
-        nodes_json = json.dumps(json_data['nodes'])
-        edges_json = json.dumps(json_data['edges'])
-        kb_name = html.escape(self.kb_dir.name)
-
-        # Build HTML template
-        html_content = '''<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>''' + kb_name + ''' - Interactive Knowledge Graph</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f0f2f5;
-            height: 100vh;
-            display: flex;
-        }
-        #sidebar {
-            width: 320px;
-            background: #fff;
-            border-right: 1px solid #e0e0e0;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 2px 0 8px rgba(0,0,0,0.05);
-        }
-        #header {
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #fff;
-        }
-        #header h1 { font-size: 20px; margin-bottom: 5px; font-weight: 600; }
-        #header p { opacity: 0.9; font-size: 13px; }
-        #controls {
-            padding: 15px 20px;
-            border-bottom: 1px solid #eee;
-        }
-        #search {
-            width: 100%;
-            padding: 10px 14px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 14px;
-            transition: border-color 0.2s;
-        }
-        #search:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        #filters {
-            padding: 15px 20px;
-            border-bottom: 1px solid #eee;
-        }
-        #filters h3 {
-            font-size: 12px;
-            color: #888;
-            text-transform: uppercase;
-            margin-bottom: 10px;
-        }
-        .filter-btn {
-            display: inline-block;
-            margin: 3px 4px 3px 0;
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-size: 11px;
-            cursor: pointer;
-            transition: opacity 0.2s;
-            border: none;
-        }
-        .filter-btn.inactive { opacity: 0.4; }
-        .filter-method { background: #3498db; color: #fff; }
-        .filter-fact { background: #2ecc71; color: #fff; }
-        .filter-definition { background: #9b59b6; color: #fff; }
-        .filter-opinion { background: #e74c3c; color: #fff; }
-        .filter-data { background: #f39c12; color: #fff; }
-        .filter-question { background: #1abc9c; color: #fff; }
-        .filter-reference { background: #34495e; color: #fff; }
-        #stats {
-            padding: 12px 20px;
-            background: #f8f9fa;
-            font-size: 12px;
-            color: #666;
-            border-bottom: 1px solid #eee;
-        }
-        #detail {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-        }
-        #detail h2 {
-            font-size: 18px;
-            margin-bottom: 8px;
-            color: #333;
-        }
-        #detail .meta {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        #detail .type-badge {
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            color: #fff;
-        }
-        #detail .path {
-            color: #888;
-            font-size: 12px;
-        }
-        #detail .description {
-            color: #555;
-            line-height: 1.6;
-        }
-        #detail .no-selection {
-            color: #999;
-            text-align: center;
-            padding: 40px 20px;
-        }
-        #graph {
-            flex: 1;
-            background: #fff;
-            position: relative;
-        }
-        #zoom-controls {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            display: flex;
-            gap: 5px;
-        }
-        .zoom-btn {
-            width: 36px;
-            height: 36px;
-            border: 1px solid #ddd;
-            background: #fff;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.2s;
-        }
-        .zoom-btn:hover { background: #f5f5f5; }
-    </style>
-</head>
-<body>
-    <div id="sidebar">
-        <div id="header">
-            <h1>''' + kb_name + '''</h1>
-            <p>Interactive Knowledge Graph</p>
-        </div>
-        <div id="controls">
-            <input type="text" id="searchInput" placeholder="Search nodes..." autocomplete="off">
-        </div>
-        <div id="filters">
-            <h3>Filter by Type</h3>
-            <button class="filter-btn filter-method active" data-type="method">method</button>
-            <button class="filter-btn filter-fact active" data-type="fact">fact</button>
-            <button class="filter-btn filter-definition active" data-type="definition">definition</button>
-            <button class="filter-btn filter-opinion active" data-type="opinion">opinion</button>
-            <button class="filter-btn filter-data active" data-type="data">data</button>
-            <button class="filter-btn filter-question active" data-type="question">question</button>
-            <button class="filter-btn filter-reference active" data-type="reference">reference</button>
-        </div>
-        <div id="stats">
-            Nodes: <span id="nodeCount">''' + str(len(json_data['nodes'])) + '''</span> |
-            Edges: <span id="edgeCount">''' + str(len(json_data['edges'])) + '''</span> |
-            Visible: <span id="visibleCount">''' + str(len(json_data['nodes'])) + '''</span>
-        </div>
-        <div id="detail">
-            <div class="no-selection">
-                <p>Click a node to view details</p>
-                <p style="margin-top: 10px; font-size: 12px;">Drag nodes to reposition</p>
-            </div>
-        </div>
-    </div>
-    <div id="graph">
-        <div id="zoom-controls">
-            <button class="zoom-btn" id="zoomIn">+</button>
-            <button class="zoom-btn" id="zoomOut">-</button>
-            <button class="zoom-btn" id="resetZoom">R</button>
-        </div>
-    </div>
-    <script>
-        var graphData = {
-            nodes: ''' + nodes_json + ''',
-            edges: ''' + edges_json + '''
-        };
-
-        var cy = cytoscape({
-            container: document.getElementById('graph'),
-            elements: graphData.nodes.map(function(n) {
-                return { data: n };
-            }).concat(graphData.edges.map(function(e) {
-                return { data: e };
-            })),
-            style: [
-                {
-                    selector: 'node',
-                    style: {
-                        'label': 'data(label)',
-                        'background-color': 'data(color)',
-                        'width': 70,
-                        'height': 70,
-                        'font-size': 11,
-                        'text-valign': 'center',
-                        'text-halign': 'center',
-                        'color': '#fff',
-                        'text-wrap': 'wrap',
-                        'text-max-width': 60,
-                        'border-width': 2,
-                        'border-color': '#fff',
-                        'transition-property': 'width, height, border-width',
-                        'transition-duration': 0.2
-                    }
-                },
-                {
-                    selector: 'node:selected',
-                    style: {
-                        'border-width': 4,
-                        'border-color': '#667eea',
-                        'width': 80,
-                        'height': 80
-                    }
-                },
-                {
-                    selector: 'node:active',
-                    style: {
-                        'overlay-color': '#667eea',
-                        'overlay-opacity': 0.3
-                    }
-                },
-                {
-                    selector: 'edge',
-                    style: {
-                        'width': 2,
-                        'line-color': '#ddd',
-                        'curve-style': 'bezier',
-                        'target-arrow-shape': 'triangle',
-                        'target-arrow-color': '#ddd',
-                        'arrow-scale': 0.8
-                    }
-                },
-                {
-                    selector: 'edge.highlighted',
-                    style: {
-                        'line-color': '#667eea',
-                        'target-arrow-color': '#667eea',
-                        'width': 3
-                    }
-                }
-            ],
-            layout: {
-                name: 'cose',
-                animate: true,
-                animationDuration: 800,
-                randomize: true,
-                nodeRepulsion: function() { return 8000; },
-                idealEdgeLength: 100,
-                nodeOverlap: 20,
-                fit: true,
-                padding: 30
-            },
-            minZoom: 0.3,
-            maxZoom: 3,
-            wheelSensitivity: 0.3
-        });
-
-        // Node click handler
-        cy.on('tap', 'node', function(evt) {
-            var node = evt.target;
-            var data = node.data();
-
-            // Clear previous highlights
-            cy.edges().removeClass('highlighted');
-            cy.nodes().style('opacity', 1);
-
-            // Highlight connected edges
-            node.connectedEdges().addClass('highlighted');
-
-            // Dim unconnected nodes
-            cy.nodes().not(node).not(node.neighborhood('node')).style('opacity', 0.3);
-
-            // Update detail panel
-            document.getElementById('detail').innerHTML =
-                '<h2>' + escapeHtml(data.label) + '</h2>' +
-                '<div class="meta">' +
-                '<span class="type-badge filter-' + data.type + '">' + data.type + '</span>' +
-                '<span class="path">' + escapeHtml(data.path) + '</span>' +
-                '</div>' +
-                '<p class="description">' + escapeHtml(data.description || 'No description') + '</p>';
-        });
-
-        // Click on background to reset
-        cy.on('tap', function(evt) {
-            if (evt.target === cy) {
-                cy.nodes().style('opacity', 1);
-                cy.edges().removeClass('highlighted');
-                document.getElementById('detail').innerHTML =
-                    '<div class="no-selection">' +
-                    '<p>Click a node to view details</p>' +
-                    '<p style="margin-top: 10px; font-size: 12px;">Drag nodes to reposition</p>' +
-                    '</div>';
-            }
-        });
-
-        // Search functionality
-        document.getElementById('searchInput').addEventListener('input', function(e) {
-            var query = e.target.value.toLowerCase().trim();
-            var visibleCount = 0;
-
-            cy.nodes().forEach(function(node) {
-                var label = (node.data('label') || '').toLowerCase();
-                var desc = (node.data('description') || '').toLowerCase();
-                var matches = query === '' || label.indexOf(query) !== -1 || desc.indexOf(query) !== -1;
-                node.style('display', matches ? 'element' : 'none');
-                if (matches) visibleCount++;
-            });
-
-            document.getElementById('visibleCount').textContent = visibleCount;
-        });
-
-        // Type filter buttons
-        document.querySelectorAll('.filter-btn').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var type = this.dataset.type;
-                var isActive = this.classList.contains('active');
-
-                if (isActive) {
-                    this.classList.remove('active');
-                    this.classList.add('inactive');
-                } else {
-                    this.classList.add('active');
-                    this.classList.remove('inactive');
-                }
-
-                updateVisibility();
-            });
-        });
-
-        function updateVisibility() {
-            var activeTypes = {};
-            document.querySelectorAll('.filter-btn.active').forEach(function(btn) {
-                activeTypes[btn.dataset.type] = true;
-            });
-
-            var visibleCount = 0;
-            cy.nodes().forEach(function(node) {
-                var type = node.data('type');
-                var visible = activeTypes[type];
-                node.style('display', visible ? 'element' : 'none');
-                if (visible) visibleCount++;
-            });
-
-            document.getElementById('visibleCount').textContent = visibleCount;
-        }
-
-        // Zoom controls
-        document.getElementById('zoomIn').addEventListener('click', function() {
-            cy.zoom(cy.zoom() * 1.2);
-        });
-
-        document.getElementById('zoomOut').addEventListener('click', function() {
-            cy.zoom(cy.zoom() / 1.2);
-        });
-
-        document.getElementById('resetZoom').addEventListener('click', function() {
-            cy.fit(null, 30);
-        });
-
-        // HTML escape utility
-        function escapeHtml(text) {
-            var div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // Fit to view on load
-        cy.ready(function() {
-            cy.fit(null, 30);
-        });
-    </script>
-</body>
-</html>'''
-
-        return html_content
+    # 保留旧方法以兼容现有代码
+    def visualize(self, name: str = None) -> bool:
+        """已弃用：请使用 export_graph_data() 并在前端渲染图谱"""
+        print("⚠️  Warning: visualize() is deprecated.")
+        print("   Use export_graph_data() and render in frontend instead.")
+        return self.export_graph_data()

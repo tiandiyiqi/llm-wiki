@@ -7,10 +7,6 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.28/dist/cytoscape.min.js"></script>
-    <!-- fcose 布局依赖 -->
-    <script src="lib/layout-base.js"></script>
-    <script src="lib/cose-base.js"></script>
-    <script src="lib/cytoscape-fcose.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.x.x/dist/tailwind.min.css" rel="stylesheet">
     <style>
         [x-cloak] { display: none !important; }
@@ -114,7 +110,7 @@
 
 <div class="flex pt-14">
     <!-- Sidebar -->
-    <aside class="w-48 bg-white border-r border-gray-200 fixed left-0 top-14 bottom-0 overflow-y-auto z-10">
+    <aside class="w-48 bg-white border-r border-gray-200 fixed left-0 top-14 bottom-0 overflow-y-auto">
         <nav class="p-4">
             <div class="space-y-1">
                 <button @click="view='overview'"
@@ -514,7 +510,6 @@
                         <select x-model="graphSettings.layout"
                                 @change="changeGraphLayout()"
                                 class="w-full text-sm border border-gray-300 rounded px-2 py-1">
-                            <option value="fcose">fcose（快速力导向）</option>
                             <option value="cose">cose（力导向）</option>
                             <option value="grid">grid（网格）</option>
                             <option value="circle">circle（圆形）</option>
@@ -701,7 +696,7 @@ function app() {
         graphFilters: { types: [] },
         graphShowPanel: true,  // 控制面板显示状态
         graphSettings: {
-            layout: 'fcose',
+            layout: 'cose',
             nodeSize: 1.0,
             edgeWidth: 1.0,
             edgeColor: '#ccc',  // 连线颜色
@@ -718,17 +713,6 @@ function app() {
             if (match) {
                 this.kbName = match[1] + ' 知识库';
             }
-            // 切换到图谱视图时自动 resize/fit
-            this.$watch('view', (newVal) => {
-                if (newVal === 'graph') {
-                    this.$nextTick(() => {
-                        if (typeof cy !== 'undefined' && cy) {
-                            cy.resize();
-                            cy.fit(null, 50);
-                        }
-                    });
-                }
-            });
         },
 
         async loadData() {
@@ -927,7 +911,7 @@ function app() {
         resetGraphView() {
             this.graphFilters.types = [];
             this.graphSettings = {
-                layout: 'fcose',
+                layout: 'cose',
                 nodeSize: 1.0,
                 edgeWidth: 1.0,
                 edgeColor: '#ccc',

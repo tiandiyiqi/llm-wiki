@@ -463,7 +463,7 @@
         </div>
 
         <!-- 图谱视图 - Cytoscape.js 全屏交互式图谱 -->
-        <div x-show="view === 'graph'" x-cloak class="animate-fade-in absolute inset-0 pt-14 pl-48 bg-gray-100">
+        <div x-show="view === 'graph'" x-cloak class="animate-fade-in fixed inset-0 pt-14 pl-48 bg-white" style="z-index: 0;">
             <!-- 全屏图谱画布 -->
             <div class="absolute inset-0 ml-48 mt-14 bg-white">
                 <div id="cy" class="w-full h-full"></div>

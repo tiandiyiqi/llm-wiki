@@ -1,0 +1,47 @@
+{
+  "nodes": [
+    {
+      "id": "atoms/methods/nextcloud-installation-ubuntu-apache",
+      "label": "Nextcloud Ubuntu Apache Instal",
+      "type": "method",
+      "description": "Standard installation process for Nextcloud on Ubuntu using Apache web server",
+      "path": "atoms/methods/nextcloud-installation-ubuntu-apache.md",
+      "color": "#3498db",
+      "tags": [
+        "installation",
+        "ubuntu",
+        "apache",
+        "nextcloud"
+      ],
+      "in_degree": 1,
+      "out_degree": 1
+    },
+    {
+      "id": "atoms/facts/nextcloud-system-requirements",
+      "label": "Nextcloud System Requirements",
+      "type": "fact",
+      "description": "Minimum and recommended system requirements for Nextcloud server",
+      "path": "atoms/facts/nextcloud-system-requirements.md",
+      "color": "#2ecc71",
+      "tags": [
+        "requirements",
+        "nextcloud",
+        "server"
+      ],
+      "in_degree": 1,
+      "out_degree": 1
+    }
+  ],
+  "edges": [
+    {
+      "id": "atoms/methods/nextcloud-installation-ubuntu-apache->atoms/facts/nextcloud-system-requirements",
+      "source": "atoms/methods/nextcloud-installation-ubuntu-apache",
+      "target": "atoms/facts/nextcloud-system-requirements"
+    },
+    {
+      "id": "atoms/facts/nextcloud-system-requirements->atoms/methods/nextcloud-installation-ubuntu-apache",
+      "source": "atoms/facts/nextcloud-system-requirements",
+      "target": "atoms/methods/nextcloud-installation-ubuntu-apache"
+    }
+  ]
+}
