@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>内容去重 - LLM Wiki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #f7fafc; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-secondary { background: #e2e8f0; color: #4a5568; }
+        .btn-secondary:hover { background: #cbd5e0; }
+        .btn-danger { background: #f56565; color: white; }
+        .btn-danger:hover { background: #e53e3e; }
+        .similarity-bar { height: 6px; border-radius: 3px; background: #e2e8f0; overflow: hidden; }
+        .similarity-fill { height: 100%; background: linear-gradient(90deg, #fbbf24, #ef4444); }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 50; }
+        .modal { background: white; border-radius: 12px; padding: 24px; width: 480px; max-width: 90vw; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <header class="bg-white shadow-sm">
+        <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
+                <h1 class="text-xl font-bold text-gray-800">内容去重管理</h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <button onclick="loadDuplicates()" class="btn btn-primary">🔍 重新检测</button>
+                <span class="text-sm text-gray-600">当前: <strong id="currentUserName">-</strong></span>
+                <button onclick="API.logout()" class="btn btn-secondary">退出</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-5xl mx-auto px-6 py-6">
+        <!-- 阈值控制 -->
+        <div class="card p-4 mb-6">
+            <div class="flex items-center gap-4">
+                <label class="text-sm text-gray-600">相似度阈值:</label>
+                <input type="range" id="thresholdSlider" min="0.3" max="1" step="0.05" value="0.7" class="flex-1 max-w-xs"
+                    oninput="document.getElementById('thresholdValue').textContent = this.value">
+                <span id="thresholdValue" class="text-sm font-semibold text-blue-600 w-12">0.7</span>
+                <button onclick="loadDuplicates()" class="btn btn-secondary text-sm">应用</button>
+                <div class="ml-auto text-sm text-gray-500" id="duplicatesCount"></div>
+            </div>
+        </div>
+
+        <!-- 重复内容列表 -->
+        <div class="card p-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">检测到的重复内容</h2>
+            <div id="duplicatesList" class="space-y-3">
+                <div class="text-center text-gray-500 py-8">点击"重新检测"开始</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 合并弹窗 -->
+    <div id="mergeModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">合并重复内容</h3>
+            <div id="mergeInfo" class="text-sm text-gray-600 mb-4"></div>
+            <div class="mb-3">
+                <label class="block text-sm font-medium text-gray-700 mb-1">主文档（保留）:</label>
+                <select id="primaryAtom" class="w-full px-3 py-2 border rounded text-sm"></select>
+            </div>
+            <div class="mb-3">
+                <label class="block text-sm font-medium text-gray-700 mb-1">合并策略:</label>
+                <select id="mergeStrategy" class="w-full px-3 py-2 border rounded text-sm">
+                    <option value="append">追加（保留两者内容）</option>
+                    <option value="replace">替换（用副文档覆盖主文档）</option>
+                    <option value="ignore">忽略内容（仅保留主文档）</option>
+                </select>
+            </div>
+            <div class="bg-yellow-50 border-l-4 border-yellow-500 p-3 text-sm text-yellow-700 mb-4">
+                ⚠️ 合并后，副文档将被归档为 .merged.md 文件
+            </div>
+            <div class="flex justify-end gap-2">
+                <button onclick="hideMergeModal()" class="btn btn-secondary">取消</button>
+                <button onclick="executeMerge()" class="btn btn-primary">确认合并</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = {
+            currentUser: null,
+            async init() {
+                try {
+                    const r = await fetch('/api/auth/whoami', { credentials: 'same-origin' });
+                    const d = await r.json();
+                    if (d.user) {
+                        this.currentUser = d.user;
+                        document.getElementById('currentUserName').textContent = d.user.username;
+                        return true;
+                    }
+                } catch (e) {}
+                window.location.href = '/login.html';
+                return false;
+            },
+            async get(url) {
+                const r = await fetch(url, { credentials: 'same-origin' });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async post(url, data) {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data || {}),
+                    credentials: 'same-origin',
+                });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async logout() {
+                await this.post('/api/auth/logout').catch(() => {});
+                window.location.href = '/login.html';
+            }
+        };
+
+        let currentDuplicates = [];
+
+        async function loadDuplicates() {
+            const threshold = document.getElementById('thresholdSlider').value;
+            document.getElementById('duplicatesList').innerHTML = '<div class="text-center text-gray-500 py-8">检测中...</div>';
+            try {
+                const data = await API.get(`/api/duplicates?threshold=${threshold}`);
+                currentDuplicates = data.duplicates || [];
+                document.getElementById('duplicatesCount').textContent = `共 ${currentDuplicates.length} 对重复`;
+                renderDuplicates();
+            } catch (e) {
+                document.getElementById('duplicatesList').innerHTML = `<div class="text-red-500 text-center py-8">检测失败: ${e.message}</div>`;
+            }
+        }
+
+        function renderDuplicates() {
+            const container = document.getElementById('duplicatesList');
+            if (currentDuplicates.length === 0) {
+                container.innerHTML = '<div class="text-center text-gray-500 py-8">🎉 未检测到重复内容！</div>';
+                return;
+            }
+            container.innerHTML = currentDuplicates.map((d, i) => {
+                const simPercent = Math.round(d.similarity * 100);
+                const simColor = simPercent >= 90 ? 'text-red-600' : simPercent >= 70 ? 'text-orange-600' : 'text-yellow-600';
+                return `
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-gray-500">重复对 #${i + 1}</div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm ${simColor} font-semibold">相似度: ${simPercent}%</span>
+                            <button onclick="showMergeModal(${i})" class="btn btn-primary text-xs">合并</button>
+                        </div>
+                    </div>
+                    <div class="similarity-bar mb-3">
+                        <div class="similarity-fill" style="width: ${simPercent}%"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-gray-50 p-3 rounded">
+                            <div class="text-xs text-gray-500 mb-1">文档 A</div>
+                            <a href="/?atom=${encodeURIComponent(d.atom1)}" class="text-sm font-medium text-blue-600 hover:underline">${escapeHtml(d.atom1_title)}</a>
+                            <div class="text-xs text-gray-400 mt-1">${escapeHtml(d.atom1)}</div>
+                        </div>
+                        <div class="bg-gray-50 p-3 rounded">
+                            <div class="text-xs text-gray-500 mb-1">文档 B</div>
+                            <a href="/?atom=${encodeURIComponent(d.atom2)}" class="text-sm font-medium text-blue-600 hover:underline">${escapeHtml(d.atom2_title)}</a>
+                            <div class="text-xs text-gray-400 mt-1">${escapeHtml(d.atom2)}</div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function showMergeModal(idx) {
+            const d = currentDuplicates[idx];
+            document.getElementById('mergeInfo').innerHTML = `
+                将合并以下两个文档（相似度 ${Math.round(d.similarity * 100)}%）：<br>
+                <strong>A: ${escapeHtml(d.atom1_title)}</strong> (${escapeHtml(d.atom1)})<br>
+                <strong>B: ${escapeHtml(d.atom2_title)}</strong> (${escapeHtml(d.atom2)})
+            `;
+            const select = document.getElementById('primaryAtom');
+            select.innerHTML = `
+                <option value="${escapeHtml(d.atom1)}">A: ${escapeHtml(d.atom1_title)}</option>
+                <option value="${escapeHtml(d.atom2)}">B: ${escapeHtml(d.atom2_title)}</option>
+            `;
+            document.getElementById('mergeModal').dataset.idx = idx;
+            document.getElementById('mergeModal').classList.remove('hidden');
+        }
+
+        function hideMergeModal() {
+            document.getElementById('mergeModal').classList.add('hidden');
+        }
+
+        async function executeMerge() {
+            const idx = parseInt(document.getElementById('mergeModal').dataset.idx);
+            const d = currentDuplicates[idx];
+            const primary = document.getElementById('primaryAtom').value;
+            const secondary = primary === d.atom1 ? d.atom2 : d.atom1;
+            const strategy = document.getElementById('mergeStrategy').value;
+            if (!confirm(`确认合并？副文档将被归档。`)) return;
+            try {
+                const result = await API.post('/api/duplicates/merge', {
+                    primary, secondary, strategy
+                });
+                if (result.success) {
+                    alert('合并成功！' + (result.message || ''));
+                    hideMergeModal();
+                    await loadDuplicates();
+                } else {
+                    alert('合并失败: ' + (result.error || '未知错误'));
+                }
+            } catch (e) {
+                alert('合并失败: ' + e.message);
+            }
+        }
+
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        async function init() {
+            const ok = await API.init();
+            if (!ok) return;
+            await loadDuplicates();
+        }
+
+        init();
+    </script>
+</body>
+</html>

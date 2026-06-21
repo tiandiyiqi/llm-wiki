@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识库公开门户 - LLM Wiki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body { background: #f7fafc; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-secondary { background: #e2e8f0; color: #4a5568; }
+        .btn-secondary:hover { background: #cbd5e0; }
+        .atom-card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; transition: all 0.2s; cursor: pointer; }
+        .atom-card:hover { border-color: #667eea; box-shadow: 0 4px 12px rgba(102,126,234,0.1); transform: translateY(-1px); }
+        .type-badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+        .type-fact { background: #dcfce7; color: #15803d; }
+        .type-method { background: #dbeafe; color: #1d4ed8; }
+        .type-definition { background: #f3e8ff; color: #7c3aed; }
+        .type-opinion { background: #fee2e2; color: #b91c1c; }
+        .type-data { background: #ffedd5; color: #c2410c; }
+        .type-question { background: #ccfbf1; color: #0f766e; }
+        .type-reference { background: #f3f4f6; color: #374151; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 50; }
+        .modal { background: white; border-radius: 12px; padding: 24px; width: 800px; max-width: 90vw; max-height: 80vh; overflow-y: auto; }
+        .content-body { line-height: 1.7; color: #2d3748; }
+        .content-body h1, .content-body h2, .content-body h3 { font-weight: 600; margin: 1em 0 0.5em; color: #1a202c; }
+        .content-body code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+        .content-body pre { background: #f1f5f9; padding: 12px; border-radius: 6px; overflow-x: auto; }
+        .content-body ul, .content-body ol { padding-left: 1.5em; margin: 0.5em 0; }
+        .content-body blockquote { border-left: 4px solid #667eea; padding-left: 1em; color: #718096; }
+        /* 水印 */
+        .watermark { position: fixed; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 9999; display: flex; flex-wrap: wrap; justify-content: space-around; align-content: space-around; opacity: 0.06; }
+        .watermark-item { font-size: 14px; color: #667eea; transform: rotate(-30deg); white-space: nowrap; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 水印 -->
+    <div class="watermark" id="watermark"></div>
+
+    <header class="bg-white shadow-sm">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+            <h1 class="text-xl font-bold text-gray-800">🌐 知识库公开门户</h1>
+            <div class="flex items-center gap-3">
+                <input type="text" id="searchInput" placeholder="搜索公开知识..." 
+                    class="px-3 py-1 border rounded text-sm w-64"
+                    onkeydown="if(event.key==='Enter')searchPublic()">
+                <button onclick="searchPublic()" class="btn btn-primary text-sm">搜索</button>
+                <a href="/login.html" class="btn btn-secondary text-sm">登录</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-6xl mx-auto px-6 py-6">
+        <!-- 介绍 -->
+        <div class="card p-6 mb-6 bg-gradient-to-r from-blue-50 to-purple-50">
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">📚 欢迎使用知识库公开门户</h2>
+            <p class="text-gray-600">浏览已发布的公开知识内容。如需编辑、评论或访问更多功能，请<a href="/login.html" class="text-blue-600 hover:underline">登录</a>。</p>
+        </div>
+
+        <!-- 筛选器 -->
+        <div class="card p-4 mb-6">
+            <div class="flex items-center gap-3 flex-wrap">
+                <span class="text-sm text-gray-600">类型:</span>
+                <button onclick="filterType('')" class="btn btn-secondary text-xs">全部</button>
+                <button onclick="filterType('fact')" class="btn btn-secondary text-xs">事实</button>
+                <button onclick="filterType('method')" class="btn btn-secondary text-xs">方法</button>
+                <button onclick="filterType('definition')" class="btn btn-secondary text-xs">定义</button>
+                <button onclick="filterType('reference')" class="btn btn-secondary text-xs">参考</button>
+                <div class="ml-auto text-sm text-gray-500" id="atomCount"></div>
+            </div>
+        </div>
+
+        <!-- 原子列表 -->
+        <div id="atomsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div class="col-span-full text-center text-gray-500 py-8">加载中...</div>
+        </div>
+    </div>
+
+    <!-- 详情弹窗 -->
+    <div id="detailModal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="flex items-center justify-between mb-4">
+                <h2 id="modalTitle" class="text-xl font-bold text-gray-800"></h2>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <div id="modalMeta" class="text-sm text-gray-500 mb-4"></div>
+            <div id="modalContent" class="content-body"></div>
+        </div>
+    </div>
+
+    <script>
+        let allAtoms = [];
+        let currentFilter = '';
+
+        /**
+         * 加载已发布的原子
+         */
+        async function loadAtoms() {
+            try {
+                // 通过公开搜索接口获取已发布内容
+                const r = await fetch('/api/search?q=*&limit=50');
+                const data = await r.json();
+                // 仅展示 published 状态的内容
+                allAtoms = (data.results || []).filter(a => 
+                    !a.status || a.status === 'published'
+                );
+                renderAtoms();
+            } catch (e) {
+                document.getElementById('atomsGrid').innerHTML = `<div class="col-span-full text-red-500 text-center py-8">加载失败: ${e.message}</div>`;
+            }
+        }
+
+        /**
+         * 渲染原子卡片
+         */
+        function renderAtoms() {
+            let atoms = allAtoms;
+            if (currentFilter) {
+                atoms = atoms.filter(a => a.type === currentFilter);
+            }
+            document.getElementById('atomCount').textContent = `共 ${atoms.length} 条`;
+            const grid = document.getElementById('atomsGrid');
+            if (atoms.length === 0) {
+                grid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-8">暂无公开内容</div>';
+                return;
+            }
+            grid.innerHTML = atoms.map(a => `
+                <div class="atom-card" onclick="showDetail('${encodeURIComponent(a.id || '')}')">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="type-badge type-${a.type || 'reference'}">${a.type || 'unknown'}</span>
+                        ${a.tags && a.tags.length > 0 ? `<span class="text-xs text-gray-400">${a.tags.length} 个标签</span>` : ''}
+                    </div>
+                    <h3 class="font-semibold text-gray-800 mb-1">${escapeHtml(a.title || a.id || '未命名')}</h3>
+                    <p class="text-sm text-gray-600 line-clamp-2">${escapeHtml(a.description || '暂无描述')}</p>
+                </div>
+            `).join('');
+        }
+
+        /**
+         * 类型筛选
+         */
+        function filterType(type) {
+            currentFilter = type;
+            renderAtoms();
+        }
+
+        /**
+         * 搜索公开内容
+         */
+        async function searchPublic() {
+            const q = document.getElementById('searchInput').value.trim();
+            if (!q) {
+                await loadAtoms();
+                return;
+            }
+            try {
+                const r = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=50`);
+                const data = await r.json();
+                allAtoms = (data.results || []).filter(a => 
+                    !a.status || a.status === 'published'
+                );
+                renderAtoms();
+            } catch (e) {
+                alert('搜索失败: ' + e.message);
+            }
+        }
+
+        /**
+         * 显示详情
+         */
+        async function showDetail(atomIdEncoded) {
+            const atomId = decodeURIComponent(atomIdEncoded);
+            try {
+                const r = await fetch(`/api/atoms/${encodeURIComponent(atomId)}`);
+                if (!r.ok) {
+                    alert('无法访问详情（可能需要登录）');
+                    return;
+                }
+                const data = await r.json();
+                document.getElementById('modalTitle').textContent = data.frontmatter?.title || atomId;
+                const meta = [];
+                if (data.frontmatter?.type) meta.push(`类型: ${data.frontmatter.type}`);
+                if (data.frontmatter?.tags?.length) meta.push(`标签: ${data.frontmatter.tags.join(', ')}`);
+                if (data.frontmatter?.created) meta.push(`创建: ${data.frontmatter.created}`);
+                document.getElementById('modalMeta').textContent = meta.join(' · ');
+                // 渲染 Markdown
+                document.getElementById('modalContent').innerHTML = marked.parse(data.body || '');
+                document.getElementById('detailModal').classList.remove('hidden');
+            } catch (e) {
+                alert('加载详情失败: ' + e.message);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('detailModal').classList.add('hidden');
+        }
+
+        /**
+         * 生成水印
+         */
+        function generateWatermark() {
+            const now = new Date().toLocaleString('zh-CN');
+            const text = `公开访问 · ${now}`;
+            const container = document.getElementById('watermark');
+            for (let i = 0; i < 30; i++) {
+                const div = document.createElement('div');
+                div.className = 'watermark-item';
+                div.textContent = text;
+                container.appendChild(div);
+            }
+        }
+
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        // 启动
+        loadAtoms();
+        generateWatermark();
+    </script>
+</body>
+</html>

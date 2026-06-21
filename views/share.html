@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分享内容 - LLM Wiki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body { background: #f7fafc; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .content-body { line-height: 1.7; color: #2d3748; }
+        .content-body h1, .content-body h2, .content-body h3 { font-weight: 600; margin: 1em 0 0.5em; color: #1a202c; }
+        .content-body h1 { font-size: 1.8em; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.3em; }
+        .content-body h2 { font-size: 1.5em; }
+        .content-body h3 { font-size: 1.2em; }
+        .content-body p { margin: 0.5em 0; }
+        .content-body code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+        .content-body pre { background: #f1f5f9; padding: 12px; border-radius: 6px; overflow-x: auto; }
+        .content-body ul, .content-body ol { padding-left: 1.5em; margin: 0.5em 0; }
+        .content-body blockquote { border-left: 4px solid #667eea; padding-left: 1em; color: #718096; margin: 0.5em 0; }
+        .content-body table { border-collapse: collapse; margin: 0.5em 0; }
+        .content-body th, .content-body td { border: 1px solid #e2e8f0; padding: 8px 12px; }
+        .content-body th { background: #f7fafc; font-weight: 600; }
+        /* 水印 */
+        .watermark {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none; z-index: 9999;
+            display: flex; flex-wrap: wrap; justify-content: space-around; align-content: space-around;
+            opacity: 0.08;
+        }
+        .watermark-item {
+            font-size: 14px; color: #667eea; transform: rotate(-30deg);
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 水印（防泄露） -->
+    <div class="watermark" id="watermark"></div>
+
+    <header class="bg-white shadow-sm">
+        <div class="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+            <h1 class="text-xl font-bold text-gray-800">📄 分享内容</h1>
+            <span class="text-xs text-gray-500">LLM Wiki · 安全分享</span>
+        </div>
+    </header>
+
+    <div class="max-w-4xl mx-auto px-6 py-6">
+        <!-- 密码输入（如有） -->
+        <div id="passwordPanel" class="card p-8 hidden">
+            <div class="text-center">
+                <div class="text-4xl mb-3">🔒</div>
+                <h2 class="text-lg font-semibold text-gray-800 mb-2">需要访问密码</h2>
+                <p class="text-sm text-gray-500 mb-4">此分享内容受密码保护，请输入密码访问</p>
+                <input type="password" id="passwordInput" placeholder="输入访问密码"
+                    class="max-w-xs mx-auto px-4 py-2 border rounded"
+                    onkeydown="if(event.key==='Enter')accessWithPassword()">
+                <div class="mt-4">
+                    <button onclick="accessWithPassword()" class="btn btn-primary">访问</button>
+                </div>
+                <div id="passwordError" class="text-red-500 text-sm mt-3 hidden"></div>
+            </div>
+        </div>
+
+        <!-- 错误提示 -->
+        <div id="errorPanel" class="card p-8 hidden">
+            <div class="text-center">
+                <div class="text-4xl mb-3">❌</div>
+                <h2 class="text-lg font-semibold text-gray-800 mb-2">访问失败</h2>
+                <p id="errorMessage" class="text-sm text-gray-500 mb-4"></p>
+                <a href="/" class="btn btn-primary">返回首页</a>
+            </div>
+        </div>
+
+        <!-- 加载中 -->
+        <div id="loadingPanel" class="card p-8">
+            <div class="text-center text-gray-500">加载中...</div>
+        </div>
+
+        <!-- 内容展示 -->
+        <div id="contentPanel" class="hidden">
+            <div class="card p-8">
+                <!-- 元信息 -->
+                <div class="border-b border-gray-200 pb-4 mb-6">
+                    <h1 id="atomTitle" class="text-2xl font-bold text-gray-800 mb-2"></h1>
+                    <div class="flex items-center gap-3 text-sm text-gray-500">
+                        <span id="atomType"></span>
+                        <span id="atomTags"></span>
+                    </div>
+                </div>
+                <!-- 正文 -->
+                <div id="atomContent" class="content-body"></div>
+                <!-- 底部信息 -->
+                <div class="border-t border-gray-200 mt-6 pt-4 text-xs text-gray-400 flex items-center justify-between">
+                    <span>由 LLM Wiki 分享</span>
+                    <span id="viewInfo"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * 从 URL 获取 token
+         */
+        function getToken() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('token') || '';
+        }
+
+        /**
+         * 生成水印
+         */
+        function generateWatermark() {
+            const now = new Date().toLocaleString('zh-CN');
+            const text = `LLM-Wiki · ${now}`;
+            const container = document.getElementById('watermark');
+            for (let i = 0; i < 30; i++) {
+                const div = document.createElement('div');
+                div.className = 'watermark-item';
+                div.textContent = text;
+                container.appendChild(div);
+            }
+        }
+
+        /**
+         * 访问分享内容
+         */
+        async function accessShare(password) {
+            const token = getToken();
+            if (!token) {
+                showError('缺少分享 token，请检查链接是否完整');
+                return;
+            }
+            const url = `/api/share/${encodeURIComponent(token)}/access${password ? '?password=' + encodeURIComponent(password) : ''}`;
+            try {
+                const r = await fetch(url);
+                const data = await r.json();
+                if (data.success) {
+                    showContent(data);
+                } else if (data.error && data.error.includes('密码')) {
+                    // 需要密码
+                    document.getElementById('loadingPanel').classList.add('hidden');
+                    document.getElementById('passwordPanel').classList.remove('hidden');
+                    document.getElementById('passwordInput').focus();
+                } else {
+                    showError(data.error || '访问失败');
+                }
+            } catch (e) {
+                showError('网络错误: ' + e.message);
+            }
+        }
+
+        /**
+         * 带密码访问
+         */
+        function accessWithPassword() {
+            const password = document.getElementById('passwordInput').value.trim();
+            if (!password) {
+                document.getElementById('passwordError').textContent = '请输入密码';
+                document.getElementById('passwordError').classList.remove('hidden');
+                return;
+            }
+            document.getElementById('passwordError').classList.add('hidden');
+            accessShare(password);
+        }
+
+        /**
+         * 显示内容
+         */
+        function showContent(data) {
+            document.getElementById('loadingPanel').classList.add('hidden');
+            document.getElementById('passwordPanel').classList.add('hidden');
+            document.getElementById('contentPanel').classList.remove('hidden');
+            document.getElementById('atomTitle').textContent = data.title || data.atom_id || '分享内容';
+            document.getElementById('atomType').textContent = data.type ? `类型: ${data.type}` : '';
+            const tags = data.tags || [];
+            document.getElementById('atomTags').textContent = tags.length > 0 ? `标签: ${tags.join(', ')}` : '';
+            // 渲染 Markdown
+            document.getElementById('atomContent').innerHTML = marked.parse(data.content || '');
+            // 访问信息
+            const viewInfo = `访问次数: ${data.views || 0}` + (data.expires_at ? ` · 过期时间: ${new Date(data.expires_at).toLocaleString('zh-CN')}` : '');
+            document.getElementById('viewInfo').textContent = viewInfo;
+            // 生成水印
+            generateWatermark();
+        }
+
+        /**
+         * 显示错误
+         */
+        function showError(msg) {
+            document.getElementById('loadingPanel').classList.add('hidden');
+            document.getElementById('passwordPanel').classList.add('hidden');
+            document.getElementById('errorPanel').classList.remove('hidden');
+            document.getElementById('errorMessage').textContent = msg;
+        }
+
+        // 启动
+        accessShare();
+    </script>
+</body>
+</html>

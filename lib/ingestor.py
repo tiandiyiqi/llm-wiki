@@ -4,82 +4,140 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional, Tuple
 
 from .constants import TYPE_DIRS
 from .yaml_parser import SimpleYAMLParser
+from .multi_format_parser import MultiFormatParser, LongDocumentSplitter
 
 
 class KnowledgeIngestor:
     """Ingests source materials and extracts knowledge atoms."""
 
-    def __init__(self, kb_dir: Path, source_path: Path):
-        self.kb_dir = kb_dir
-        self.source_path = source_path
-        self.yaml_parser = SimpleYAMLParser()
+    # 长文档拆分阈值
+    SPLIT_THRESHOLD = 2000
 
-    def ingest(self, auto_detect_type: bool = True, default_type: str = 'method') -> bool:
+    def __init__(self, kb_dir: Path, source_path: Optional[Path] = None):
+        self.kb_dir = kb_dir
+        self.source_path = source_path or Path('.')
+        self.yaml_parser = SimpleYAMLParser()
+        self.format_parser = MultiFormatParser()
+        self.splitter = LongDocumentSplitter()
+
+    def ingest(self, source_path: Optional[Path] = None, auto_detect_type: bool = True,
+               default_type: str = 'method', split_long: bool = True) -> bool:
+        """摄入源文件并提取知识原子.
+
+        Args:
+            source_path: 源文件路径（可选，覆盖构造时的 source_path）
+            auto_detect_type: 是否自动检测类型
+            default_type: 默认类型
+            split_long: 是否拆分长文档
+
+        Returns:
+            是否成功
+        """
+        if source_path is not None:
+            self.source_path = source_path
+
         print(f"📦 Ingesting source: {self.source_path}")
         print(f"   Knowledge base: {self.kb_dir}")
 
-        # Check source exists
         if not self.source_path.exists():
             print(f"❌ Error: Source not found: {self.source_path}")
             return False
 
-        # Read source content
-        try:
-            content = self.source_path.read_text(encoding='utf-8')
-        except (IOError, OSError, UnicodeDecodeError) as e:
-            print(f"❌ Error reading source: {e}")
-            return False
+        # 多格式解析
+        title, content = self.format_parser.parse(self.source_path)
+        if self.format_parser.warnings:
+            for w in self.format_parser.warnings:
+                print(f"   ⚠️  {w}")
 
-        # Detect source type
+        print(f"   Title: {title}")
+
+        # 检测来源类型
         source_type = self._detect_source_type()
         print(f"   Source type: {source_type}")
 
-        # Extract title from first heading or filename
-        title = self._extract_title(content)
-        print(f"   Title: {title}")
+        # 长文档拆分
+        if split_long and len(content) > self.SPLIT_THRESHOLD:
+            sections = self.splitter.split(title, content)
+            if len(sections) > 1:
+                print(f"   📄 长文档拆分为 {len(sections)} 个知识原子")
+                success_count = 0
+                for i, (sub_title, sub_content) in enumerate(sections, 1):
+                    atom_type = self._determine_type(sub_content, auto_detect_type, default_type)
+                    tags = self._extract_tags(sub_content)
+                    atom_id = self._generate_atom_id(f"{title}-{sub_title}" if sub_title else title)
+                    if self._create_atom_file(
+                        title=sub_title or f"{title}（{i}）",
+                        description=self._extract_description(sub_content),
+                        atom_type=atom_type,
+                        tags=tags,
+                        source_path=self.source_path,
+                        source_type=source_type,
+                        original_content=sub_content,
+                        atom_id=atom_id,
+                    ):
+                        success_count += 1
+                print(f"\n✅ Created {success_count}/{len(sections)} atoms")
+                self._update_log(title, '', '', count=success_count)
+                return success_count > 0
 
-        # Extract description from first paragraph
+        # 单原子创建
         description = self._extract_description(content)
-
-        # Extract keywords/tags
         tags = self._extract_tags(content)
-
-        # Determine atom type
         atom_type = self._determine_type(content, auto_detect_type, default_type)
         print(f"   Atom type: {atom_type}")
-
-        # Generate atom_id
         atom_id = self._generate_atom_id(title)
 
-        # Determine target directory
-        target_dir = TYPE_DIRS.get(atom_type, 'methods')
-        target_path = self.kb_dir / 'atoms' / target_dir / f"{atom_id}.md"
-
-        # Create atom file
-        atom_content = self._create_atom_content(
+        if self._create_atom_file(
             title=title,
             description=description,
             atom_type=atom_type,
             tags=tags,
             source_path=self.source_path,
             source_type=source_type,
-            original_content=content
+            original_content=content,
+            atom_id=atom_id,
+        ):
+            print(f"\n✅ Atom created: {atom_id}")
+            self._update_log(title, atom_id, atom_type)
+            return True
+        return False
+
+    def _create_atom_file(self, title: str, description: str, atom_type: str,
+                          tags: List[str], source_path: Path, source_type: str,
+                          original_content: str, atom_id: str) -> bool:
+        """创建原子文件并写入磁盘.
+
+        Args:
+            title: 标题
+            description: 描述
+            atom_type: 原子类型
+            tags: 标签列表
+            source_path: 源文件路径
+            source_type: 来源类型
+            original_content: 原始内容
+            atom_id: 原子 ID
+
+        Returns:
+            是否成功
+        """
+        target_dir = TYPE_DIRS.get(atom_type, 'methods')
+        target_path = self.kb_dir / 'atoms' / target_dir / f"{atom_id}.md"
+        atom_content = self._create_atom_content(
+            title=title,
+            description=description,
+            atom_type=atom_type,
+            tags=tags,
+            source_path=source_path,
+            source_type=source_type,
+            original_content=original_content,
         )
-
-        # Write atom
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_text(atom_content)
-
-        print(f"\n✅ Atom created: {target_path}")
-        print(f"   atom_id: {atom_id}")
-
-        # Update log
-        self._update_log(title, atom_id, atom_type)
-
+        target_path.write_text(atom_content, encoding='utf-8')
+        print(f"   → {target_path.relative_to(self.kb_dir)}")
         return True
 
     def _detect_source_type(self) -> str:
@@ -255,8 +313,15 @@ class KnowledgeIngestor:
 
         return f"---\n{yaml_str}\n---\n{''.join(body_parts)}"
 
-    def _update_log(self, title: str, atom_id: str, atom_type: str) -> None:
-        """Update log.md with new atom."""
+    def _update_log(self, title: str, atom_id: str, atom_type: str, count: int = 0) -> None:
+        """Update log.md with new atom.
+
+        Args:
+            title: 原子标题
+            atom_id: 原子 ID
+            atom_type: 原子类型
+            count: 批量创建时的数量（>0 表示批量）
+        """
         log_path = self.kb_dir / 'log.md'
 
         if log_path.exists():
@@ -264,15 +329,15 @@ class KnowledgeIngestor:
         else:
             log_content = "# Knowledge Base Log\n\n"
 
-        # Add entry
         today = datetime.now().strftime('%Y-%m-%d')
-        new_entry = f"\n## {today}\n\n* **Ingest**: Added [{title}](atoms/{TYPE_DIRS.get(atom_type, 'methods')}/{atom_id}.md) ({atom_type})\n"
+        if count > 0:
+            new_entry = f"\n## {today}\n\n* **Ingest**: Added {count} atoms from [{title}]({self.source_path.name}) (split)\n"
+        else:
+            new_entry = f"\n## {today}\n\n* **Ingest**: Added [{title}](atoms/{TYPE_DIRS.get(atom_type, 'methods')}/{atom_id}.md) ({atom_type})\n"
 
-        # Check if today's section exists
         if f"## {today}" in log_content:
-            # Append to existing section
             log_content = log_content.replace(f"## {today}\n", f"## {today}\n{new_entry.strip()}\n")
         else:
             log_content += new_entry
 
-        log_path.write_text(log_content)
+        log_path.write_text(log_content, encoding='utf-8')

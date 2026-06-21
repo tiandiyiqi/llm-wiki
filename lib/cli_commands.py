@@ -223,34 +223,32 @@ def cmd_init(args):
     """初始化知识库"""
     kb_path = Path(args.knowledge_base).resolve()
 
-    if kb_path.exists() and not args.force:
+    if kb_path.exists() and any(kb_path.iterdir()) and not args.force:
         print(f"❌ Directory already exists: {kb_path}")
         print("   Use --force to overwrite")
         sys.exit(1)
 
-    initializer = KBInitializer(kb_path)
-    kwargs = {}
-    if args.name:
-        kwargs['name'] = args.name
-    if args.description:
-        kwargs['description'] = args.description
-    if args.tags:
-        kwargs['tags'] = args.tags.split(',')
+    # --force 时清空目录
+    if args.force and kb_path.exists() and any(kb_path.iterdir()):
+        import shutil
+        shutil.rmtree(kb_path)
+        kb_path.mkdir(parents=True, exist_ok=True)
 
-    if args.parent:
-        initializer.init_parent(**kwargs)
-        print(f"✅ Parent knowledge base initialized: {kb_path}")
-    elif args.child:
-        if not args.parent_kb:
-            print("❌ --parent-kb is required for child knowledge base")
-            sys.exit(1)
-        parent_kb_path = Path(args.parent_kb).resolve()
-        initializer.init_child(parent_kb_path, **kwargs)
-        print(f"✅ Child knowledge base initialized: {kb_path}")
-        print(f"   Parent: {parent_kb_path}")
-    else:
-        initializer.init_standalone(**kwargs)
-        print(f"✅ Knowledge base initialized: {kb_path}")
+    # 构造初始化器参数
+    init_kwargs = {
+        'is_parent': args.parent,
+        'is_child': args.child,
+        'name': args.name or kb_path.name,
+    }
+    if args.child and args.parent_kb:
+        init_kwargs['parent_kb'] = Path(args.parent_kb).resolve()
+
+    initializer = KBInitializer(kb_path, **init_kwargs)
+    if not initializer.init():
+        print(f"❌ 初始化失败")
+        sys.exit(1)
+
+    print(f"✅ Knowledge base initialized: {kb_path}")
 
     if args.register:
         registry = KBRegistry(project_dir=Path.cwd())
@@ -260,15 +258,19 @@ def cmd_init(args):
 
 
 def cmd_ingest(args):
-    """摄入资料"""
+    """摄入资料（支持多格式解析和长文档拆分）"""
     kb_dir = resolve_kb(args)
     if not kb_dir:
         sys.exit(1)
 
     ingestor = KnowledgeIngestor(kb_dir)
     source = Path(args.source)
-    ingestor.ingest(source)
-    print(f"✅ Ingested: {source}")
+    success = ingestor.ingest(source)
+    if success:
+        print(f"✅ Ingested: {source}")
+    else:
+        print(f"❌ Failed to ingest: {source}")
+        sys.exit(1)
 
 
 def cmd_embed(args):
@@ -288,24 +290,83 @@ def cmd_embed(args):
 
 
 def cmd_query(args):
-    """查询知识"""
+    """查询知识（支持关键词高亮、多维筛选、排序、语义搜索）"""
     kb_dir = resolve_kb(args)
     if not kb_dir:
         sys.exit(1)
 
-    if args.child:
+    # 构建过滤条件
+    filters = {}
+    if getattr(args, 'tag', None):
+        filters['tag'] = args.tag
+    if getattr(args, 'author', None):
+        filters['author'] = args.author
+    if getattr(args, 'date_from', None):
+        filters['date_from'] = args.date_from
+    if getattr(args, 'date_to', None):
+        filters['date_to'] = args.date_to
+    if getattr(args, 'source_type', None):
+        filters['source_type'] = args.source_type
+    if getattr(args, 'status', None):
+        filters['status'] = args.status
+
+    by_type = getattr(args, 'type', None)
+    sort_by = getattr(args, 'sort_by', 'relevance')
+    limit = getattr(args, 'limit', 10)
+    semantic = getattr(args, 'semantic', False)
+
+    if getattr(args, 'child', None):
         querier = AggregatedQuerier(kb_dir)
-        results = querier.query_child(args.child, args.question)
+        results = querier.query_child(args.child, args.question, limit=limit, **filters)
     else:
         querier = KnowledgeQuerier(kb_dir)
-        results = querier.query(args.question, semantic=args.semantic)
+        results = querier.query(
+            args.question, limit=limit, by_type=by_type,
+            semantic=semantic, sort_by=sort_by, **filters
+        )
 
     print(f"\n🔍 Results for: '{args.question}'\n")
-    for r in results[:10]:
-        print(f"  [{r.get('score', 0):.2f}] {r['title']}")
-        print(f"         {r['path']}")
+    if not results:
+        print("   No results found.")
+        return
+
+    for i, r in enumerate(results, 1):
+        score = r.get('score', 0)
+        title = r.get('title_highlighted', r['title'])
+        print(f"{i}. [{r.get('type', '?')}] {title}  (score: {score})")
+        print(f"   Path: {r['path']}")
+        desc = r.get('description_highlighted', r.get('description', ''))
+        if desc:
+            print(f"   Desc: {desc[:100]}")
         if r.get('snippet'):
-            print(f"         {r['snippet'][:100]}...")
+            snippet = r.get('snippet_highlighted', r['snippet'])
+            print(f"   Snippet: {snippet[:150]}")
+        if r.get('tags'):
+            print(f"   Tags: {', '.join(r['tags'])}")
+        print()
+
+
+def cmd_suggest(args):
+    """搜索联想建议"""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    querier = KnowledgeQuerier(kb_dir)
+    if getattr(args, 'hot', False):
+        hot = querier.get_hot_queries(limit=args.limit)
+        print(f"\n🔥 高频搜索词 Top {len(hot)}：")
+        for i, (q, count) in enumerate(hot, 1):
+            print(f"   {i}. {q} ({count} 次)")
+    elif getattr(args, 'no_result', False):
+        no_result = querier.get_no_result_queries(limit=args.limit)
+        print(f"\n❌ 无结果搜索词（共 {len(no_result)} 条）：")
+        for i, q in enumerate(no_result, 1):
+            print(f"   {i}. {q}")
+    else:
+        suggestions = querier.get_suggestions(args.prefix, limit=args.limit)
+        print(f"\n💡 联想建议（前缀: '{args.prefix}'）：")
+        for i, s in enumerate(suggestions, 1):
+            print(f"   {i}. {s}")
 
 
 def cmd_lint(args):
@@ -490,3 +551,558 @@ def cmd_web_ui(args):
 
     create_web_ui(kb_dir)
     sys.exit(0)
+
+
+# ============================================================================
+# 批量操作命令
+# ============================================================================
+
+def cmd_batch_ingest(args):
+    """批量摄入目录下的文件."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    from .batch_ops import BatchOperations
+    ops = BatchOperations(kb_dir)
+    source_dir = Path(args.source_dir)
+    pattern = getattr(args, 'pattern', '*') or '*'
+    recursive = not getattr(args, 'no_recursive', False)
+    dry_run = getattr(args, 'dry_run', False)
+    ops.batch_ingest(source_dir, pattern, recursive, dry_run)
+
+
+def cmd_batch_export(args):
+    """按条件批量导出原子."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    from .batch_ops import BatchOperations
+    ops = BatchOperations(kb_dir)
+    output_dir = Path(args.output)
+    dry_run = getattr(args, 'dry_run', False)
+    ops.batch_export(
+        output_dir,
+        by_type=getattr(args, 'type', None),
+        by_tag=getattr(args, 'tag', None),
+        by_status=getattr(args, 'status', None),
+        dry_run=dry_run
+    )
+
+
+def cmd_batch_tag(args):
+    """批量添加或移除标签."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    from .batch_ops import BatchOperations
+    ops = BatchOperations(kb_dir)
+    add_tags = args.add.split(',') if getattr(args, 'add', None) else None
+    remove_tags = args.remove.split(',') if getattr(args, 'remove', None) else None
+    dry_run = getattr(args, 'dry_run', False)
+    ops.batch_tag(
+        add_tags=add_tags,
+        remove_tags=remove_tags,
+        by_type=getattr(args, 'type', None),
+        by_tag=getattr(args, 'tag', None),
+        dry_run=dry_run
+    )
+
+
+def cmd_batch_move(args):
+    """批量迁移原子类型."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    from .batch_ops import BatchOperations
+    ops = BatchOperations(kb_dir)
+    dry_run = getattr(args, 'dry_run', False)
+    ops.batch_move(
+        target_type=args.target_type,
+        by_type=getattr(args, 'from_type', None),
+        by_tag=getattr(args, 'tag', None),
+        dry_run=dry_run
+    )
+
+
+def cmd_batch_delete(args):
+    """批量删除原子（默认 dry_run 安全模式）."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    from .batch_ops import BatchOperations
+    ops = BatchOperations(kb_dir)
+    # 默认 dry_run=True，需 --force 才实际执行
+    force = getattr(args, 'force', False)
+    ops.batch_delete(
+        by_type=getattr(args, 'type', None),
+        by_tag=getattr(args, 'tag', None),
+        by_status=getattr(args, 'status', None),
+        dry_run=not force
+    )
+
+
+# ============================================================================
+# HTTP API 服务命令
+# ============================================================================
+
+def cmd_serve(args):
+    """启动统一 Web 服务（前端 + API）."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    from .web_server import UnifiedWebServer
+    server = UnifiedWebServer(kb_dir, host=args.host, port=args.port)
+    server.run()
+
+
+# ============================================================================
+# 内容生命周期管理命令
+# ============================================================================
+
+def cmd_publish(args):
+    """发布原子（状态改为 published）."""
+    _change_status(args, 'published')
+
+
+def cmd_archive(args):
+    """归档原子（状态改为 archived）."""
+    _change_status(args, 'archived')
+
+
+def cmd_deprecate(args):
+    """废弃原子（状态改为 deprecated）."""
+    _change_status(args, 'deprecated')
+
+
+def _change_status(args, new_status: str):
+    """修改原子状态."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    # 权限检查
+    action_map = {'published': 'publish', 'archived': 'archive', 'deprecated': 'deprecate'}
+    action = action_map.get(new_status, 'publish')
+    username, has_perm = _get_current_user_or_warn(args, action)
+    if not has_perm:
+        sys.exit(1)
+    from .lifecycle import LifecycleManager
+    from .audit import AuditLogger
+    manager = LifecycleManager(kb_dir)
+    atom_path = Path(args.atom_path)
+    if not atom_path.is_absolute():
+        atom_path = kb_dir / atom_path
+    if manager.change_status(atom_path, new_status):
+        # 记录审计日志
+        AuditLogger(kb_dir).log(
+            action=f'status:{new_status}',
+            target=str(atom_path.relative_to(kb_dir)) if atom_path.is_relative_to(kb_dir) else str(atom_path),
+            user=username,
+        )
+        print(f"✅ {atom_path.name} 状态已改为: {new_status}（by {username}）")
+    else:
+        print(f"❌ 状态修改失败: {atom_path}")
+        sys.exit(1)
+
+
+# ============================================================================
+# 操作日志审计命令
+# ============================================================================
+
+def cmd_audit(args):
+    """查询操作审计日志."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    from .audit import AuditLogger
+    logger = AuditLogger(kb_dir)
+    entries = logger.query(
+        since=getattr(args, 'since', None),
+        action=getattr(args, 'action', None),
+        limit=getattr(args, 'limit', 50)
+    )
+    if not entries:
+        print("（无审计记录）")
+        return
+    print(f"\n📋 审计日志（共 {len(entries)} 条）\n")
+    for e in entries:
+        print(f"  [{e.get('timestamp', '')}] {e.get('action', '')} {e.get('target', '')}")
+        if e.get('user'):
+            print(f"    User: {e['user']}")
+        if e.get('detail'):
+            print(f"    Detail: {e['detail']}")
+
+
+# ============================================================================
+# 协同反馈命令
+# ============================================================================
+
+def cmd_comment(args):
+    """为原子添加评论."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    username, has_perm = _get_current_user_or_warn(args, 'comment')
+    if not has_perm:
+        sys.exit(1)
+    from .feedback import FeedbackManager
+    from .audit import AuditLogger
+    fm = FeedbackManager(kb_dir)
+    atom_path = Path(args.atom_path)
+    if not atom_path.is_absolute():
+        atom_path = kb_dir / atom_path
+    if fm.add_comment(atom_path, args.text, author=username):
+        AuditLogger(kb_dir).log('comment', str(atom_path), user=username, detail=args.text[:100])
+        print(f"✅ 评论已添加（by {username}）")
+    else:
+        print(f"❌ 评论失败")
+        sys.exit(1)
+
+
+def cmd_favorite(args):
+    """收藏/取消收藏原子."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    username, has_perm = _get_current_user_or_warn(args, 'favorite')
+    if not has_perm:
+        sys.exit(1)
+    from .feedback import FeedbackManager
+    from .audit import AuditLogger
+    fm = FeedbackManager(kb_dir)
+    atom_path = Path(args.atom_path)
+    if not atom_path.is_absolute():
+        atom_path = kb_dir / atom_path
+    if getattr(args, 'remove', False):
+        fm.remove_favorite(atom_path, user=username)
+        AuditLogger(kb_dir).log('unfavorite', str(atom_path), user=username)
+        print(f"✅ 已取消收藏: {atom_path.name}（by {username}）")
+    else:
+        fm.add_favorite(atom_path, user=username)
+        AuditLogger(kb_dir).log('favorite', str(atom_path), user=username)
+        print(f"✅ 已收藏: {atom_path.name}（by {username}）")
+
+
+def cmd_rate(args):
+    """为原子评分."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    username, has_perm = _get_current_user_or_warn(args, 'rate')
+    if not has_perm:
+        sys.exit(1)
+    from .feedback import FeedbackManager
+    from .audit import AuditLogger
+    fm = FeedbackManager(kb_dir)
+    atom_path = Path(args.atom_path)
+    if not atom_path.is_absolute():
+        atom_path = kb_dir / atom_path
+    if fm.rate(atom_path, args.score, user=username):
+        AuditLogger(kb_dir).log('rate', str(atom_path), user=username, detail=f"score={args.score}")
+        print(f"✅ 评分 {args.score} 已记录（by {username}）")
+    else:
+        print(f"❌ 评分失败")
+        sys.exit(1)
+
+
+# ============================================================================
+# 审批流命令
+# ============================================================================
+
+def cmd_submit(args):
+    """提交原子进入审核流."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    username, has_perm = _get_current_user_or_warn(args, 'submit')
+    if not has_perm:
+        sys.exit(1)
+    from .workflow import WorkflowManager
+    from .audit import AuditLogger
+    wf = WorkflowManager(kb_dir)
+    atom_path = Path(args.atom_path)
+    if not atom_path.is_absolute():
+        atom_path = kb_dir / atom_path
+    if wf.submit(atom_path, submitter=username):
+        AuditLogger(kb_dir).log('submit', str(atom_path), user=username)
+        print(f"✅ 已提交审核: {atom_path.name}（by {username}）")
+    else:
+        print(f"❌ 提交失败")
+        sys.exit(1)
+
+
+def cmd_approve(args):
+    """审核通过."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    username, has_perm = _get_current_user_or_warn(args, 'approve')
+    if not has_perm:
+        sys.exit(1)
+    from .workflow import WorkflowManager
+    from .audit import AuditLogger
+    wf = WorkflowManager(kb_dir)
+    atom_path = Path(args.atom_path)
+    if not atom_path.is_absolute():
+        atom_path = kb_dir / atom_path
+    if wf.approve(atom_path, reviewer=username):
+        AuditLogger(kb_dir).log('approve', str(atom_path), user=username)
+        print(f"✅ 审核通过: {atom_path.name}（by {username}）")
+    else:
+        print(f"❌ 审核失败")
+        sys.exit(1)
+
+
+def cmd_reject(args):
+    """审核驳回."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    username, has_perm = _get_current_user_or_warn(args, 'reject')
+    if not has_perm:
+        sys.exit(1)
+    from .workflow import WorkflowManager
+    from .audit import AuditLogger
+    wf = WorkflowManager(kb_dir)
+    atom_path = Path(args.atom_path)
+    if not atom_path.is_absolute():
+        atom_path = kb_dir / atom_path
+    if wf.reject(atom_path, reason=args.reason, reviewer=username):
+        AuditLogger(kb_dir).log('reject', str(atom_path), user=username, detail=args.reason or '')
+        print(f"✅ 已驳回: {atom_path.name}（by {username}）")
+        if args.reason:
+            print(f"   原因: {args.reason}")
+    else:
+        print(f"❌ 驳回失败")
+        sys.exit(1)
+
+
+# ============================================================================
+# 数据统计命令
+# ============================================================================
+
+def cmd_stats(args):
+    """显示知识库统计数据."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    from .analytics import AnalyticsEngine
+    engine = AnalyticsEngine(kb_dir)
+    stats = engine.get_stats()
+
+    print(f"\n📊 知识库统计: {kb_dir.name}\n")
+    print(f"  原子总数: {stats.get('total_atoms', 0)}")
+    print(f"  类型分布:")
+    for t, n in sorted(stats.get('by_type', {}).items(), key=lambda x: x[1], reverse=True):
+        print(f"    {t}: {n}")
+    print(f"  状态分布:")
+    for s, n in stats.get('by_status', {}).items():
+        print(f"    {s}: {n}")
+    print(f"  标签数: {stats.get('total_tags', 0)}")
+    print(f"  作者数: {stats.get('total_authors', 0)}")
+
+    if stats.get('recent_activity'):
+        print(f"\n  最近活动（{len(stats['recent_activity'])} 条）:")
+        for act in stats['recent_activity'][:5]:
+            print(f"    {act}")
+
+    if getattr(args, 'export', None):
+        engine.export_report(args.export)
+        print(f"\n  📄 报告已导出: {args.export}")
+
+
+# ============================================================================
+# 备份恢复命令
+# ============================================================================
+
+def cmd_backup(args):
+    """备份知识库."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    from .backup import BackupManager
+    bm = BackupManager(kb_dir)
+    output = bm.backup(getattr(args, 'output', None))
+    print(f"✅ 备份完成: {output}")
+
+
+def cmd_restore(args):
+    """从备份恢复原子."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    from .backup import BackupManager
+    bm = BackupManager(kb_dir)
+    if bm.restore_atom(args.atom_id, getattr(args, 'version', None)):
+        print(f"✅ 恢复成功: {args.atom_id}")
+    else:
+        print(f"❌ 恢复失败")
+        sys.exit(1)
+
+
+# ============================================================================
+# 用户管理命令
+# ============================================================================
+
+def _get_auth_manager(args):
+    """获取 AuthManager 实例."""
+    kb_dir = resolve_kb(args)
+    if not kb_dir:
+        sys.exit(1)
+    from .auth import AuthManager
+    return AuthManager(kb_dir), kb_dir
+
+
+def cmd_user_add(args):
+    """添加用户."""
+    auth, _ = _get_auth_manager(args)
+    import getpass
+    password = getattr(args, 'password', None)
+    if not password:
+        password = getpass.getpass(f"请输入 {args.username} 的密码: ")
+    if auth.add_user(args.username, args.role, password):
+        print(f"✅ 用户已添加: {args.username} (角色: {args.role})")
+    else:
+        print(f"❌ 添加用户失败（角色无效或用户已存在）")
+        sys.exit(1)
+
+
+def cmd_user_remove(args):
+    """移除用户."""
+    auth, _ = _get_auth_manager(args)
+    if auth.remove_user(args.username):
+        print(f"✅ 用户已移除: {args.username}")
+    else:
+        print(f"❌ 用户不存在: {args.username}")
+        sys.exit(1)
+
+
+def cmd_user_list(args):
+    """列出所有用户."""
+    auth, _ = _get_auth_manager(args)
+    users = auth.list_users()
+    if not users:
+        print("（无用户）")
+        return
+    print(f"\n👥 用户列表（共 {len(users)} 人）\n")
+    current = auth.get_current_username()
+    for u in users:
+        marker = ' ← 当前登录' if u['username'] == current else ''
+        print(f"  {u['username']:20s}  角色: {u['role']:8s}  创建: {u.get('created', '')[:10]}{marker}")
+
+
+def cmd_user_role(args):
+    """更新用户角色."""
+    auth, _ = _get_auth_manager(args)
+    if auth.update_user_role(args.username, args.role):
+        print(f"✅ {args.username} 角色已更新为: {args.role}")
+    else:
+        print(f"❌ 更新失败（用户不存在或角色无效）")
+        sys.exit(1)
+
+
+def cmd_user_password(args):
+    """修改用户密码."""
+    auth, _ = _get_auth_manager(args)
+    import getpass
+    new_password = getattr(args, 'password', None)
+    if not new_password:
+        new_password = getpass.getpass("请输入新密码: ")
+    if auth.change_password(args.username, new_password):
+        print(f"✅ {args.username} 密码已修改")
+    else:
+        print(f"❌ 修改失败（用户不存在）")
+        sys.exit(1)
+
+
+def cmd_login(args):
+    """用户登录."""
+    auth, _ = _get_auth_manager(args)
+    import getpass
+    password = getattr(args, 'password', None)
+    if not password:
+        password = getpass.getpass(f"请输入 {args.username} 的密码: ")
+    if auth.login(args.username, password):
+        role = auth.get_current_role()
+        print(f"✅ 登录成功: {args.username} (角色: {role})")
+    else:
+        print(f"❌ 登录失败（用户名或密码错误）")
+        sys.exit(1)
+
+
+def cmd_logout(args):
+    """退出登录."""
+    auth, _ = _get_auth_manager(args)
+    user = auth.get_current_username()
+    if auth.logout():
+        print(f"✅ 已退出登录: {user}")
+    else:
+        print(f"⚠️  当前未登录")
+        sys.exit(1)
+
+
+def cmd_whoami(args):
+    """查看当前登录用户."""
+    auth, _ = _get_auth_manager(args)
+    user = auth.get_current_user()
+    if user:
+        print(f"👤 当前用户: {user.get('username', 'unknown')}")
+        print(f"   角色: {user.get('role', 'unknown')}")
+        print(f"   登录时间: {user.get('login_at', 'unknown')}")
+    else:
+        print("👤 当前未登录")
+        print("   使用 'llm-wiki login <username>' 登录")
+        print("   使用 'llm-wiki user-add <username>' 添加用户")
+
+
+def cmd_token_generate(args):
+    """生成 API Token."""
+    auth, _ = _get_auth_manager(args)
+    token = auth.generate_token(args.username, getattr(args, 'role', None))
+    if token:
+        print(f"✅ Token 已生成")
+        print(f"   用户: {args.username}")
+        print(f"   Token: {token}")
+        print(f"   ⚠️  请妥善保管，此 Token 仅显示一次")
+    else:
+        print(f"❌ 生成失败（用户不存在）")
+        sys.exit(1)
+
+
+def cmd_token_revoke(args):
+    """吊销 Token."""
+    auth, _ = _get_auth_manager(args)
+    if auth.revoke_token(args.token):
+        print(f"✅ Token 已吊销")
+    else:
+        print(f"❌ Token 不存在")
+        sys.exit(1)
+
+
+def cmd_token_list(args):
+    """列出所有 Token."""
+    auth, _ = _get_auth_manager(args)
+    tokens = auth.list_tokens()
+    if not tokens:
+        print("（无 Token）")
+        return
+    print(f"\n🔑 Token 列表（共 {len(tokens)} 个）\n")
+    for t in tokens:
+        print(f"  {t['token']:20s}  用户: {t['username']:15s}  角色: {t['role']:8s}  创建: {t.get('created', '')[:10]}")
+
+
+def _get_current_user_or_warn(args, action: str):
+    """获取当前登录用户，未登录时警告并返回 anonymous.
+
+    Args:
+        args: 命令参数
+        action: 操作名称（用于权限检查）
+
+    Returns:
+        (用户名, 是否有权限)
+    """
+    auth, _ = _get_auth_manager(args)
+    username = auth.require_user()
+    has_permission = auth.require_permission(action)
+    if not has_permission:
+        print(f"❌ 权限不足：当前用户 '{username}' 无权执行 '{action}' 操作")
+    return username, has_permission

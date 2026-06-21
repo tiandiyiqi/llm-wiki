@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>审计日志 - LLM Wiki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #f7fafc; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-secondary { background: #e2e8f0; color: #4a5568; }
+        .btn-secondary:hover { background: #cbd5e0; }
+        .input { padding: 6px 10px; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 14px; }
+        .input:focus { outline: none; border-color: #667eea; }
+        .badge { padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .badge-info { background: #bee3f8; color: #2b6cb0; }
+        .badge-success { background: #c6f6d5; color: #276749; }
+        .badge-warning { background: #fef3c7; color: #92400e; }
+        .badge-error { background: #fed7d7; color: #c53030; }
+        .badge-neutral { background: #e2e8f0; color: #4a5568; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
+                <h1 class="text-xl font-bold text-gray-800">审计日志</h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="/admin/approvals.html" class="text-sm text-blue-600 hover:underline">审批中心</a>
+                <a href="/admin/notifications.html" class="text-sm text-blue-600 hover:underline">通知中心</a>
+                <span class="text-sm text-gray-600">当前: <strong id="currentUserName">-</strong> (<span id="currentUserRole">-</span>)</span>
+                <button onclick="API.logout()" class="btn btn-secondary">退出登录</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-6 py-6">
+        <!-- 筛选栏 -->
+        <div class="card p-4 mb-4">
+            <div class="flex flex-wrap gap-3 items-center">
+                <div>
+                    <label class="text-xs text-gray-600 mr-2">操作类型</label>
+                    <select id="filterAction" class="input" onchange="loadAudit()">
+                        <option value="">全部</option>
+                        <option value="comment">评论</option>
+                        <option value="favorite">收藏</option>
+                        <option value="rate">评分</option>
+                        <option value="submit">提交审核</option>
+                        <option value="approve">审核通过</option>
+                        <option value="reject">审核驳回</option>
+                        <option value="status:published">发布</option>
+                        <option value="status:archived">归档</option>
+                        <option value="status:deprecated">废弃</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs text-gray-600 mr-2">条数</label>
+                    <select id="filterLimit" class="input" onchange="loadAudit()">
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                        <option value="500">500</option>
+                    </select>
+                </div>
+                <button onclick="loadAudit()" class="btn btn-primary">查询</button>
+                <button onclick="exportAudit()" class="btn btn-secondary">导出 JSON</button>
+                <div class="ml-auto text-sm text-gray-600">
+                    共 <strong id="totalCount">0</strong> 条记录
+                </div>
+            </div>
+        </div>
+
+        <!-- 日志表格 -->
+        <div class="card overflow-hidden">
+            <table class="w-full">
+                <thead class="bg-gray-50">
+                    <tr class="text-left text-gray-600 border-b border-gray-200">
+                        <th class="py-3 px-4">时间</th>
+                        <th class="py-3 px-4">操作</th>
+                        <th class="py-3 px-4">用户</th>
+                        <th class="py-3 px-4">目标</th>
+                        <th class="py-3 px-4">详情</th>
+                    </tr>
+                </thead>
+                <tbody id="auditTableBody">
+                    <tr><td colspan="5" class="text-center py-12 text-gray-500">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * API 封装
+         */
+        const API = {
+            currentUser: null,
+            async init() {
+                try {
+                    const r = await fetch('/api/auth/whoami', { credentials: 'same-origin' });
+                    const d = await r.json();
+                    if (d.user) {
+                        this.currentUser = d.user;
+                        document.getElementById('currentUserName').textContent = d.user.username;
+                        document.getElementById('currentUserRole').textContent = d.user.role;
+                        return true;
+                    }
+                } catch (e) {}
+                window.location.href = '/login.html';
+                return false;
+            },
+            async get(url) {
+                const r = await fetch(url, { credentials: 'same-origin' });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async post(url, data) {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data || {}),
+                    credentials: 'same-origin',
+                });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async logout() {
+                await this.post('/api/auth/logout').catch(() => {});
+                window.location.href = '/login.html';
+            },
+            isAdmin() { return this.currentUser && this.currentUser.role === 'admin'; }
+        };
+
+        let auditData = [];
+
+        /**
+         * 初始化
+         */
+        async function init() {
+            const ok = await API.init();
+            if (!ok) return;
+            // 审计日志 admin 和 editor 都可查看
+            loadAudit();
+        }
+
+        /**
+         * 加载审计日志
+         */
+        async function loadAudit() {
+            const action = document.getElementById('filterAction').value;
+            const limit = document.getElementById('filterLimit').value;
+            const params = new URLSearchParams({ limit });
+            if (action) params.set('action', action);
+            try {
+                const data = await API.get(`/api/audit?${params.toString()}`);
+                auditData = data.entries || [];
+                document.getElementById('totalCount').textContent = data.count || auditData.length;
+                renderTable(auditData);
+            } catch (e) {
+                console.error('加载审计日志失败:', e);
+                document.getElementById('auditTableBody').innerHTML = `
+                    <tr><td colspan="5" class="text-center py-12 text-red-500">加载失败: ${escapeHtml(e.message)}</td></tr>`;
+            }
+        }
+
+        /**
+         * 渲染表格
+         */
+        function renderTable(entries) {
+            const tbody = document.getElementById('auditTableBody');
+            if (entries.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-gray-500">📭 暂无审计日志</td></tr>`;
+                return;
+            }
+            let html = '';
+            for (const e of entries) {
+                const action = e.action || '';
+                const badgeClass = getActionBadgeClass(action);
+                html += `
+                    <tr class="border-b border-gray-100 hover:bg-gray-50">
+                        <td class="py-3 px-4 text-sm text-gray-600">${escapeHtml(e.timestamp || e.time || '-')}</td>
+                        <td class="py-3 px-4"><span class="badge ${badgeClass}">${escapeHtml(action)}</span></td>
+                        <td class="py-3 px-4 text-sm">${escapeHtml(e.user || '-')}</td>
+                        <td class="py-3 px-4 text-sm font-mono break-all">${escapeHtml(e.target || e.path || '-')}</td>
+                        <td class="py-3 px-4 text-sm text-gray-600">${escapeHtml(e.detail || '-')}</td>
+                    </tr>`;
+            }
+            tbody.innerHTML = html;
+        }
+
+        /**
+         * 根据操作类型获取 badge 样式
+         */
+        function getActionBadgeClass(action) {
+            if (!action) return 'badge-neutral';
+            if (action.includes('approve') || action.includes('publish')) return 'badge-success';
+            if (action.includes('reject') || action.includes('delete') || action.includes('deprecate')) return 'badge-error';
+            if (action.includes('submit') || action.includes('archive')) return 'badge-warning';
+            if (action.includes('comment') || action.includes('favorite') || action.includes('rate')) return 'badge-info';
+            return 'badge-neutral';
+        }
+
+        /**
+         * 导出审计日志为 JSON
+         */
+        function exportAudit() {
+            if (auditData.length === 0) {
+                alert('暂无数据可导出');
+                return;
+            }
+            const blob = new Blob([JSON.stringify(auditData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        /**
+         * HTML 转义
+         */
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        // 启动
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据看板 - LLM Wiki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background: #f7fafc; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-secondary { background: #e2e8f0; color: #4a5568; }
+        .btn-secondary:hover { background: #cbd5e0; }
+        .stat-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .stat-value { font-size: 2rem; font-weight: 700; color: #2d3748; }
+        .stat-label { font-size: 0.875rem; color: #718096; margin-top: 4px; }
+        .stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
+                <h1 class="text-xl font-bold text-gray-800">数据看板</h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="/admin/qa.html" class="text-sm text-blue-600 hover:underline">AI 问答</a>
+                <button onclick="loadData()" class="btn btn-secondary">刷新</button>
+                <span class="text-sm text-gray-600">当前: <strong id="currentUserName">-</strong></span>
+                <button onclick="API.logout()" class="btn btn-secondary">退出</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-6 py-6">
+        <!-- 统计卡片 -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="stat-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="stat-value" id="totalAtoms">0</div>
+                        <div class="stat-label">总原子数</div>
+                    </div>
+                    <div class="stat-icon bg-blue-100 text-blue-600">📄</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="stat-value" id="totalTags">0</div>
+                        <div class="stat-label">标签数</div>
+                    </div>
+                    <div class="stat-icon bg-green-100 text-green-600">🏷️</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="stat-value" id="totalAuthors">0</div>
+                        <div class="stat-label">作者数</div>
+                    </div>
+                    <div class="stat-icon bg-purple-100 text-purple-600">👤</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="stat-value" id="totalActions">0</div>
+                        <div class="stat-label">操作总数</div>
+                    </div>
+                    <div class="stat-icon bg-orange-100 text-orange-600">⚡</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图表区 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="card p-6">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">按类型分布</h2>
+                <canvas id="typeChart" height="200"></canvas>
+            </div>
+            <div class="card p-6">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">按状态分布</h2>
+                <canvas id="statusChart" height="200"></canvas>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="card p-6">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">热门标签 Top 10</h2>
+                <canvas id="tagChart" height="200"></canvas>
+            </div>
+            <div class="card p-6">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">用户活跃度</h2>
+                <canvas id="userChart" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- 热门文档和最近活动 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="card p-6">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">热门文档</h2>
+                <div id="popularDocs" class="space-y-2">
+                    <p class="text-gray-500 text-center py-4">加载中...</p>
+                </div>
+            </div>
+            <div class="card p-6">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">最近活动</h2>
+                <div id="recentActivity" class="space-y-2">
+                    <p class="text-gray-500 text-center py-4">加载中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * API 封装
+         */
+        const API = {
+            currentUser: null,
+            async init() {
+                try {
+                    const r = await fetch('/api/auth/whoami', { credentials: 'same-origin' });
+                    const d = await r.json();
+                    if (d.user) {
+                        this.currentUser = d.user;
+                        document.getElementById('currentUserName').textContent = d.user.username;
+                        return true;
+                    }
+                } catch (e) {}
+                window.location.href = '/login.html';
+                return false;
+            },
+            async get(url) {
+                const r = await fetch(url, { credentials: 'same-origin' });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async post(url, data) {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data || {}),
+                    credentials: 'same-origin',
+                });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async logout() {
+                await this.post('/api/auth/logout').catch(() => {});
+                window.location.href = '/login.html';
+            }
+        };
+
+        let charts = {};
+
+        /**
+         * 初始化
+         */
+        async function init() {
+            const ok = await API.init();
+            if (!ok) return;
+            await loadData();
+        }
+
+        /**
+         * 加载所有数据
+         */
+        async function loadData() {
+            try {
+                const [stats, behavior] = await Promise.all([
+                    API.get('/api/stats'),
+                    API.get('/api/analytics/behavior')
+                ]);
+                renderStats(stats);
+                renderBehavior(behavior);
+            } catch (e) {
+                console.error('加载数据失败:', e);
+            }
+        }
+
+        /**
+         * 渲染统计
+         */
+        function renderStats(stats) {
+            document.getElementById('totalAtoms').textContent = stats.total_atoms || 0;
+            document.getElementById('totalTags').textContent = stats.total_tags || 0;
+            document.getElementById('totalAuthors').textContent = stats.total_authors || 0;
+
+            // 类型分布
+            const typeData = stats.by_type || {};
+            renderPieChart('typeChart', '按类型', typeData);
+
+            // 状态分布
+            const statusData = stats.by_status || {};
+            renderPieChart('statusChart', '按状态', statusData);
+
+            // 热门标签
+            const tagData = stats.by_tag || {};
+            renderBarChart('tagChart', '标签', tagData, 10);
+
+            // 热门文档
+            renderPopularDocs(stats.popular_docs || []);
+
+            // 最近活动
+            renderRecentActivity(stats.recent_activity || []);
+        }
+
+        /**
+         * 渲染行为分析
+         */
+        function renderBehavior(behavior) {
+            const actionCounts = behavior.action_counts || {};
+            document.getElementById('totalActions').textContent =
+                Object.values(actionCounts).reduce((a, b) => a + b, 0);
+
+            // 用户活跃度
+            const userCounts = behavior.user_counts || {};
+            renderBarChart('userChart', '操作数', userCounts, 10);
+        }
+
+        /**
+         * 渲染饼图
+         */
+        function renderPieChart(canvasId, label, data) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            if (charts[canvasId]) charts[canvasId].destroy();
+            const labels = Object.keys(data);
+            const values = Object.values(data);
+            if (labels.length === 0) {
+                ctx.canvas.parentElement.innerHTML = '<p class="text-gray-500 text-center py-8">暂无数据</p>';
+                return;
+            }
+            const colors = generateColors(labels.length);
+            charts[canvasId] = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: colors,
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'right', labels: { font: { size: 12 } } }
+                    }
+                }
+            });
+        }
+
+        /**
+         * 渲染柱状图
+         */
+        function renderBarChart(canvasId, label, data, limit = 10) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            if (charts[canvasId]) charts[canvasId].destroy();
+            const entries = Object.entries(data)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, limit);
+            const labels = entries.map(e => e[0]);
+            const values = entries.map(e => e[1]);
+            if (labels.length === 0) {
+                ctx.canvas.parentElement.innerHTML = '<p class="text-gray-500 text-center py-8">暂无数据</p>';
+                return;
+            }
+            charts[canvasId] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: values,
+                        backgroundColor: '#667eea',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        /**
+         * 渲染热门文档
+         */
+        function renderPopularDocs(docs) {
+            const container = document.getElementById('popularDocs');
+            if (docs.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-4">暂无数据</p>';
+                return;
+            }
+            container.innerHTML = docs.slice(0, 10).map((d, i) => `
+                <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400 font-bold">${i + 1}</span>
+                        <span class="text-sm font-medium text-gray-800">${escapeHtml(d.title || d.id || '-')}</span>
+                    </div>
+                    <span class="text-xs text-gray-500">${d.views || d.count || 0} 次访问</span>
+                </div>
+            `).join('');
+        }
+
+        /**
+         * 渲染最近活动
+         */
+        function renderRecentActivity(activities) {
+            const container = document.getElementById('recentActivity');
+            if (activities.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-4">暂无活动</p>';
+                return;
+            }
+            container.innerHTML = activities.slice(0, 10).map(a => `
+                <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
+                    <div>
+                        <span class="text-sm font-medium text-gray-800">${escapeHtml(a.action || a.type || '-')}</span>
+                        <span class="text-xs text-gray-500 ml-2">${escapeHtml(a.target || a.target_path || '')}</span>
+                    </div>
+                    <span class="text-xs text-gray-400">${escapeHtml(a.user || '')} · ${escapeHtml(a.timestamp || '')}</span>
+                </div>
+            `).join('');
+        }
+
+        /**
+         * 生成颜色
+         */
+        function generateColors(n) {
+            const palette = ['#667eea', '#764ba2', '#38a169', '#e53e3e', '#dd6b20', '#3182ce', '#805ad5', '#319795', '#d69e2e', '#718096'];
+            const colors = [];
+            for (let i = 0; i < n; i++) colors.push(palette[i % palette.length]);
+            return colors;
+        }
+
+        /**
+         * HTML 转义
+         */
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        // 启动
+        init();
+    </script>
+</body>
+</html>

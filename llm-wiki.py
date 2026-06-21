@@ -32,8 +32,16 @@ from lib.cli_commands import (
     cmd_register, cmd_unregister, cmd_list, cmd_use, cmd_info,
     cmd_init, cmd_ingest, cmd_embed, cmd_query, cmd_lint, cmd_index,
     cmd_export, cmd_import, cmd_visualize, cmd_timeline, cmd_capture,
-    cmd_watch, cmd_gaps, cmd_relations, cmd_heads_up, cmd_web_ui
+    cmd_watch, cmd_gaps, cmd_relations, cmd_heads_up, cmd_web_ui,
+    cmd_suggest, cmd_batch_ingest, cmd_batch_export, cmd_batch_tag,
+    cmd_batch_move, cmd_batch_delete, cmd_serve, cmd_publish, cmd_archive,
+    cmd_deprecate, cmd_audit, cmd_comment, cmd_favorite, cmd_rate,
+    cmd_submit, cmd_approve, cmd_reject, cmd_stats, cmd_backup, cmd_restore,
+    cmd_user_add, cmd_user_remove, cmd_user_list, cmd_user_role, cmd_user_password,
+    cmd_login, cmd_logout, cmd_whoami,
+    cmd_token_generate, cmd_token_revoke, cmd_token_list,
 )
+from lib.migration.cli import register_migrate_commands
 
 
 def main():
@@ -110,7 +118,25 @@ def main():
     query_parser.add_argument('question', help='查询问题')
     query_parser.add_argument('--semantic', '-s', action='store_true', help='语义搜索')
     query_parser.add_argument('--child', '-c', help='仅搜索指定子知识库')
+    query_parser.add_argument('--type', '-t', help='按类型过滤（method/fact/definition/data/opinion/question/reference）')
+    query_parser.add_argument('--tag', help='按标签过滤')
+    query_parser.add_argument('--author', help='按作者过滤')
+    query_parser.add_argument('--date-from', help='起始日期（YYYY-MM-DD）')
+    query_parser.add_argument('--date-to', help='结束日期（YYYY-MM-DD）')
+    query_parser.add_argument('--source-type', help='按来源类型过滤（official/blog/user/document）')
+    query_parser.add_argument('--status', help='按状态过滤（draft/review/published/archived/deprecated）')
+    query_parser.add_argument('--sort-by', choices=['relevance', 'time', 'title', 'popularity'], default='relevance', help='排序方式')
+    query_parser.add_argument('--limit', '-l', type=int, default=10, help='结果数量限制')
     query_parser.set_defaults(func=cmd_query)
+
+    # suggest command
+    suggest_parser = subparsers.add_parser('suggest', help='搜索联想建议')
+    suggest_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    suggest_parser.add_argument('prefix', nargs='?', help='搜索前缀')
+    suggest_parser.add_argument('--hot', action='store_true', help='显示高频搜索词')
+    suggest_parser.add_argument('--no-result', action='store_true', help='显示无结果搜索词')
+    suggest_parser.add_argument('--limit', '-l', type=int, default=10, help='结果数量限制')
+    suggest_parser.set_defaults(func=cmd_suggest)
 
     # lint command
     lint_parser = subparsers.add_parser('lint', help='OKF 兼容性检查')
@@ -186,6 +212,224 @@ def main():
     webui_parser = subparsers.add_parser('web-ui', help='创建 Web UI（一键生成所有视图）')
     webui_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
     webui_parser.set_defaults(func=cmd_web_ui)
+
+    # batch-ingest command
+    batch_ingest_parser = subparsers.add_parser('batch-ingest', help='批量摄入目录')
+    batch_ingest_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    batch_ingest_parser.add_argument('source_dir', type=Path, help='源目录')
+    batch_ingest_parser.add_argument('--pattern', '-p', default='*', help='文件匹配模式（如 *.md）')
+    batch_ingest_parser.add_argument('--no-recursive', action='store_true', help='不递归子目录')
+    batch_ingest_parser.add_argument('--dry-run', action='store_true', help='仅预览')
+    batch_ingest_parser.set_defaults(func=cmd_batch_ingest)
+
+    # batch-export command
+    batch_export_parser = subparsers.add_parser('batch-export', help='批量导出原子')
+    batch_export_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    batch_export_parser.add_argument('output', type=Path, help='输出目录')
+    batch_export_parser.add_argument('--type', '-t', help='按类型过滤')
+    batch_export_parser.add_argument('--tag', help='按标签过滤')
+    batch_export_parser.add_argument('--status', help='按状态过滤')
+    batch_export_parser.add_argument('--dry-run', action='store_true', help='仅预览')
+    batch_export_parser.set_defaults(func=cmd_batch_export)
+
+    # batch-tag command
+    batch_tag_parser = subparsers.add_parser('batch-tag', help='批量打标签')
+    batch_tag_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    batch_tag_parser.add_argument('--add', help='要添加的标签（逗号分隔）')
+    batch_tag_parser.add_argument('--remove', help='要移除的标签（逗号分隔）')
+    batch_tag_parser.add_argument('--type', '-t', help='按类型过滤')
+    batch_tag_parser.add_argument('--tag', help='按标签过滤')
+    batch_tag_parser.add_argument('--dry-run', action='store_true', help='仅预览')
+    batch_tag_parser.set_defaults(func=cmd_batch_tag)
+
+    # batch-move command
+    batch_move_parser = subparsers.add_parser('batch-move', help='批量迁移类型')
+    batch_move_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    batch_move_parser.add_argument('target_type', help='目标类型')
+    batch_move_parser.add_argument('--from-type', help='源类型过滤')
+    batch_move_parser.add_argument('--tag', help='标签过滤')
+    batch_move_parser.add_argument('--dry-run', action='store_true', help='仅预览')
+    batch_move_parser.set_defaults(func=cmd_batch_move)
+
+    # batch-delete command
+    batch_delete_parser = subparsers.add_parser('batch-delete', help='批量删除原子')
+    batch_delete_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    batch_delete_parser.add_argument('--type', '-t', help='按类型过滤')
+    batch_delete_parser.add_argument('--tag', help='按标签过滤')
+    batch_delete_parser.add_argument('--status', help='按状态过滤')
+    batch_delete_parser.add_argument('--force', action='store_true', help='实际执行（默认仅预览）')
+    batch_delete_parser.set_defaults(func=cmd_batch_delete)
+
+    # serve command (HTTP API)
+    serve_parser = subparsers.add_parser('serve', help='启动 HTTP API 服务')
+    serve_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    serve_parser.add_argument('--host', default='127.0.0.1', help='监听地址')
+    serve_parser.add_argument('--port', '-p', type=int, default=8000, help='监听端口')
+    serve_parser.set_defaults(func=cmd_serve)
+
+    # publish command
+    publish_parser = subparsers.add_parser('publish', help='发布原子')
+    publish_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    publish_parser.add_argument('atom_path', help='原子文件路径')
+    publish_parser.set_defaults(func=cmd_publish)
+
+    # archive command
+    archive_parser = subparsers.add_parser('archive', help='归档原子')
+    archive_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    archive_parser.add_argument('atom_path', help='原子文件路径')
+    archive_parser.set_defaults(func=cmd_archive)
+
+    # deprecate command
+    deprecate_parser = subparsers.add_parser('deprecate', help='废弃原子')
+    deprecate_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    deprecate_parser.add_argument('atom_path', help='原子文件路径')
+    deprecate_parser.set_defaults(func=cmd_deprecate)
+
+    # audit command
+    audit_parser = subparsers.add_parser('audit', help='查询审计日志')
+    audit_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    audit_parser.add_argument('--since', help='起始日期')
+    audit_parser.add_argument('--action', help='按操作类型过滤')
+    audit_parser.add_argument('--limit', '-l', type=int, default=50, help='结果数量')
+    audit_parser.set_defaults(func=cmd_audit)
+
+    # comment command
+    comment_parser = subparsers.add_parser('comment', help='添加评论')
+    comment_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    comment_parser.add_argument('atom_path', help='原子文件路径')
+    comment_parser.add_argument('text', help='评论内容')
+    comment_parser.set_defaults(func=cmd_comment)
+
+    # favorite command
+    favorite_parser = subparsers.add_parser('favorite', help='收藏原子')
+    favorite_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    favorite_parser.add_argument('atom_path', help='原子文件路径')
+    favorite_parser.add_argument('--remove', action='store_true', help='取消收藏')
+    favorite_parser.set_defaults(func=cmd_favorite)
+
+    # rate command
+    rate_parser = subparsers.add_parser('rate', help='为原子评分')
+    rate_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    rate_parser.add_argument('atom_path', help='原子文件路径')
+    rate_parser.add_argument('score', type=int, help='评分（1-5）')
+    rate_parser.set_defaults(func=cmd_rate)
+
+    # submit command (审批流)
+    submit_parser = subparsers.add_parser('submit', help='提交审核')
+    submit_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    submit_parser.add_argument('atom_path', help='原子文件路径')
+    submit_parser.set_defaults(func=cmd_submit)
+
+    # approve command
+    approve_parser = subparsers.add_parser('approve', help='审核通过')
+    approve_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    approve_parser.add_argument('atom_path', help='原子文件路径')
+    approve_parser.set_defaults(func=cmd_approve)
+
+    # reject command
+    reject_parser = subparsers.add_parser('reject', help='审核驳回')
+    reject_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    reject_parser.add_argument('atom_path', help='原子文件路径')
+    reject_parser.add_argument('--reason', help='驳回原因')
+    reject_parser.set_defaults(func=cmd_reject)
+
+    # stats command
+    stats_parser = subparsers.add_parser('stats', help='知识库统计')
+    stats_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    stats_parser.add_argument('--export', '-e', type=Path, help='导出报告路径')
+    stats_parser.set_defaults(func=cmd_stats)
+
+    # backup command
+    backup_parser = subparsers.add_parser('backup', help='备份知识库')
+    backup_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    backup_parser.add_argument('--output', '-o', type=Path, help='输出路径')
+    backup_parser.set_defaults(func=cmd_backup)
+
+    # restore command
+    restore_parser = subparsers.add_parser('restore', help='恢复原子')
+    restore_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    restore_parser.add_argument('atom_id', help='原子 ID')
+    restore_parser.add_argument('--version', help='版本号')
+    restore_parser.set_defaults(func=cmd_restore)
+
+    # ========================================================================
+    # 用户管理命令
+    # ========================================================================
+
+    # user-add
+    user_add_parser = subparsers.add_parser('user-add', help='添加用户')
+    user_add_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    user_add_parser.add_argument('username', help='用户名')
+    user_add_parser.add_argument('--role', '-r', choices=['reader', 'editor', 'admin'], default='reader', help='角色（默认 reader）')
+    user_add_parser.add_argument('--password', '-p', help='密码（不指定则交互输入）')
+    user_add_parser.set_defaults(func=cmd_user_add)
+
+    # user-remove
+    user_remove_parser = subparsers.add_parser('user-remove', help='移除用户')
+    user_remove_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    user_remove_parser.add_argument('username', help='用户名')
+    user_remove_parser.set_defaults(func=cmd_user_remove)
+
+    # user-list
+    user_list_parser = subparsers.add_parser('user-list', help='列出所有用户')
+    user_list_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    user_list_parser.set_defaults(func=cmd_user_list)
+
+    # user-role
+    user_role_parser = subparsers.add_parser('user-role', help='更新用户角色')
+    user_role_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    user_role_parser.add_argument('username', help='用户名')
+    user_role_parser.add_argument('role', choices=['reader', 'editor', 'admin'], help='新角色')
+    user_role_parser.set_defaults(func=cmd_user_role)
+
+    # user-password
+    user_password_parser = subparsers.add_parser('user-password', help='修改用户密码')
+    user_password_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    user_password_parser.add_argument('username', help='用户名')
+    user_password_parser.add_argument('--password', '-p', help='新密码（不指定则交互输入）')
+    user_password_parser.set_defaults(func=cmd_user_password)
+
+    # login
+    login_parser = subparsers.add_parser('login', help='用户登录')
+    login_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    login_parser.add_argument('username', help='用户名')
+    login_parser.add_argument('--password', '-p', help='密码（不指定则交互输入）')
+    login_parser.set_defaults(func=cmd_login)
+
+    # logout
+    logout_parser = subparsers.add_parser('logout', help='退出登录')
+    logout_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    logout_parser.set_defaults(func=cmd_logout)
+
+    # whoami
+    whoami_parser = subparsers.add_parser('whoami', help='查看当前登录用户')
+    whoami_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    whoami_parser.set_defaults(func=cmd_whoami)
+
+    # token-generate
+    token_gen_parser = subparsers.add_parser('token-generate', help='生成 API Token')
+    token_gen_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    token_gen_parser.add_argument('username', help='用户名')
+    token_gen_parser.add_argument('--role', '-r', choices=['reader', 'editor', 'admin'], help='角色覆盖（默认使用用户角色）')
+    token_gen_parser.set_defaults(func=cmd_token_generate)
+
+    # token-revoke
+    token_revoke_parser = subparsers.add_parser('token-revoke', help='吊销 API Token')
+    token_revoke_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    token_revoke_parser.add_argument('token', help='Token 字符串')
+    token_revoke_parser.set_defaults(func=cmd_token_revoke)
+
+    # token-list
+    token_list_parser = subparsers.add_parser('token-list', help='列出所有 API Token')
+    token_list_parser.add_argument('knowledge_base', nargs='?', help='知识库路径或名称')
+    token_list_parser.set_defaults(func=cmd_token_list)
+
+    # ========================================================================
+    # 迁移命令
+    # ========================================================================
+
+    # 注册迁移命令（使用迁移模块的函数）
+    register_migrate_commands(subparsers, None)
 
     args = parser.parse_args()
 

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>通知中心 - LLM Wiki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #f7fafc; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-secondary { background: #e2e8f0; color: #4a5568; }
+        .btn-secondary:hover { background: #cbd5e0; }
+        .badge { padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .badge-info { background: #bee3f8; color: #2b6cb0; }
+        .badge-success { background: #c6f6d5; color: #276749; }
+        .badge-warning { background: #fef3c7; color: #92400e; }
+        .badge-error { background: #fed7d7; color: #c53030; }
+        .notif-item { padding: 12px 16px; border-bottom: 1px solid #edf2f7; transition: background 0.2s; }
+        .notif-item:hover { background: #f7fafc; }
+        .notif-item.unread { background: #ebf8ff; }
+        .notif-item.unread:hover { background: #bee3f8; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
+                <h1 class="text-xl font-bold text-gray-800">通知中心</h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="/admin/approvals.html" class="text-sm text-blue-600 hover:underline">审批中心</a>
+                <a href="/admin/audit.html" class="text-sm text-blue-600 hover:underline">审计日志</a>
+                <span class="text-sm text-gray-600">当前: <strong id="currentUserName">-</strong> (<span id="currentUserRole">-</span>)</span>
+                <button onclick="API.logout()" class="btn btn-secondary">退出登录</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-6xl mx-auto px-6 py-6">
+        <div class="card">
+            <div class="flex justify-between items-center p-6 border-b border-gray-200">
+                <h2 class="text-lg font-bold text-gray-800">通知列表</h2>
+                <div class="flex gap-2">
+                    <button onclick="markAllRead()" class="btn btn-secondary">全部标为已读</button>
+                    <button onclick="loadNotifications()" class="btn btn-primary">刷新</button>
+                </div>
+            </div>
+            <div id="notifList">
+                <div class="text-center py-12 text-gray-500">
+                    <p class="text-lg">加载中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * API 封装
+         */
+        const API = {
+            currentUser: null,
+            async init() {
+                try {
+                    const r = await fetch('/api/auth/whoami', { credentials: 'same-origin' });
+                    const d = await r.json();
+                    if (d.user) {
+                        this.currentUser = d.user;
+                        document.getElementById('currentUserName').textContent = d.user.username;
+                        document.getElementById('currentUserRole').textContent = d.user.role;
+                        return true;
+                    }
+                } catch (e) {}
+                window.location.href = '/login.html';
+                return false;
+            },
+            async get(url) {
+                const r = await fetch(url, { credentials: 'same-origin' });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async post(url, data) {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data || {}),
+                    credentials: 'same-origin',
+                });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async logout() {
+                await this.post('/api/auth/logout').catch(() => {});
+                window.location.href = '/login.html';
+            }
+        };
+
+        /**
+         * 初始化
+         */
+        async function init() {
+            const ok = await API.init();
+            if (!ok) return;
+            loadNotifications();
+        }
+
+        /**
+         * 加载通知列表
+         */
+        async function loadNotifications() {
+            try {
+                const data = await API.get('/api/notifications');
+                const list = document.getElementById('notifList');
+                const notifs = data.notifications || [];
+                if (notifs.length === 0) {
+                    list.innerHTML = `
+                        <div class="text-center py-12 text-gray-500">
+                            <p class="text-lg">📭 暂无通知</p>
+                        </div>`;
+                    return;
+                }
+                let html = '';
+                for (const n of notifs) {
+                    const isUnread = !n.read;
+                    const eventClass = getEventBadgeClass(n.event);
+                    const eventLabel = getEventLabel(n.event);
+                    html += `
+                        <div class="notif-item ${isUnread ? 'unread' : ''}" onclick="markRead('${n.id || ''}')">
+                            <div class="flex items-start justify-between">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="badge ${eventClass}">${escapeHtml(eventLabel)}</span>
+                                        ${isUnread ? '<span class="badge badge-info">未读</span>' : ''}
+                                        <span class="text-xs text-gray-500">${escapeHtml(n.timestamp || n.created || '')}</span>
+                                    </div>
+                                    <p class="font-medium text-gray-800">${escapeHtml(n.title || '无标题')}</p>
+                                    <p class="text-sm text-gray-600 mt-1">${escapeHtml(n.message || n.body || '')}</p>
+                                </div>
+                            </div>
+                        </div>`;
+                }
+                list.innerHTML = html;
+            } catch (e) {
+                console.error('加载通知失败:', e);
+                document.getElementById('notifList').innerHTML = `
+                    <div class="text-center py-12 text-red-500">
+                        <p>加载失败: ${escapeHtml(e.message)}</p>
+                    </div>`;
+            }
+        }
+
+        /**
+         * 标记单条为已读
+         */
+        async function markRead(id) {
+            if (!id) return;
+            try {
+                await API.post('/api/notifications/read', { id });
+                loadNotifications();
+            } catch (e) { console.warn('标记已读失败:', e); }
+        }
+
+        /**
+         * 全部标为已读
+         */
+        async function markAllRead() {
+            try {
+                await API.post('/api/notifications/read-all');
+                loadNotifications();
+            } catch (e) { alert('操作失败: ' + e.message); }
+        }
+
+        /**
+         * 根据事件类型获取 badge 样式
+         */
+        function getEventBadgeClass(event) {
+            if (!event) return 'badge-info';
+            if (event.includes('approve') || event.includes('success')) return 'badge-success';
+            if (event.includes('reject') || event.includes('error')) return 'badge-error';
+            if (event.includes('submit') || event.includes('review')) return 'badge-warning';
+            return 'badge-info';
+        }
+
+        /**
+         * 事件类型中文标签
+         */
+        function getEventLabel(event) {
+            const map = {
+                'review_requested': '审核请求',
+                'review_approved': '审核通过',
+                'review_rejected': '审核驳回',
+                'atom_published': '已发布',
+                'atom_archived': '已归档',
+                'atom_deprecated': '已废弃',
+                'comment_added': '新评论',
+                'mention': '提及'
+            };
+            return map[event] || event || '通知';
+        }
+
+        /**
+         * HTML 转义
+         */
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        // 启动
+        init();
+    </script>
+</body>
+</html>

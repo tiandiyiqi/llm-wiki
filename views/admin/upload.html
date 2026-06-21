@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>内容上传 - LLM Wiki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #f7fafc; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-secondary { background: #e2e8f0; color: #4a5568; }
+        .btn-secondary:hover { background: #cbd5e0; }
+        .btn-success { background: #38a169; color: white; }
+        .btn-success:hover { background: #2f855a; }
+        .input { width: 100%; padding: 8px 12px; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 14px; }
+        .input:focus { outline: none; border-color: #667eea; }
+        .drop-zone { border: 2px dashed #cbd5e0; border-radius: 12px; padding: 48px 24px; text-align: center; transition: all 0.2s; cursor: pointer; }
+        .drop-zone:hover, .drop-zone.dragover { border-color: #667eea; background: #ebf8ff; }
+        .tab-btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: none; }
+        .tab-active { background: #667eea; color: white; }
+        .tab-inactive { background: #e2e8f0; color: #4a5568; }
+        .editor { font-family: 'Menlo', 'Monaco', monospace; min-height: 300px; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm">
+        <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
+                <h1 class="text-xl font-bold text-gray-800">内容上传</h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="/admin/edit.html" class="text-sm text-blue-600 hover:underline">在线编辑</a>
+                <span class="text-sm text-gray-600">当前: <strong id="currentUserName">-</strong></span>
+                <button onclick="API.logout()" class="btn btn-secondary">退出</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-5xl mx-auto px-6 py-6">
+        <!-- Tab 切换 -->
+        <div class="flex gap-2 mb-6">
+            <button onclick="switchTab('upload')" id="tab-upload" class="tab-btn tab-active">文件上传</button>
+            <button onclick="switchTab('ingest')" id="tab-ingest" class="tab-btn tab-inactive">路径摄入</button>
+        </div>
+
+        <!-- 文件上传 -->
+        <div id="uploadPanel" class="card p-6">
+            <h2 class="text-lg font-bold text-gray-800 mb-4">上传 Markdown 文件</h2>
+            <div id="dropZone" class="drop-zone" onclick="document.getElementById('fileInput').click()">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <p class="mt-2 text-gray-600">点击选择文件或拖拽文件到此处</p>
+                <p class="text-xs text-gray-400 mt-1">支持 .md / .markdown / .txt 文件</p>
+                <input type="file" id="fileInput" class="hidden" multiple accept=".md,.markdown,.txt" onchange="handleFiles(this.files)">
+            </div>
+            <div id="fileList" class="mt-4 space-y-2"></div>
+            <div id="uploadResult" class="mt-4"></div>
+        </div>
+
+        <!-- 路径摄入 -->
+        <div id="ingestPanel" class="card p-6 hidden">
+            <h2 class="text-lg font-bold text-gray-800 mb-4">从本地路径摄入</h2>
+            <p class="text-sm text-gray-600 mb-4">输入服务器上的文件或目录路径，系统将自动解析并摄入为知识原子。</p>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">源路径</label>
+                    <input type="text" id="ingestPath" class="input" placeholder="/path/to/file.md 或 /path/to/dir">
+                </div>
+                <button onclick="ingestPath()" class="btn btn-primary">开始摄入</button>
+            </div>
+            <div id="ingestResult" class="mt-4"></div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * API 封装
+         */
+        const API = {
+            currentUser: null,
+            async init() {
+                try {
+                    const r = await fetch('/api/auth/whoami', { credentials: 'same-origin' });
+                    const d = await r.json();
+                    if (d.user) {
+                        this.currentUser = d.user;
+                        document.getElementById('currentUserName').textContent = d.user.username;
+                        return true;
+                    }
+                } catch (e) {}
+                window.location.href = '/login.html';
+                return false;
+            },
+            async post(url, data) {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data || {}),
+                    credentials: 'same-origin',
+                });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async upload(url, formData) {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin',
+                });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async logout() {
+                await this.post('/api/auth/logout').catch(() => {});
+                window.location.href = '/login.html';
+            },
+            isEditor() { return this.currentUser && ['editor', 'admin'].includes(this.currentUser.role); }
+        };
+
+        let selectedFiles = [];
+
+        /**
+         * 初始化
+         */
+        async function init() {
+            const ok = await API.init();
+            if (!ok) return;
+            if (!API.isEditor()) {
+                alert('仅 editor/admin 可访问上传页面');
+                window.location.href = '/';
+                return;
+            }
+            // 绑定拖拽事件
+            const dropZone = document.getElementById('dropZone');
+            dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+            dropZone.addEventListener('drop', e => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                handleFiles(e.dataTransfer.files);
+            });
+        }
+
+        /**
+         * 切换 Tab
+         */
+        function switchTab(tab) {
+            document.getElementById('uploadPanel').classList.toggle('hidden', tab !== 'upload');
+            document.getElementById('ingestPanel').classList.toggle('hidden', tab !== 'ingest');
+            document.getElementById('tab-upload').className = tab === 'upload' ? 'tab-btn tab-active' : 'tab-btn tab-inactive';
+            document.getElementById('tab-ingest').className = tab === 'ingest' ? 'tab-btn tab-active' : 'tab-btn tab-inactive';
+        }
+
+        /**
+         * 处理选择的文件
+         */
+        function handleFiles(files) {
+            selectedFiles = Array.from(files).filter(f => /\.(md|markdown|txt)$/i.test(f.name));
+            const list = document.getElementById('fileList');
+            list.innerHTML = '';
+            if (selectedFiles.length === 0) {
+                list.innerHTML = '<p class="text-sm text-gray-500">未选择有效文件</p>';
+                return;
+            }
+            let html = '';
+            for (const f of selectedFiles) {
+                const size = (f.size / 1024).toFixed(1);
+                html += `
+                    <div class="flex items-center justify-between bg-gray-50 rounded p-3">
+                        <div>
+                            <p class="font-medium text-gray-800">${escapeHtml(f.name)}</p>
+                            <p class="text-xs text-gray-500">${size} KB</p>
+                        </div>
+                        <span class="text-xs text-gray-400">待上传</span>
+                    </div>`;
+            }
+            html += `<button onclick="uploadFiles()" class="btn btn-success mt-2">上传 ${selectedFiles.length} 个文件</button>`;
+            list.innerHTML = html;
+        }
+
+        /**
+         * 上传文件
+         */
+        async function uploadFiles() {
+            const result = document.getElementById('uploadResult');
+            result.innerHTML = '<p class="text-sm text-gray-600">上传中...</p>';
+            let success = 0, failed = 0;
+            let details = '';
+            for (const f of selectedFiles) {
+                try {
+                    const formData = new FormData();
+                    formData.append('file', f);
+                    const r = await API.upload('/api/ingest/upload', formData);
+                    if (r.status === 'ok') {
+                        success++;
+                        details += `<p class="text-green-600">✓ ${escapeHtml(f.name)}: ${escapeHtml(r.message || '成功')}</p>`;
+                    } else {
+                        failed++;
+                        details += `<p class="text-red-600">✗ ${escapeHtml(f.name)}: ${escapeHtml(r.error || '失败')}</p>`;
+                    }
+                } catch (e) {
+                    failed++;
+                    details += `<p class="text-red-600">✗ ${escapeHtml(f.name)}: ${escapeHtml(e.message)}</p>`;
+                }
+            }
+            result.innerHTML = `
+                <div class="bg-gray-50 rounded p-4">
+                    <p class="font-medium mb-2">上传完成：成功 ${success} 个，失败 ${failed} 个</p>
+                    ${details}
+                </div>`;
+            if (success > 0) {
+                document.getElementById('fileList').innerHTML = '';
+                selectedFiles = [];
+            }
+        }
+
+        /**
+         * 路径摄入
+         */
+        async function ingestPath() {
+            const path = document.getElementById('ingestPath').value.trim();
+            if (!path) { alert('请输入路径'); return; }
+            const result = document.getElementById('ingestResult');
+            result.innerHTML = '<p class="text-sm text-gray-600">摄入中...</p>';
+            try {
+                const r = await API.post('/api/ingest', { source: path });
+                if (r.status === 'ok') {
+                    result.innerHTML = `<div class="bg-green-50 text-green-700 rounded p-4">✓ 摄入成功: ${escapeHtml(r.source || path)}</div>`;
+                } else {
+                    result.innerHTML = `<div class="bg-red-50 text-red-700 rounded p-4">✗ ${escapeHtml(r.error || '摄入失败')}</div>`;
+                }
+            } catch (e) {
+                result.innerHTML = `<div class="bg-red-50 text-red-700 rounded p-4">✗ ${escapeHtml(e.message)}</div>`;
+            }
+        }
+
+        /**
+         * HTML 转义
+         */
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        // 启动
+        init();
+    </script>
+</body>
+</html>

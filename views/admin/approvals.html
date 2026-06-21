@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>审批中心 - LLM Wiki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #f7fafc; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-success { background: #38a169; color: white; }
+        .btn-success:hover { background: #2f855a; }
+        .btn-danger { background: #e53e3e; color: white; }
+        .btn-danger:hover { background: #c53030; }
+        .btn-secondary { background: #e2e8f0; color: #4a5568; }
+        .btn-secondary:hover { background: #cbd5e0; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 50; }
+        .modal { background: white; border-radius: 12px; padding: 24px; width: 100%; max-width: 450px; }
+        .input { width: 100%; padding: 8px 12px; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 14px; }
+        .input:focus { outline: none; border-color: #667eea; }
+        .badge { padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .badge-pending { background: #fef3c7; color: #92400e; }
+        .badge-approved { background: #c6f6d5; color: #276749; }
+        .badge-rejected { background: #fed7d7; color: #c53030; }
+        .badge-submitted { background: #bee3f8; color: #2b6cb0; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
+                <h1 class="text-xl font-bold text-gray-800">审批中心</h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="/admin/users.html" class="text-sm text-blue-600 hover:underline">用户管理</a>
+                <a href="/admin/audit.html" class="text-sm text-blue-600 hover:underline">审计日志</a>
+                <span class="text-sm text-gray-600">当前: <strong id="currentUserName">-</strong> (<span id="currentUserRole">-</span>)</span>
+                <button onclick="API.logout()" class="btn btn-secondary">退出登录</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-6xl mx-auto px-6 py-6">
+        <!-- Tab 切换 -->
+        <div class="flex gap-2 mb-6">
+            <button onclick="switchTab('pending')" id="tab-pending" class="btn btn-primary">待审批</button>
+            <button onclick="switchTab('history')" id="tab-history" class="btn btn-secondary">审批历史</button>
+        </div>
+
+        <!-- 待审批列表 -->
+        <div id="pendingPanel" class="card p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-gray-800">待审批列表</h2>
+                <button onclick="loadPending()" class="btn btn-secondary">刷新</button>
+            </div>
+            <div id="pendingEmpty" class="text-center py-12 text-gray-500 hidden">
+                <p class="text-lg">🎉 暂无待审批内容</p>
+            </div>
+            <table class="w-full" id="pendingTable">
+                <thead>
+                    <tr class="border-b-2 border-gray-200 text-left text-gray-600">
+                        <th class="py-3 px-4">原子 ID</th>
+                        <th class="py-3 px-4">提交者</th>
+                        <th class="py-3 px-4">提交时间</th>
+                        <th class="py-3 px-4">状态</th>
+                        <th class="py-3 px-4">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="pendingTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- 审批历史 -->
+        <div id="historyPanel" class="card p-6 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-gray-800">审批历史</h2>
+                <button onclick="loadHistory()" class="btn btn-secondary">刷新</button>
+            </div>
+            <div id="historyEmpty" class="text-center py-12 text-gray-500 hidden">
+                <p class="text-lg">暂无审批历史</p>
+            </div>
+            <table class="w-full" id="historyTable">
+                <thead>
+                    <tr class="border-b-2 border-gray-200 text-left text-gray-600">
+                        <th class="py-3 px-4">原子 ID</th>
+                        <th class="py-3 px-4">提交者</th>
+                        <th class="py-3 px-4">审核者</th>
+                        <th class="py-3 px-4">结果</th>
+                        <th class="py-3 px-4">时间</th>
+                        <th class="py-3 px-4">备注</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 驳回弹窗 -->
+    <div id="rejectModal" class="modal-overlay">
+        <div class="modal">
+            <h3 class="text-lg font-bold mb-4">驳回审批</h3>
+            <p class="text-sm text-gray-600 mb-4">原子: <strong id="rejectAtomId">-</strong></p>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">驳回原因</label>
+                <textarea id="rejectReason" class="input" rows="4" placeholder="请输入驳回原因..."></textarea>
+            </div>
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeModal('rejectModal')" class="btn btn-secondary flex-1">取消</button>
+                <button onclick="confirmReject()" class="btn btn-danger flex-1">确认驳回</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * API 封装
+         */
+        const API = {
+            currentUser: null,
+            async init() {
+                try {
+                    const r = await fetch('/api/auth/whoami', { credentials: 'same-origin' });
+                    const d = await r.json();
+                    if (d.user) {
+                        this.currentUser = d.user;
+                        document.getElementById('currentUserName').textContent = d.user.username;
+                        document.getElementById('currentUserRole').textContent = d.user.role;
+                        return true;
+                    }
+                } catch (e) {}
+                window.location.href = '/login.html';
+                return false;
+            },
+            async get(url) {
+                const r = await fetch(url, { credentials: 'same-origin' });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async post(url, data) {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data || {}),
+                    credentials: 'same-origin',
+                });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async logout() {
+                await this.post('/api/auth/logout').catch(() => {});
+                window.location.href = '/login.html';
+            },
+            isAdmin() { return this.currentUser && this.currentUser.role === 'admin'; }
+        };
+
+        let currentTab = 'pending';
+        let pendingAtomId = null;
+
+        /**
+         * 初始化
+         */
+        async function init() {
+            const ok = await API.init();
+            if (!ok) return;
+            if (!API.isAdmin()) {
+                alert('仅管理员可访问审批中心');
+                window.location.href = '/';
+                return;
+            }
+            loadPending();
+            loadHistory();
+        }
+
+        /**
+         * 切换 Tab
+         */
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('pendingPanel').classList.toggle('hidden', tab !== 'pending');
+            document.getElementById('historyPanel').classList.toggle('hidden', tab !== 'history');
+            document.getElementById('tab-pending').className = tab === 'pending' ? 'btn btn-primary' : 'btn btn-secondary';
+            document.getElementById('tab-history').className = tab === 'history' ? 'btn btn-primary' : 'btn btn-secondary';
+        }
+
+        /**
+         * 加载待审批列表
+         */
+        async function loadPending() {
+            try {
+                const data = await API.get('/api/approvals/pending');
+                const tbody = document.getElementById('pendingTableBody');
+                const empty = document.getElementById('pendingEmpty');
+                const table = document.getElementById('pendingTable');
+                tbody.innerHTML = '';
+                if (!data.pending || data.pending.length === 0) {
+                    empty.classList.remove('hidden');
+                    table.classList.add('hidden');
+                    return;
+                }
+                empty.classList.add('hidden');
+                table.classList.remove('hidden');
+                for (const item of data.pending) {
+                    const tr = document.createElement('tr');
+                    tr.className = 'border-b border-gray-100';
+                    const atomId = item.atom_id || item.atomId || '-';
+                    tr.innerHTML = `
+                        <td class="py-3 px-4 font-mono text-sm">${escapeHtml(atomId)}</td>
+                        <td class="py-3 px-4">${escapeHtml(item.submitter || '-')}</td>
+                        <td class="py-3 px-4 text-sm text-gray-600">${escapeHtml(item.submitted_at || item.timestamp || '-')}</td>
+                        <td class="py-3 px-4"><span class="badge badge-pending">${escapeHtml(item.status || 'pending')}</span></td>
+                        <td class="py-3 px-4">
+                            <button onclick="approveAtom('${escapeAttr(atomId)}')" class="btn btn-success text-xs mr-1">通过</button>
+                            <button onclick="showRejectModal('${escapeAttr(atomId)}')" class="btn btn-danger text-xs">驳回</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            } catch (e) {
+                console.error('加载待审批失败:', e);
+            }
+        }
+
+        /**
+         * 加载审批历史
+         */
+        async function loadHistory() {
+            try {
+                const data = await API.get('/api/approvals/history');
+                const tbody = document.getElementById('historyTableBody');
+                const empty = document.getElementById('historyEmpty');
+                const table = document.getElementById('historyTable');
+                tbody.innerHTML = '';
+                if (!data.history || data.history.length === 0) {
+                    empty.classList.remove('hidden');
+                    table.classList.add('hidden');
+                    return;
+                }
+                empty.classList.add('hidden');
+                table.classList.remove('hidden');
+                for (const item of data.history) {
+                    const tr = document.createElement('tr');
+                    tr.className = 'border-b border-gray-100';
+                    const status = item.status || 'unknown';
+                    const badgeClass = status === 'approved' ? 'badge-approved' : (status === 'rejected' ? 'badge-rejected' : 'badge-submitted');
+                    tr.innerHTML = `
+                        <td class="py-3 px-4 font-mono text-sm">${escapeHtml(item.atom_id || '-')}</td>
+                        <td class="py-3 px-4">${escapeHtml(item.submitter || '-')}</td>
+                        <td class="py-3 px-4">${escapeHtml(item.reviewer || '-')}</td>
+                        <td class="py-3 px-4"><span class="badge ${badgeClass}">${escapeHtml(status)}</span></td>
+                        <td class="py-3 px-4 text-sm text-gray-600">${escapeHtml(item.reviewed_at || item.timestamp || '-')}</td>
+                        <td class="py-3 px-4 text-sm text-gray-600">${escapeHtml(item.reason || item.detail || '-')}</td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            } catch (e) {
+                console.error('加载审批历史失败:', e);
+            }
+        }
+
+        /**
+         * 通过审批
+         */
+        async function approveAtom(atomId) {
+            if (!confirm(`确认通过此审批？\n原子: ${atomId}`)) return;
+            try {
+                // atomId 可能是路径形式，需要编码
+                const encoded = encodeURIComponent(atomId);
+                await API.post(`/api/atoms/${encoded}/approve`);
+                alert('已审核通过');
+                loadPending();
+                loadHistory();
+            } catch (e) {
+                alert('审核失败: ' + e.message);
+            }
+        }
+
+        /**
+         * 显示驳回弹窗
+         */
+        function showRejectModal(atomId) {
+            pendingAtomId = atomId;
+            document.getElementById('rejectAtomId').textContent = atomId;
+            document.getElementById('rejectReason').value = '';
+            document.getElementById('rejectModal').style.display = 'flex';
+        }
+
+        /**
+         * 确认驳回
+         */
+        async function confirmReject() {
+            if (!pendingAtomId) return;
+            const reason = document.getElementById('rejectReason').value.trim();
+            if (!reason) {
+                alert('请输入驳回原因');
+                return;
+            }
+            try {
+                const encoded = encodeURIComponent(pendingAtomId);
+                await API.post(`/api/atoms/${encoded}/reject`, { reason });
+                alert('已驳回');
+                closeModal('rejectModal');
+                pendingAtomId = null;
+                loadPending();
+                loadHistory();
+            } catch (e) {
+                alert('驳回失败: ' + e.message);
+            }
+        }
+
+        /**
+         * 关闭弹窗
+         */
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        /**
+         * HTML 转义
+         */
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        /**
+         * 属性转义
+         */
+        function escapeAttr(str) {
+            return String(str || '').replace(/'/g, "\\'");
+        }
+
+        // 启动
+        init();
+    </script>
+</body>
+</html>

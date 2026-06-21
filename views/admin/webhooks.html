@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>消息通知配置 - LLM Wiki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #f7fafc; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-secondary { background: #e2e8f0; color: #4a5568; }
+        .btn-secondary:hover { background: #cbd5e0; }
+        .btn-danger { background: #f56565; color: white; }
+        .btn-danger:hover { background: #e53e3e; }
+        .platform-badge { padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+        .platform-wechat { background: #dcfce7; color: #15803d; }
+        .platform-dingtalk { background: #dbeafe; color: #1d4ed8; }
+        .platform-feishu { background: #f3e8ff; color: #7c3aed; }
+        .platform-custom { background: #f3f4f6; color: #374151; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 50; }
+        .modal { background: white; border-radius: 12px; padding: 24px; width: 480px; max-width: 90vw; }
+        input, select, textarea { width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 14px; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: #667eea; }
+        label { display: block; font-size: 13px; color: #4a5568; margin-bottom: 4px; font-weight: 500; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <header class="bg-white shadow-sm">
+        <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
+                <h1 class="text-xl font-bold text-gray-800">消息通知配置</h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <button onclick="showAddModal()" class="btn btn-primary">+ 添加 Webhook</button>
+                <button onclick="testAll()" class="btn btn-secondary">测试发送</button>
+                <span class="text-sm text-gray-600">当前: <strong id="currentUserName">-</strong></span>
+                <button onclick="API.logout()" class="btn btn-secondary">退出</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-5xl mx-auto px-6 py-6">
+        <!-- 介绍卡片 -->
+        <div class="card p-4 mb-6 bg-blue-50 border-l-4 border-blue-500">
+            <h3 class="font-semibold text-blue-800 mb-1">📢 多渠道消息通知</h3>
+            <p class="text-sm text-blue-700">配置企业微信/钉钉/飞书 Webhook，自动推送审批通知、评论提醒、内容更新等事件。</p>
+        </div>
+
+        <!-- Webhook 列表 -->
+        <div class="card p-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">已配置的 Webhook</h2>
+            <div id="webhookList" class="space-y-3">
+                <div class="text-center text-gray-500 py-8">加载中...</div>
+            </div>
+        </div>
+
+        <!-- 事件类型说明 -->
+        <div class="card p-6 mt-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-3">支持的事件类型</h2>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                <div class="p-3 bg-gray-50 rounded"><code class="text-blue-600">all</code> - 所有事件</div>
+                <div class="p-3 bg-gray-50 rounded"><code class="text-blue-600">submit</code> - 提交审核</div>
+                <div class="p-3 bg-gray-50 rounded"><code class="text-blue-600">approve</code> - 审核通过</div>
+                <div class="p-3 bg-gray-50 rounded"><code class="text-blue-600">reject</code> - 审核驳回</div>
+                <div class="p-3 bg-gray-50 rounded"><code class="text-blue-600">comment</code> - 新评论</div>
+                <div class="p-3 bg-gray-50 rounded"><code class="text-blue-600">publish</code> - 内容发布</div>
+                <div class="p-3 bg-gray-50 rounded"><code class="text-blue-600">share_create</code> - 创建分享</div>
+                <div class="p-3 bg-gray-50 rounded"><code class="text-blue-600">qa_ask</code> - AI 问答</div>
+                <div class="p-3 bg-gray-50 rounded"><code class="text-blue-600">test</code> - 测试通知</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加 Webhook 弹窗 -->
+    <div id="addModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">添加 Webhook</h3>
+            <div class="space-y-3">
+                <div>
+                    <label>名称</label>
+                    <input type="text" id="webhookName" placeholder="例如：团队群通知">
+                </div>
+                <div>
+                    <label>平台</label>
+                    <select id="webhookPlatform">
+                        <option value="wechat">企业微信</option>
+                        <option value="dingtalk">钉钉</option>
+                        <option value="feishu">飞书</option>
+                        <option value="custom">自定义</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Webhook URL</label>
+                    <input type="text" id="webhookUrl" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx">
+                </div>
+                <div>
+                    <label>订阅事件（逗号分隔，留空表示全部）</label>
+                    <input type="text" id="webhookEvents" placeholder="例如：submit,approve,reject">
+                </div>
+                <div>
+                    <label>签名密钥（可选）</label>
+                    <input type="text" id="webhookSecret" placeholder="用于签名验证">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button onclick="hideAddModal()" class="btn btn-secondary">取消</button>
+                <button onclick="addWebhook()" class="btn btn-primary">添加</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = {
+            currentUser: null,
+            async init() {
+                try {
+                    const r = await fetch('/api/auth/whoami', { credentials: 'same-origin' });
+                    const d = await r.json();
+                    if (d.user) {
+                        this.currentUser = d.user;
+                        document.getElementById('currentUserName').textContent = d.user.username;
+                        if (d.user.role !== 'admin') {
+                            alert('仅管理员可访问此页面');
+                            window.location.href = '/';
+                            return false;
+                        }
+                        return true;
+                    }
+                } catch (e) {}
+                window.location.href = '/login.html';
+                return false;
+            },
+            async get(url) {
+                const r = await fetch(url, { credentials: 'same-origin' });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async post(url, data) {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data || {}),
+                    credentials: 'same-origin',
+                });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async delete(url) {
+                const r = await fetch(url, { method: 'DELETE', credentials: 'same-origin' });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async logout() {
+                await this.post('/api/auth/logout').catch(() => {});
+                window.location.href = '/login.html';
+            }
+        };
+
+        const PLATFORM_NAMES = {
+            wechat: '企业微信',
+            dingtalk: '钉钉',
+            feishu: '飞书',
+            custom: '自定义'
+        };
+
+        async function loadWebhooks() {
+            try {
+                const data = await API.get('/api/webhooks');
+                renderWebhooks(data.webhooks || []);
+            } catch (e) {
+                document.getElementById('webhookList').innerHTML = `<div class="text-red-500">加载失败: ${e.message}</div>`;
+            }
+        }
+
+        function renderWebhooks(webhooks) {
+            const container = document.getElementById('webhookList');
+            if (webhooks.length === 0) {
+                container.innerHTML = '<div class="text-center text-gray-500 py-8">暂无 Webhook 配置，点击右上角"添加 Webhook"开始</div>';
+                return;
+            }
+            container.innerHTML = webhooks.map(w => `
+                <div class="border border-gray-200 rounded-lg p-4 flex items-center justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-1">
+                            <strong class="text-gray-800">${escapeHtml(w.name)}</strong>
+                            <span class="platform-badge platform-${w.platform}">${PLATFORM_NAMES[w.platform] || w.platform}</span>
+                            ${w.active ? '<span class="text-xs text-green-600">● 启用</span>' : '<span class="text-xs text-gray-500">○ 停用</span>'}
+                        </div>
+                        <div class="text-xs text-gray-500 mb-1">URL: ${escapeHtml(w.url.substring(0, 60))}${w.url.length > 60 ? '...' : ''}</div>
+                        <div class="text-xs text-gray-500">
+                            订阅事件: ${(w.events || ['all']).map(e => `<code class="bg-gray-100 px-1 rounded">${escapeHtml(e)}</code>`).join(' ')}
+                            · 访问次数: ${w.views || 0}
+                            · 创建于: ${formatDate(w.created_at)}
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="testWebhook('${w.id}')" class="btn btn-secondary text-xs">测试</button>
+                        <button onclick="removeWebhook('${w.id}', '${escapeHtml(w.name)}')" class="btn btn-danger text-xs">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showAddModal() {
+            document.getElementById('addModal').classList.remove('hidden');
+            // 清空表单
+            ['webhookName', 'webhookUrl', 'webhookEvents', 'webhookSecret'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
+        }
+
+        function hideAddModal() {
+            document.getElementById('addModal').classList.add('hidden');
+        }
+
+        async function addWebhook() {
+            const name = document.getElementById('webhookName').value.trim();
+            const platform = document.getElementById('webhookPlatform').value;
+            const url = document.getElementById('webhookUrl').value.trim();
+            const eventsStr = document.getElementById('webhookEvents').value.trim();
+            const secret = document.getElementById('webhookSecret').value.trim();
+            if (!name || !url) {
+                alert('名称和 URL 不能为空');
+                return;
+            }
+            const events = eventsStr ? eventsStr.split(',').map(s => s.trim()).filter(Boolean) : ['all'];
+            try {
+                await API.post('/api/webhooks', { name, platform, url, events, secret });
+                hideAddModal();
+                await loadWebhooks();
+            } catch (e) {
+                alert('添加失败: ' + e.message);
+            }
+        }
+
+        async function removeWebhook(id, name) {
+            if (!confirm(`确认删除 Webhook "${name}"？`)) return;
+            try {
+                await API.delete(`/api/webhooks/${id}`);
+                await loadWebhooks();
+            } catch (e) {
+                alert('删除失败: ' + e.message);
+            }
+        }
+
+        async function testWebhook(id) {
+            try {
+                const result = await API.post('/api/webhooks/test');
+                if (result.sent_count > 0) {
+                    alert(`测试通知已发送到 ${result.sent_count} 个 Webhook`);
+                } else {
+                    alert('没有可用的 Webhook（请检查是否启用）');
+                }
+            } catch (e) {
+                alert('测试失败: ' + e.message);
+            }
+        }
+
+        async function testAll() {
+            await testWebhook(null);
+        }
+
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        function formatDate(iso) {
+            if (!iso) return '-';
+            try {
+                return new Date(iso).toLocaleString('zh-CN');
+            } catch (e) {
+                return iso;
+            }
+        }
+
+        async function init() {
+            const ok = await API.init();
+            if (!ok) return;
+            await loadWebhooks();
+        }
+
+        init();
+    </script>
+</body>
+</html>

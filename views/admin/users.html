@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理 - LLM Wiki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #f7fafc; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-danger { background: #e53e3e; color: white; }
+        .btn-danger:hover { background: #c53030; }
+        .btn-secondary { background: #e2e8f0; color: #4a5568; }
+        .btn-secondary:hover { background: #cbd5e0; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 50; }
+        .modal { background: white; border-radius: 12px; padding: 24px; width: 100%; max-width: 450px; }
+        .input { width: 100%; padding: 8px 12px; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 14px; }
+        .input:focus { outline: none; border-color: #667eea; }
+        .badge { padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .badge-admin { background: #fed7d7; color: #c53030; }
+        .badge-editor { background: #bee3f8; color: #2b6cb0; }
+        .badge-reader { background: #c6f6d5; color: #276749; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
+                <h1 class="text-xl font-bold text-gray-800">用户管理</h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="text-sm text-gray-600">当前: <strong id="currentUserName">-</strong> (<span id="currentUserRole">-</span>)</span>
+                <button onclick="API.logout()" class="btn btn-secondary">退出登录</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Tab 切换 -->
+    <div class="max-w-6xl mx-auto px-6 py-6">
+        <div class="flex gap-2 mb-6">
+            <button onclick="switchTab('users')" id="tab-users" class="btn btn-primary">用户列表</button>
+            <button onclick="switchTab('tokens')" id="tab-tokens" class="btn btn-secondary">Token 管理</button>
+        </div>
+
+        <!-- 用户列表 -->
+        <div id="usersPanel" class="card p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-gray-800">用户列表</h2>
+                <button onclick="showAddUserModal()" class="btn btn-primary">+ 添加用户</button>
+            </div>
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b-2 border-gray-200 text-left text-gray-600">
+                        <th class="py-3 px-4">用户名</th>
+                        <th class="py-3 px-4">角色</th>
+                        <th class="py-3 px-4">创建时间</th>
+                        <th class="py-3 px-4">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Token 管理 -->
+        <div id="tokensPanel" class="card p-6 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-gray-800">Token 列表</h2>
+                <button onclick="showGenerateTokenModal()" class="btn btn-primary">+ 生成 Token</button>
+            </div>
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b-2 border-gray-200 text-left text-gray-600">
+                        <th class="py-3 px-4">Token</th>
+                        <th class="py-3 px-4">用户</th>
+                        <th class="py-3 px-4">角色</th>
+                        <th class="py-3 px-4">创建时间</th>
+                        <th class="py-3 px-4">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="tokensTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 添加用户弹窗 -->
+    <div id="addUserModal" class="modal-overlay">
+        <div class="modal">
+            <h3 class="text-lg font-bold mb-4">添加用户</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+                    <input type="text" id="newUsername" class="input" placeholder="输入用户名">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">密码</label>
+                    <input type="password" id="newPassword" class="input" placeholder="输入密码">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">角色</label>
+                    <select id="newRole" class="input">
+                        <option value="reader">reader（只读）</option>
+                        <option value="editor">editor（编辑）</option>
+                        <option value="admin">admin（管理）</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeModal('addUserModal')" class="btn btn-secondary flex-1">取消</button>
+                <button onclick="addUser()" class="btn btn-primary flex-1">添加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 生成 Token 弹窗 -->
+    <div id="generateTokenModal" class="modal-overlay">
+        <div class="modal">
+            <h3 class="text-lg font-bold mb-4">生成 API Token</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">为用户生成 Token</label>
+                    <select id="tokenUsername" class="input"></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">角色覆盖（可选）</label>
+                    <select id="tokenRole" class="input">
+                        <option value="">使用用户默认角色</option>
+                        <option value="reader">reader</option>
+                        <option value="editor">editor</option>
+                        <option value="admin">admin</option>
+                    </select>
+                </div>
+            </div>
+            <div id="tokenResult" class="mt-4 p-3 bg-gray-100 rounded hidden">
+                <p class="text-sm text-gray-600 mb-1">Token 已生成（仅显示一次）：</p>
+                <code id="tokenValue" class="text-sm break-all"></code>
+            </div>
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeModal('generateTokenModal')" class="btn btn-secondary flex-1">关闭</button>
+                <button onclick="generateToken()" id="genTokenBtn" class="btn btn-primary flex-1">生成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 修改密码弹窗 -->
+    <div id="passwordModal" class="modal-overlay">
+        <div class="modal">
+            <h3 class="text-lg font-bold mb-4">修改密码</h3>
+            <p class="text-sm text-gray-600 mb-4">用户: <strong id="passwordUsername">-</strong></p>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">新密码</label>
+                <input type="password" id="newUserPassword" class="input" placeholder="输入新密码">
+            </div>
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeModal('passwordModal')" class="btn btn-secondary flex-1">取消</button>
+                <button onclick="changePassword()" class="btn btn-primary flex-1">修改</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * 简易 API 封装
+         */
+        const API = {
+            currentUser: null,
+            async init() {
+                try {
+                    const r = await fetch('/api/auth/whoami', { credentials: 'same-origin' });
+                    const d = await r.json();
+                    if (d.user) {
+                        this.currentUser = d.user;
+                        document.getElementById('currentUserName').textContent = d.user.username;
+                        document.getElementById('currentUserRole').textContent = d.user.role;
+                        return true;
+                    }
+                } catch (e) {}
+                window.location.href = '/login.html';
+                return false;
+            },
+            async get(url) {
+                const r = await fetch(url, { credentials: 'same-origin' });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async post(url, data) {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                    credentials: 'same-origin',
+                });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async put(url, data) {
+                const r = await fetch(url, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                    credentials: 'same-origin',
+                });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async delete(url) {
+                const r = await fetch(url, { method: 'DELETE', credentials: 'same-origin' });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                return r.json();
+            },
+            async logout() {
+                await this.post('/api/auth/logout').catch(() => {});
+                window.location.href = '/login.html';
+            },
+            isAdmin() { return this.currentUser && this.currentUser.role === 'admin'; }
+        };
+
+        let currentTab = 'users';
+
+        /**
+         * 初始化
+         */
+        async function init() {
+            const ok = await API.init();
+            if (!ok) return;
+            if (!API.isAdmin()) {
+                alert('仅管理员可访问用户管理页面');
+                window.location.href = '/';
+                return;
+            }
+            loadUsers();
+            loadTokens();
+        }
+
+        /**
+         * 切换 Tab
+         */
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('usersPanel').classList.toggle('hidden', tab !== 'users');
+            document.getElementById('tokensPanel').classList.toggle('hidden', tab !== 'tokens');
+            document.getElementById('tab-users').className = tab === 'users' ? 'btn btn-primary' : 'btn btn-secondary';
+            document.getElementById('tab-tokens').className = tab === 'tokens' ? 'btn btn-primary' : 'btn btn-secondary';
+        }
+
+        /**
+         * 加载用户列表
+         */
+        async function loadUsers() {
+            try {
+                const data = await API.get('/api/users');
+                const tbody = document.getElementById('usersTableBody');
+                tbody.innerHTML = '';
+                for (const u of data.users) {
+                    const roleBadge = `<span class="badge badge-${u.role}">${u.role}</span>`;
+                    const isSelf = API.currentUser && u.username === API.currentUser.username;
+                    tbody.innerHTML += `
+                        <tr class="border-b border-gray-100">
+                            <td class="py-3 px-4 font-medium">${u.username}${isSelf ? ' <span class="text-xs text-gray-400">(你)</span>' : ''}</td>
+                            <td class="py-3 px-4">${roleBadge}</td>
+                            <td class="py-3 px-4 text-sm text-gray-500">${(u.created || '').slice(0, 10)}</td>
+                            <td class="py-3 px-4">
+                                <button onclick="showPasswordModal('${u.username}')" class="btn btn-secondary text-xs mr-1">改密</button>
+                                <button onclick="changeRole('${u.username}', '${u.role}')" class="btn btn-secondary text-xs mr-1">改角色</button>
+                                ${!isSelf ? `<button onclick="removeUser('${u.username}')" class="btn btn-danger text-xs">删除</button>` : ''}
+                            </td>
+                        </tr>
+                    `;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        /**
+         * 加载 Token 列表
+         */
+        async function loadTokens() {
+            try {
+                const data = await API.get('/api/tokens');
+                const tbody = document.getElementById('tokensTableBody');
+                tbody.innerHTML = '';
+                if (data.tokens.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-gray-400">暂无 Token</td></tr>';
+                    return;
+                }
+                for (const t of data.tokens) {
+                    tbody.innerHTML += `
+                        <tr class="border-b border-gray-100">
+                            <td class="py-3 px-4 font-mono text-sm">${t.token}</td>
+                            <td class="py-3 px-4">${t.username}</td>
+                            <td class="py-3 px-4"><span class="badge badge-${t.role}">${t.role}</span></td>
+                            <td class="py-3 px-4 text-sm text-gray-500">${(t.created || '').slice(0, 10)}</td>
+                            <td class="py-3 px-4">
+                                <button onclick="revokeToken('${t.token}')" class="btn btn-danger text-xs">吊销</button>
+                            </td>
+                        </tr>
+                    `;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        /**
+         * 显示添加用户弹窗
+         */
+        function showAddUserModal() {
+            document.getElementById('newUsername').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('newRole').value = 'reader';
+            document.getElementById('addUserModal').style.display = 'flex';
+        }
+
+        /**
+         * 添加用户
+         */
+        async function addUser() {
+            const username = document.getElementById('newUsername').value;
+            const password = document.getElementById('newPassword').value;
+            const role = document.getElementById('newRole').value;
+            if (!username || !password) { alert('用户名和密码不能为空'); return; }
+            try {
+                const data = await API.post('/api/users', { username, password, role });
+                if (data.status === 'ok') {
+                    closeModal('addUserModal');
+                    loadUsers();
+                } else {
+                    alert(data.error || '添加失败');
+                }
+            } catch (e) { alert(e.message); }
+        }
+
+        /**
+         * 删除用户
+         */
+        async function removeUser(username) {
+            if (!confirm(`确定删除用户 ${username}？`)) return;
+            try {
+                await API.delete(`/api/users/${username}`);
+                loadUsers();
+            } catch (e) { alert(e.message); }
+        }
+
+        /**
+         * 修改角色
+         */
+        async function changeRole(username, currentRole) {
+            const roles = ['reader', 'editor', 'admin'];
+            const newRole = prompt(`修改 ${username} 的角色（当前: ${currentRole}）`, currentRole);
+            if (!newRole || !roles.includes(newRole) || newRole === currentRole) return;
+            try {
+                await API.put(`/api/users/${username}/role`, { role: newRole });
+                loadUsers();
+            } catch (e) { alert(e.message); }
+        }
+
+        /**
+         * 显示修改密码弹窗
+         */
+        function showPasswordModal(username) {
+            document.getElementById('passwordUsername').textContent = username;
+            document.getElementById('newUserPassword').value = '';
+            document.getElementById('passwordModal').style.display = 'flex';
+        }
+
+        /**
+         * 修改密码
+         */
+        async function changePassword() {
+            const username = document.getElementById('passwordUsername').textContent;
+            const password = document.getElementById('newUserPassword').value;
+            if (!password) { alert('密码不能为空'); return; }
+            try {
+                await API.put(`/api/users/${username}/password`, { password });
+                closeModal('passwordModal');
+                alert('密码已修改');
+            } catch (e) { alert(e.message); }
+        }
+
+        /**
+         * 显示生成 Token 弹窗
+         */
+        async function showGenerateTokenModal() {
+            document.getElementById('tokenResult').classList.add('hidden');
+            try {
+                const data = await API.get('/api/users');
+                const select = document.getElementById('tokenUsername');
+                select.innerHTML = '';
+                for (const u of data.users) {
+                    select.innerHTML += `<option value="${u.username}">${u.username} (${u.role})</option>`;
+                }
+                document.getElementById('tokenRole').value = '';
+                document.getElementById('generateTokenModal').style.display = 'flex';
+            } catch (e) { alert(e.message); }
+        }
+
+        /**
+         * 生成 Token
+         */
+        async function generateToken() {
+            const username = document.getElementById('tokenUsername').value;
+            const role = document.getElementById('tokenRole').value || null;
+            try {
+                const data = await API.post('/api/tokens', { username, role });
+                if (data.status === 'ok') {
+                    document.getElementById('tokenValue').textContent = data.token;
+                    document.getElementById('tokenResult').classList.remove('hidden');
+                    loadTokens();
+                } else {
+                    alert(data.error || '生成失败');
+                }
+            } catch (e) { alert(e.message); }
+        }
+
+        /**
+         * 吊销 Token
+         */
+        async function revokeToken(token) {
+            if (!confirm('确定吊销此 Token？')) return;
+            try {
+                await API.delete(`/api/tokens/${token}`);
+                loadTokens();
+            } catch (e) { alert(e.message); }
+        }
+
+        /**
+         * 关闭弹窗
+         */
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        init();
+    </script>
+</body>
+</html>
