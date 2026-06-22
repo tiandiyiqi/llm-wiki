@@ -1,0 +1,88 @@
+# llm-wiki 存储配置示例
+#
+# 使用方式：
+# 1. 复制此文件为 storage.yaml
+# 2. 根据需要修改配置
+# 3. 通过 LLM_WIKI_CONFIG_PATH 环境变量指定配置文件路径
+
+storage:
+  # 存储模式：file | db
+  # file: 文件系统模式（保留 Skill 特性，Markdown 文件存储）
+  # db: 数据库模式（PostgreSQL，多用户协作）
+  type: file
+
+  # ========== file_mode 配置 ==========
+  file:
+    # 知识库根目录路径
+    path: ./knowledge-bases
+    # 自动发现知识库
+    auto_discover: true
+    # 监控文件变化（开发模式）
+    watch_changes: true
+
+  # ========== db_mode 配置 ==========
+  db:
+    # PostgreSQL 连接配置
+    host: ${DB_HOST:localhost}
+    port: ${DB_PORT:5432}
+    database: ${DB_NAME:llmwiki}
+    user: ${DB_USER:llmwiki}
+    password: ${DB_PASSWORD:}
+
+    # 连接池配置
+    pool:
+      min_size: 5
+      max_size: 20
+      max_overflow: 10
+      pool_timeout: 30
+      pool_recycle: 3600
+
+    # RLS 配置（仅 PostgreSQL 支持）
+    rls:
+      enabled: true
+      # RLS 上下文变量名
+      current_user_var: llmwiki.current_user_id()
+      # 角色检测函数
+      role_function: llmwiki.current_user_roles()
+
+# 多级知识库配置
+hierarchy:
+  # 支持的层级
+  levels:
+    - personal    # 个人知识库
+    - department  # 部门知识库
+    - project     # 项目知识库
+    - company     # 公司知识库
+
+  # 权限继承规则
+  inherit:
+    # 子知识库继承父知识库的读取权限
+    read: true
+    # 子知识库不继承写入权限
+    write: false
+
+# 权限系统配置
+permissions:
+  # 默认角色
+  default_role: viewer
+  # 角色定义
+  roles:
+    admin:
+      - kb:create
+      - kb:delete
+      - kb:manage
+      - atom:create
+      - atom:read
+      - atom:write
+      - atom:delete
+      - member:manage
+
+    editor:
+      - atom:create
+      - atom:read
+      - atom:write
+      - atom:delete
+
+    viewer:
+      - atom:read
+      - kb:read

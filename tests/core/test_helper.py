@@ -138,6 +138,94 @@ def get_PostgreSQLManager():
     return load_postgres_manager().PostgreSQLManager
 
 
+def load_file_storage():
+    """加载 FileSystemStorage 模块"""
+    setup_module_imports()
+
+    if 'lib.core.file_storage' not in sys.modules:
+        file_storage_spec = importlib.util.spec_from_file_location(
+            'lib.core.file_storage',
+            PROJECT_ROOT / 'lib' / 'core' / 'file_storage.py'
+        )
+        file_storage_module = importlib.util.module_from_spec(file_storage_spec)
+        sys.modules['lib.core.file_storage'] = file_storage_module
+        file_storage_spec.loader.exec_module(file_storage_module)
+        _module_cache['file_storage'] = file_storage_module
+
+    return sys.modules['lib.core.file_storage']
+
+
+def load_db_storage():
+    """加载 DatabaseStorage 模块"""
+    setup_module_imports()
+
+    if 'lib.core.db_storage' not in sys.modules:
+        db_storage_spec = importlib.util.spec_from_file_location(
+            'lib.core.db_storage',
+            PROJECT_ROOT / 'lib' / 'core' / 'db_storage.py'
+        )
+        db_storage_module = importlib.util.module_from_spec(db_storage_spec)
+        sys.modules['lib.core.db_storage'] = db_storage_module
+        db_storage_spec.loader.exec_module(db_storage_module)
+        _module_cache['db_storage'] = db_storage_module
+
+    return sys.modules['lib.core.db_storage']
+
+
+def load_storage_interface():
+    """加载 StorageInterface 模块"""
+    setup_module_imports()
+
+    if 'lib.core.storage_interface' not in sys.modules:
+        storage_interface_spec = importlib.util.spec_from_file_location(
+            'lib.core.storage_interface',
+            PROJECT_ROOT / 'lib' / 'core' / 'storage_interface.py'
+        )
+        storage_interface_module = importlib.util.module_from_spec(storage_interface_spec)
+        sys.modules['lib.core.storage_interface'] = storage_interface_module
+        storage_interface_spec.loader.exec_module(storage_interface_module)
+        _module_cache['storage_interface'] = storage_interface_module
+
+    return sys.modules['lib.core.storage_interface']
+
+
+def load_factory():
+    """加载 StorageFactory 模块"""
+    setup_module_imports()
+
+    if 'lib.core.factory' not in sys.modules:
+        factory_spec = importlib.util.spec_from_file_location(
+            'lib.core.factory',
+            PROJECT_ROOT / 'lib' / 'core' / 'factory.py'
+        )
+        factory_module = importlib.util.module_from_spec(factory_spec)
+        sys.modules['lib.core.factory'] = factory_module
+        factory_spec.loader.exec_module(factory_module)
+        _module_cache['factory'] = factory_module
+
+    return sys.modules['lib.core.factory']
+
+
+def get_StorageInterface():
+    return load_storage_interface().StorageInterface
+
+
+def get_FileSystemStorage():
+    return load_file_storage().FileSystemStorage
+
+
+def get_DatabaseStorage():
+    return load_db_storage().DatabaseStorage
+
+
+def get_StorageFactory():
+    return load_factory().StorageFactory
+
+
+def get_StorageMode():
+    return load_factory().StorageMode
+
+
 # 直接导出函数供测试使用
 __all__ = [
     'get_StorageConfig',
@@ -145,5 +233,10 @@ __all__ = [
     'get_DatabaseManager',
     'get_SQLiteManager',
     'get_PostgreSQLManager',
+    'get_StorageInterface',
+    'get_FileSystemStorage',
+    'get_DatabaseStorage',
+    'get_StorageFactory',
+    'get_StorageMode',
     'setup_module_imports',
 ]
