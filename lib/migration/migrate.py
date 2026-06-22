@@ -11,7 +11,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..core.factory import create_database_manager
+from ..core.factory import StorageFactory
+from ..core.config import StorageConfig, StorageType
 from ..core.config import StorageConfig, StorageType
 from ..core.postgres_manager import PostgreSQLManager
 from ..yaml_parser import SimpleYAMLParser

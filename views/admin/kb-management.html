@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识库管理 - LLM Wiki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #f7fafc; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-success { background: #38a169; color: white; }
+        .btn-success:hover { background: #2f855a; }
+        .btn-danger { background: #e53e3e; color: white; }
+        .btn-danger:hover { background: #c53030; }
+        .btn-secondary { background: #e2e8f0; color: #4a5568; }
+        .btn-secondary:hover { background: #cbd5e0; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 50; }
+        .modal { background: white; border-radius: 12px; padding: 24px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
+        .input { width: 100%; padding: 8px 12px; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 14px; }
+        .input:focus { outline: none; border-color: #667eea; }
+        .badge { padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .badge-personal { background: #bee3f8; color: #2b6cb0; }
+        .badge-department { background: #c6f6d5; color: #276749; }
+        .badge-project { background: #feebc8; color: #c05621; }
+        .badge-company { background: #fed7d7; color: #c53030; }
+        .badge-standalone { background: #e2e8f0; color: #4a5568; }
+        .badge-parent { background: #d6bcfa; color: #6b46c1; }
+        .badge-child { background: #b2f5ea; color: #319795; }
+        .loading { opacity: 0.5; pointer-events: none; }
+        .tree-node { margin-left: 20px; }
+        .tree-toggle { cursor: pointer; user-select: none; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
+                <h1 class="text-xl font-bold text-gray-800">知识库管理</h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="/admin/permissions.html" class="btn btn-secondary">权限管理</a>
+                <span class="text-sm text-gray-600">当前: <strong id="currentUserName">-</strong></span>
+                <button onclick="API.logout()" class="btn btn-secondary">退出</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Tab 切换 -->
+    <div class="max-w-7xl mx-auto px-6 py-6">
+        <div class="flex gap-2 mb-6">
+            <button onclick="switchTab('list')" id="tab-list" class="btn btn-primary">知识库列表</button>
+            <button onclick="switchTab('tree')" id="tab-tree" class="btn btn-secondary">层级树</button>
+            <button onclick="switchTab('members')" id="tab-members" class="btn btn-secondary">成员管理</button>
+        </div>
+
+        <!-- 知识库列表 -->
+        <div id="listPanel" class="card p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-gray-800">知识库列表</h2>
+                <div class="flex gap-2">
+                    <select id="levelFilter" onchange="loadKBs()" class="input w-auto">
+                        <option value="">全部层级</option>
+                        <option value="personal">个人</option>
+                        <option value="department">部门</option>
+                        <option value="project">项目</option>
+                        <option value="company">公司</option>
+                        <option value="standalone">独立</option>
+                    </select>
+                    <button onclick="showCreateKBModal()" class="btn btn-primary">+ 创建知识库</button>
+                </div>
+            </div>
+
+            <!-- 加载状态 -->
+            <div id="loadingIndicator" class="text-center py-8 hidden">
+                <div class="animate-spin inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full"></div>
+                <p class="text-gray-500 mt-2">加载中...</p>
+            </div>
+
+            <!-- 知识库表格 -->
+            <table class="w-full" id="kbTable">
+                <thead>
+                    <tr class="border-b-2 border-gray-200 text-left text-gray-600">
+                        <th class="py-3 px-4">ID</th>
+                        <th class="py-3 px-4">名称</th>
+                        <th class="py-3 px-4">层级/类型</th>
+                        <th class="py-3 px-4">路径</th>
+                        <th class="py-3 px-4">原子数</th>
+                        <th class="py-3 px-4">创建时间</th>
+                        <th class="py-3 px-4">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="kbTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- 层级树 -->
+        <div id="treePanel" class="card p-6 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-gray-800">知识库层级树</h2>
+                <button onclick="loadKBTree()" class="btn btn-secondary">刷新</button>
+            </div>
+            <div id="kbTreeContainer" class="space-y-2">
+                <p class="text-gray-500 text-center py-8">加载中...</p>
+            </div>
+        </div>
+
+        <!-- 成员管理 -->
+        <div id="membersPanel" class="card p-6 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-gray-800">成员管理</h2>
+                <select id="kbMemberSelect" onchange="loadMembers()" class="input w-auto">
+                    <option value="">选择知识库...</option>
+                </select>
+            </div>
+            <div id="membersContent">
+                <p class="text-gray-500 text-center py-8">请先选择知识库</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建知识库弹窗 -->
+    <div id="createKBModal" class="modal-overlay">
+        <div class="modal">
+            <h3 class="text-lg font-bold mb-4">创建知识库</h3>
+            <form id="createKBForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">名称 *</label>
+                    <input type="text" id="kbName" class="input" placeholder="输入知识库名称" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">路径 *</label>
+                    <input type="text" id="kbPath" class="input" placeholder="例如: /kb/engineering" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">层级</label>
+                    <select id="kbLevel" class="input">
+                        <option value="standalone">独立知识库</option>
+                        <option value="personal">个人知识库</option>
+                        <option value="department">部门知识库</option>
+                        <option value="project">项目知识库</option>
+                        <option value="company">公司知识库</option>
+                    </select>
+                </div>
+                <div id="parentKBSelect" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">父知识库</label>
+                    <select id="kbParent" class="input">
+                        <option value="">无</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">描述</label>
+                    <textarea id="kbDescription" class="input" rows="3" placeholder="知识库描述（可选）"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">标签</label>
+                    <input type="text" id="kbTags" class="input" placeholder="多个标签用逗号分隔">
+                </div>
+            </form>
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeModal('createKBModal')" class="btn btn-secondary flex-1">取消</button>
+                <button onclick="createKB()" class="btn btn-primary flex-1">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑知识库弹窗 -->
+    <div id="editKBModal" class="modal-overlay">
+        <div class="modal">
+            <h3 class="text-lg font-bold mb-4">编辑知识库</h3>
+            <input type="hidden" id="editKBId">
+            <form id="editKBForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">名称 *</label>
+                    <input type="text" id="editKBName" class="input" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">路径 *</label>
+                    <input type="text" id="editKBPath" class="input" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">层级</label>
+                    <select id="editKBLevel" class="input">
+                        <option value="standalone">独立知识库</option>
+                        <option value="personal">个人知识库</option>
+                        <option value="department">部门知识库</option>
+                        <option value="project">项目知识库</option>
+                        <option value="company">公司知识库</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">描述</label>
+                    <textarea id="editKBDescription" class="input" rows="3"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">标签</label>
+                    <input type="text" id="editKBTags" class="input">
+                </div>
+            </form>
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeModal('editKBModal')" class="btn btn-secondary flex-1">取消</button>
+                <button onclick="updateKB()" class="btn btn-primary flex-1">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加成员弹窗 -->
+    <div id="addMemberModal" class="modal-overlay">
+        <div class="modal">
+            <h3 class="text-lg font-bold mb-4">添加成员</h3>
+            <input type="hidden" id="memberKBId">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+                    <select id="memberUsername" class="input"></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">角色</label>
+                    <select id="memberRole" class="input">
+                        <option value="reader">reader（只读）</option>
+                        <option value="editor">editor（编辑）</option>
+                        <option value="admin">admin（管理）</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeModal('addMemberModal')" class="btn btn-secondary flex-1">取消</button>
+                <button onclick="addMember()" class="btn btn-primary flex-1">添加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 统计信息弹窗 -->
+    <div id="statsModal" class="modal-overlay">
+        <div class="modal">
+            <h3 class="text-lg font-bold mb-4">知识库统计</h3>
+            <div id="statsContent" class="space-y-4"></div>
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeModal('statsModal')" class="btn btn-secondary flex-1">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * API 封装
+         */
+        const API = {
+            currentUser: null,
+            async init() {
+                try {
+                    const r = await fetch('/api/auth/whoami', { credentials: 'same-origin' });
+                    const d = await r.json();
+                    if (d.user) {
+                        this.currentUser = d.user;
+                        document.getElementById('currentUserName').textContent = d.user.username;
+                        return true;
+                    }
+                } catch (e) {}
+                window.location.href = '/login.html';
+                return false;
+            },
+            async get(url) {
+                const r = await fetch(url, { credentials: 'same-origin' });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                if (!r.ok) { throw new Error(`HTTP ${r.status}`); }
+                return r.json();
+            },
+            async post(url, data) {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data || {}),
+                    credentials: 'same-origin',
+                });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                if (!r.ok) { throw new Error(`HTTP ${r.status}`); }
+                return r.json();
+            },
+            async put(url, data) {
+                const r = await fetch(url, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                    credentials: 'same-origin',
+                });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                if (!r.ok) { throw new Error(`HTTP ${r.status}`); }
+                return r.json();
+            },
+            async delete(url) {
+                const r = await fetch(url, { method: 'DELETE', credentials: 'same-origin' });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                if (!r.ok) { throw new Error(`HTTP ${r.status}`); }
+                return r.json();
+            },
+            async logout() {
+                await this.post('/api/auth/logout').catch(() => {});
+                window.location.href = '/login.html';
+            },
+            isAdmin() { return this.currentUser && this.currentUser.role === 'admin'; }
+        };
+
+        let currentTab = 'list';
+        let allKBs = [];
+        let allUsers = [];
+
+        /**
+         * 初始化
+         */
+        async function init() {
+            const ok = await API.init();
+            if (!ok) return;
+
+            if (!API.isAdmin()) {
+                alert('仅管理员可访问知识库管理页面');
+                window.location.href = '/';
+                return;
+            }
+
+            await Promise.all([loadKBs(), loadUsers()]);
+        }
+
+        /**
+         * 切换 Tab
+         */
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('listPanel').classList.toggle('hidden', tab !== 'list');
+            document.getElementById('treePanel').classList.toggle('hidden', tab !== 'tree');
+            document.getElementById('membersPanel').classList.toggle('hidden', tab !== 'members');
+
+            ['list', 'tree', 'members'].forEach(t => {
+                document.getElementById(`tab-${t}`).className = tab === t ? 'btn btn-primary' : 'btn btn-secondary';
+            });
+
+            if (tab === 'tree') loadKBTree();
+        }
+
+        /**
+         * 加载知识库列表
+         */
+        async function loadKBs() {
+            const loading = document.getElementById('loadingIndicator');
+            const tbody = document.getElementById('kbTableBody');
+
+            loading.classList.remove('hidden');
+            tbody.innerHTML = '';
+
+            try {
+                const level = document.getElementById('levelFilter').value;
+                const url = level ? `/api/enterprise/kbs?level=${level}` : '/api/enterprise/kbs';
+                const data = await API.get(url);
+                allKBs = data.kbs || [];
+
+                if (allKBs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-gray-400">暂无知识库</td></tr>';
+                    return;
+                }
+
+                // 更新成员管理选择器
+                const memberSelect = document.getElementById('kbMemberSelect');
+                memberSelect.innerHTML = '<option value="">选择知识库...</option>';
+                allKBs.forEach(kb => {
+                    memberSelect.innerHTML += `<option value="${kb.id}">${kb.name} (${kb.type || kb.level || 'standalone'})</option>`;
+                });
+
+                // 渲染表格
+                for (const kb of allKBs) {
+                    const levelBadge = getLevelBadge(kb.type || kb.level || 'standalone');
+                    const atomCount = kb.atom_count || kb.stats?.atom_count || 0;
+
+                    tbody.innerHTML += `
+                        <tr class="border-b border-gray-100 hover:bg-gray-50">
+                            <td class="py-3 px-4 font-mono text-sm">${kb.id}</td>
+                            <td class="py-3 px-4 font-medium">${escapeHtml(kb.name)}</td>
+                            <td class="py-3 px-4">${levelBadge}</td>
+                            <td class="py-3 px-4 font-mono text-sm text-gray-600">${escapeHtml(kb.path || '-')}</td>
+                            <td class="py-3 px-4">${atomCount}</td>
+                            <td class="py-3 px-4 text-sm text-gray-500">${(kb.created_at || kb.created || '').slice(0, 10)}</td>
+                            <td class="py-3 px-4">
+                                <button onclick="showStats(${kb.id})" class="btn btn-secondary text-xs mr-1">统计</button>
+                                <button onclick="showEditKBModal(${kb.id})" class="btn btn-secondary text-xs mr-1">编辑</button>
+                                <button onclick="deleteKB(${kb.id}, '${escapeHtml(kb.name)}')" class="btn btn-danger text-xs">删除</button>
+                            </td>
+                        </tr>
+                    `;
+                }
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-red-500">加载失败: ${escapeHtml(e.message)}</td></tr>`;
+            } finally {
+                loading.classList.add('hidden');
+            }
+        }
+
+        /**
+         * 加载层级树
+         */
+        async function loadKBTree() {
+            const container = document.getElementById('kbTreeContainer');
+            container.innerHTML = '<p class="text-gray-500 text-center py-8">加载中...</p>';
+
+            try {
+                const data = await API.get('/api/enterprise/kbs/tree');
+                const tree = data.tree || [];
+
+                if (tree.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500 text-center py-8">暂无层级数据</p>';
+                    return;
+                }
+
+                container.innerHTML = renderTree(tree, 0);
+            } catch (e) {
+                container.innerHTML = `<p class="text-red-500 text-center py-8">加载失败: ${escapeHtml(e.message)}</p>`;
+            }
+        }
+
+        /**
+         * 渲染树节点
+         */
+        function renderTree(nodes, depth) {
+            return nodes.map(node => {
+                const levelBadge = getLevelBadge(node.type || 'standalone');
+                const hasChildren = node.children && node.children.length > 0;
+                const indent = depth * 20;
+
+                return `
+                    <div class="tree-node" style="margin-left: ${indent}px">
+                        <div class="flex items-center gap-2 p-2 hover:bg-gray-50 rounded">
+                            <span class="tree-toggle ${hasChildren ? '' : 'opacity-0'}" onclick="toggleTreeNode(this)">
+                                ${hasChildren ? '▶' : '•'}
+                            </span>
+                            <span class="font-medium">${escapeHtml(node.name)}</span>
+                            ${levelBadge}
+                            <span class="text-xs text-gray-500">(${node.atom_count || 0} 原子)</span>
+                        </div>
+                        ${hasChildren ? `<div class="tree-children hidden">${renderTree(node.children, depth + 1)}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        /**
+         * 展开/折叠树节点
+         */
+        function toggleTreeNode(el) {
+            const children = el.parentElement.nextElementSibling;
+            if (!children) return;
+
+            const isHidden = children.classList.contains('hidden');
+            children.classList.toggle('hidden');
+            el.textContent = isHidden ? '▼' : '▶';
+        }
+
+        /**
+         * 加载用户列表
+         */
+        async function loadUsers() {
+            try {
+                const data = await API.get('/api/users');
+                allUsers = data.users || [];
+            } catch (e) {
+                console.error('加载用户失败:', e);
+            }
+        }
+
+        /**
+         * 加载成员列表
+         */
+        async function loadMembers() {
+            const kbId = document.getElementById('kbMemberSelect').value;
+            const content = document.getElementById('membersContent');
+
+            if (!kbId) {
+                content.innerHTML = '<p class="text-gray-500 text-center py-8">请先选择知识库</p>';
+                return;
+            }
+
+            content.innerHTML = '<p class="text-gray-500 text-center py-8">加载中...</p>';
+
+            try {
+                const data = await API.get(`/api/enterprise/kbs/${kbId}/members`);
+                const members = data.members || [];
+
+                if (members.length === 0) {
+                    content.innerHTML = `
+                        <div class="text-center py-8">
+                            <p class="text-gray-500">此知识库暂无成员</p>
+                            <button onclick="showAddMemberModal(${kbId})" class="btn btn-primary mt-4">+ 添加成员</button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                content.innerHTML = `
+                    <div class="flex justify-end mb-4">
+                        <button onclick="showAddMemberModal(${kbId})" class="btn btn-primary">+ 添加成员</button>
+                    </div>
+                    <table class="w-full">
+                        <thead>
+                            <tr class="border-b-2 border-gray-200 text-left text-gray-600">
+                                <th class="py-3 px-4">用户名</th>
+                                <th class="py-3 px-4">角色</th>
+                                <th class="py-3 px-4">添加时间</th>
+                                <th class="py-3 px-4">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="membersTableBody">
+                            ${members.map(m => `
+                                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                    <td class="py-3 px-4 font-medium">${escapeHtml(m.username)}</td>
+                                    <td class="py-3 px-4"><span class="badge badge-${m.role}">${m.role}</span></td>
+                                    <td class="py-3 px-4 text-sm text-gray-500">${(m.created_at || '').slice(0, 10)}</td>
+                                    <td class="py-3 px-4">
+                                        <button onclick="changeMemberRole(${kbId}, '${m.username}', '${m.role}')" class="btn btn-secondary text-xs mr-1">改角色</button>
+                                        <button onclick="removeMember(${kbId}, '${m.username}')" class="btn btn-danger text-xs">移除</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (e) {
+                content.innerHTML = `<p class="text-red-500 text-center py-8">加载失败: ${escapeHtml(e.message)}</p>`;
+            }
+        }
+
+        /**
+         * 显示创建知识库弹窗
+         */
+        async function showCreateKBModal() {
+            document.getElementById('kbName').value = '';
+            document.getElementById('kbPath').value = '';
+            document.getElementById('kbLevel').value = 'standalone';
+            document.getElementById('kbDescription').value = '';
+            document.getElementById('kbTags').value = '';
+
+            // 加载父知识库选项
+            const parentSelect = document.getElementById('kbParent');
+            parentSelect.innerHTML = '<option value="">无</option>';
+            allKBs.filter(kb => kb.type === 'parent' || kb.level === 'company' || kb.level === 'department').forEach(kb => {
+                parentSelect.innerHTML += `<option value="${kb.id}">${kb.name}</option>`;
+            });
+
+            document.getElementById('createKBModal').style.display = 'flex';
+        }
+
+        /**
+         * 创建知识库
+         */
+        async function createKB() {
+            const name = document.getElementById('kbName').value.trim();
+            const path = document.getElementById('kbPath').value.trim();
+            const level = document.getElementById('kbLevel').value;
+            const description = document.getElementById('kbDescription').value.trim();
+            const tags = document.getElementById('kbTags').value.split(',').map(t => t.trim()).filter(t => t);
+            const parentId = document.getElementById('kbParent').value;
+
+            if (!name || !path) {
+                alert('名称和路径不能为空');
+                return;
+            }
+
+            try {
+                const data = await API.post('/api/enterprise/kbs', {
+                    name,
+                    path,
+                    type: level,
+                    description,
+                    tags,
+                    parent_id: parentId ? parseInt(parentId) : null
+                });
+
+                if (data.status === 'ok' || data.id) {
+                    closeModal('createKBModal');
+                    await loadKBs();
+                    alert('知识库创建成功');
+                } else {
+                    alert(data.error || '创建失败');
+                }
+            } catch (e) {
+                alert('创建失败: ' + e.message);
+            }
+        }
+
+        /**
+         * 显示编辑知识库弹窗
+         */
+        async function showEditKBModal(kbId) {
+            const kb = allKBs.find(k => k.id === kbId);
+            if (!kb) {
+                alert('知识库不存在');
+                return;
+            }
+
+            document.getElementById('editKBId').value = kbId;
+            document.getElementById('editKBName').value = kb.name || '';
+            document.getElementById('editKBPath').value = kb.path || '';
+            document.getElementById('editKBLevel').value = kb.type || kb.level || 'standalone';
+            document.getElementById('editKBDescription').value = kb.description || '';
+            document.getElementById('editKBTags').value = (kb.tags || []).join(', ');
+
+            document.getElementById('editKBModal').style.display = 'flex';
+        }
+
+        /**
+         * 更新知识库
+         */
+        async function updateKB() {
+            const kbId = document.getElementById('editKBId').value;
+            const name = document.getElementById('editKBName').value.trim();
+            const path = document.getElementById('editKBPath').value.trim();
+            const level = document.getElementById('editKBLevel').value;
+            const description = document.getElementById('editKBDescription').value.trim();
+            const tags = document.getElementById('editKBTags').value.split(',').map(t => t.trim()).filter(t => t);
+
+            if (!name || !path) {
+                alert('名称和路径不能为空');
+                return;
+            }
+
+            try {
+                const data = await API.put(`/api/enterprise/kbs/${kbId}`, {
+                    name,
+                    path,
+                    type: level,
+                    description,
+                    tags
+                });
+
+                if (data.status === 'ok') {
+                    closeModal('editKBModal');
+                    await loadKBs();
+                    alert('知识库更新成功');
+                } else {
+                    alert(data.error || '更新失败');
+                }
+            } catch (e) {
+                alert('更新失败: ' + e.message);
+            }
+        }
+
+        /**
+         * 删除知识库
+         */
+        async function deleteKB(kbId, kbName) {
+            if (!confirm(`确定删除知识库 "${kbName}"？\n此操作将删除该知识库及其所有原子数据，不可恢复。`)) {
+                return;
+            }
+
+            try {
+                const data = await API.delete(`/api/enterprise/kbs/${kbId}`);
+                if (data.status === 'ok') {
+                    await loadKBs();
+                    alert('知识库已删除');
+                } else {
+                    alert(data.error || '删除失败');
+                }
+            } catch (e) {
+                alert('删除失败: ' + e.message);
+            }
+        }
+
+        /**
+         * 显示统计信息
+         */
+        async function showStats(kbId) {
+            const content = document.getElementById('statsContent');
+            content.innerHTML = '<p class="text-gray-500 text-center py-4">加载中...</p>';
+            document.getElementById('statsModal').style.display = 'flex';
+
+            try {
+                const data = await API.get(`/api/enterprise/kbs/${kbId}/stats`);
+                const stats = data.stats || {};
+
+                content.innerHTML = `
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="p-4 bg-blue-50 rounded">
+                            <div class="text-2xl font-bold text-blue-600">${stats.atom_count || 0}</div>
+                            <div class="text-sm text-gray-600">原子总数</div>
+                        </div>
+                        <div class="p-4 bg-green-50 rounded">
+                            <div class="text-2xl font-bold text-green-600">${stats.tag_count || 0}</div>
+                            <div class="text-sm text-gray-600">标签数</div>
+                        </div>
+                        <div class="p-4 bg-purple-50 rounded">
+                            <div class="text-2xl font-bold text-purple-600">${stats.member_count || 0}</div>
+                            <div class="text-sm text-gray-600">成员数</div>
+                        </div>
+                        <div class="p-4 bg-orange-50 rounded">
+                            <div class="text-2xl font-bold text-orange-600">${stats.child_count || 0}</div>
+                            <div class="text-sm text-gray-600">子知识库</div>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <h4 class="font-medium text-gray-700 mb-2">按类型分布</h4>
+                        <div class="space-y-1">
+                            ${Object.entries(stats.by_type || {}).map(([type, count]) => `
+                                <div class="flex justify-between text-sm">
+                                    <span>${type}</span>
+                                    <span class="font-medium">${count}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } catch (e) {
+                content.innerHTML = `<p class="text-red-500 text-center py-4">加载失败: ${escapeHtml(e.message)}</p>`;
+            }
+        }
+
+        /**
+         * 显示添加成员弹窗
+         */
+        function showAddMemberModal(kbId) {
+            document.getElementById('memberKBId').value = kbId;
+            document.getElementById('memberRole').value = 'reader';
+
+            const select = document.getElementById('memberUsername');
+            select.innerHTML = '';
+            allUsers.forEach(u => {
+                select.innerHTML += `<option value="${u.username}">${u.username} (${u.role})</option>`;
+            });
+
+            document.getElementById('addMemberModal').style.display = 'flex';
+        }
+
+        /**
+         * 添加成员
+         */
+        async function addMember() {
+            const kbId = document.getElementById('memberKBId').value;
+            const username = document.getElementById('memberUsername').value;
+            const role = document.getElementById('memberRole').value;
+
+            if (!username) {
+                alert('请选择用户');
+                return;
+            }
+
+            try {
+                const data = await API.post(`/api/enterprise/kbs/${kbId}/members`, {
+                    username,
+                    role
+                });
+
+                if (data.status === 'ok') {
+                    closeModal('addMemberModal');
+                    await loadMembers();
+                    alert('成员已添加');
+                } else {
+                    alert(data.error || '添加失败');
+                }
+            } catch (e) {
+                alert('添加失败: ' + e.message);
+            }
+        }
+
+        /**
+         * 修改成员角色
+         */
+        async function changeMemberRole(kbId, username, currentRole) {
+            const roles = ['reader', 'editor', 'admin'];
+            const newRole = prompt(`修改 ${username} 的角色（当前: ${currentRole}）\n可选: reader, editor, admin`, currentRole);
+            if (!newRole || !roles.includes(newRole) || newRole === currentRole) return;
+
+            try {
+                await API.put(`/api/enterprise/kbs/${kbId}/members/${username}`, { role: newRole });
+                await loadMembers();
+                alert('角色已修改');
+            } catch (e) {
+                alert('修改失败: ' + e.message);
+            }
+        }
+
+        /**
+         * 移除成员
+         */
+        async function removeMember(kbId, username) {
+            if (!confirm(`确定移除成员 "${username}"？`)) return;
+
+            try {
+                await API.delete(`/api/enterprise/kbs/${kbId}/members/${username}`);
+                await loadMembers();
+                alert('成员已移除');
+            } catch (e) {
+                alert('移除失败: ' + e.message);
+            }
+        }
+
+        /**
+         * 关闭弹窗
+         */
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        /**
+         * 获取层级徽章
+         */
+        function getLevelBadge(level) {
+            const badgeClass = {
+                'personal': 'badge-personal',
+                'department': 'badge-department',
+                'project': 'badge-project',
+                'company': 'badge-company',
+                'standalone': 'badge-standalone',
+                'parent': 'badge-parent',
+                'child': 'badge-child'
+            }[level] || 'badge-standalone';
+
+            return `<span class="badge ${badgeClass}">${level}</span>`;
+        }
+
+        /**
+         * HTML 转义
+         */
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        // 启动
+        init();
+    </script>
+</body>
+</html>

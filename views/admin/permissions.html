@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>权限管理 - LLM Wiki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #f7fafc; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-success { background: #38a169; color: white; }
+        .btn-success:hover { background: #2f855a; }
+        .btn-danger { background: #e53e3e; color: white; }
+        .btn-danger:hover { background: #c53030; }
+        .btn-secondary { background: #e2e8f0; color: #4a5568; }
+        .btn-secondary:hover { background: #cbd5e0; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 50; }
+        .modal { background: white; border-radius: 12px; padding: 24px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
+        .input { width: 100%; padding: 8px 12px; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 14px; }
+        .input:focus { outline: none; border-color: #667eea; }
+        .badge { padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .badge-admin { background: #fed7d7; color: #c53030; }
+        .badge-editor { background: #bee3f8; color: #2b6cb0; }
+        .badge-reader { background: #c6f6d5; color: #276749; }
+        .permission-cell { text-align: center; padding: 8px; }
+        .permission-check { width: 24px; height: 24px; }
+        .matrix-header { background: #f7fafc; font-weight: 600; }
+        .matrix-row:hover { background: #f7fafc; }
+        .tab-active { border-bottom: 3px solid #667eea; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
+                <h1 class="text-xl font-bold text-gray-800">权限管理</h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="/admin/kb-management.html" class="btn btn-secondary">知识库管理</a>
+                <span class="text-sm text-gray-600">当前: <strong id="currentUserName">-</strong></span>
+                <button onclick="API.logout()" class="btn btn-secondary">退出</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Tab 切换 -->
+    <div class="max-w-7xl mx-auto px-6 py-6">
+        <div class="flex gap-2 mb-6 border-b border-gray-200">
+            <button onclick="switchTab('roles')" id="tab-roles" class="btn btn-secondary tab-active rounded-b-none">角色管理</button>
+            <button onclick="switchTab('matrix')" id="tab-matrix" class="btn btn-secondary rounded-b-none">权限矩阵</button>
+            <button onclick="switchTab('users')" id="tab-users" class="btn btn-secondary rounded-b-none">用户权限查询</button>
+        </div>
+
+        <!-- 角色管理 -->
+        <div id="rolesPanel" class="card p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-gray-800">角色列表</h2>
+                <button onclick="showCreateRoleModal()" class="btn btn-primary">+ 创建角色</button>
+            </div>
+
+            <div id="rolesContent">
+                <p class="text-gray-500 text-center py-8">加载中...</p>
+            </div>
+        </div>
+
+        <!-- 权限矩阵 -->
+        <div id="matrixPanel" class="card p-6 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-gray-800">权限矩阵</h2>
+                <div class="flex gap-2">
+                    <select id="matrixKBFilter" onchange="loadPermissionMatrix()" class="input w-auto">
+                        <option value="">全部知识库</option>
+                    </select>
+                    <button onclick="loadPermissionMatrix()" class="btn btn-secondary">刷新</button>
+                </div>
+            </div>
+
+            <div id="matrixContent" class="overflow-x-auto">
+                <p class="text-gray-500 text-center py-8">加载中...</p>
+            </div>
+        </div>
+
+        <!-- 用户权限查询 -->
+        <div id="usersPanel" class="card p-6 hidden">
+            <div class="mb-4">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">用户权限查询</h2>
+                <div class="flex gap-2">
+                    <select id="userSelect" onchange="loadUserPermissions()" class="input w-auto">
+                        <option value="">选择用户...</option>
+                    </select>
+                    <button onclick="loadUserPermissions()" class="btn btn-secondary">查询</button>
+                </div>
+            </div>
+
+            <div id="userPermissionsContent">
+                <p class="text-gray-500 text-center py-8">请选择用户查看权限</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建角色弹窗 -->
+    <div id="createRoleModal" class="modal-overlay">
+        <div class="modal">
+            <h3 class="text-lg font-bold mb-4">创建角色</h3>
+            <form id="createRoleForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">角色名称 *</label>
+                    <input type="text" id="roleName" class="input" placeholder="例如: data_scientist" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">显示名称 *</label>
+                    <input type="text" id="roleDisplayName" class="input" placeholder="例如: 数据科学家" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">描述</label>
+                    <textarea id="roleDescription" class="input" rows="3" placeholder="角色描述"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">权限</label>
+                    <div id="permissionCheckboxes" class="space-y-2">
+                        <label class="flex items-center">
+                            <input type="checkbox" value="read" class="mr-2"> 读取
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" value="write" class="mr-2"> 写入
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" value="delete" class="mr-2"> 删除
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" value="admin" class="mr-2"> 管理
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" value="share" class="mr-2"> 分享
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" value="export" class="mr-2"> 导出
+                        </label>
+                    </div>
+                </div>
+            </form>
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeModal('createRoleModal')" class="btn btn-secondary flex-1">取消</button>
+                <button onclick="createRole()" class="btn btn-primary flex-1">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑角色弹窗 -->
+    <div id="editRoleModal" class="modal-overlay">
+        <div class="modal">
+            <h3 class="text-lg font-bold mb-4">编辑角色</h3>
+            <input type="hidden" id="editRoleId">
+            <form id="editRoleForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">角色名称</label>
+                    <input type="text" id="editRoleName" class="input" disabled>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">显示名称 *</label>
+                    <input type="text" id="editRoleDisplayName" class="input" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">描述</label>
+                    <textarea id="editRoleDescription" class="input" rows="3"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">权限</label>
+                    <div id="editPermissionCheckboxes" class="space-y-2">
+                        <label class="flex items-center">
+                            <input type="checkbox" value="read" class="mr-2"> 读取
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" value="write" class="mr-2"> 写入
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" value="delete" class="mr-2"> 删除
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" value="admin" class="mr-2"> 管理
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" value="share" class="mr-2"> 分享
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" value="export" class="mr-2"> 导出
+                        </label>
+                    </div>
+                </div>
+            </form>
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeModal('editRoleModal')" class="btn btn-secondary flex-1">取消</button>
+                <button onclick="updateRole()" class="btn btn-primary flex-1">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分配权限弹窗 -->
+    <div id="assignPermissionModal" class="modal-overlay">
+        <div class="modal">
+            <h3 class="text-lg font-bold mb-4">分配权限</h3>
+            <input type="hidden" id="assignUserId">
+            <input type="hidden" id="assignKBId">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">用户</label>
+                    <input type="text" id="assignUsername" class="input" disabled>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">知识库</label>
+                    <select id="assignKBSelect" class="input">
+                        <option value="">选择知识库...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">角色</label>
+                    <select id="assignRole" class="input">
+                        <option value="reader">reader（只读）</option>
+                        <option value="editor">editor（编辑）</option>
+                        <option value="admin">admin（管理）</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">自定义权限</label>
+                    <div id="assignPermissionCheckboxes" class="space-y-2">
+                        <label class="flex items-center">
+                            <input type="checkbox" value="read" class="mr-2"> 读取
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" value="write" class="mr-2"> 写入
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" value="delete" class="mr-2"> 删除
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" value="admin" class="mr-2"> 管理
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeModal('assignPermissionModal')" class="btn btn-secondary flex-1">取消</button>
+                <button onclick="assignPermission()" class="btn btn-primary flex-1">分配</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * API 封装
+         */
+        const API = {
+            currentUser: null,
+            async init() {
+                try {
+                    const r = await fetch('/api/auth/whoami', { credentials: 'same-origin' });
+                    const d = await r.json();
+                    if (d.user) {
+                        this.currentUser = d.user;
+                        document.getElementById('currentUserName').textContent = d.user.username;
+                        return true;
+                    }
+                } catch (e) {}
+                window.location.href = '/login.html';
+                return false;
+            },
+            async get(url) {
+                const r = await fetch(url, { credentials: 'same-origin' });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                if (!r.ok) { throw new Error(`HTTP ${r.status}`); }
+                return r.json();
+            },
+            async post(url, data) {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data || {}),
+                    credentials: 'same-origin',
+                });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                if (!r.ok) { throw new Error(`HTTP ${r.status}`); }
+                return r.json();
+            },
+            async put(url, data) {
+                const r = await fetch(url, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                    credentials: 'same-origin',
+                });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                if (!r.ok) { throw new Error(`HTTP ${r.status}`); }
+                return r.json();
+            },
+            async delete(url) {
+                const r = await fetch(url, { method: 'DELETE', credentials: 'same-origin' });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                if (!r.ok) { throw new Error(`HTTP ${r.status}`); }
+                return r.json();
+            },
+            async logout() {
+                await this.post('/api/auth/logout').catch(() => {});
+                window.location.href = '/login.html';
+            },
+            isAdmin() { return this.currentUser && this.currentUser.role === 'admin'; }
+        };
+
+        let currentTab = 'roles';
+        let allRoles = [];
+        let allUsers = [];
+        let allKBs = [];
+
+        /**
+         * 初始化
+         */
+        async function init() {
+            const ok = await API.init();
+            if (!ok) return;
+
+            if (!API.isAdmin()) {
+                alert('仅管理员可访问权限管理页面');
+                window.location.href = '/';
+                return;
+            }
+
+            await Promise.all([loadRoles(), loadUsers(), loadKBs()]);
+        }
+
+        /**
+         * 切换 Tab
+         */
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('rolesPanel').classList.toggle('hidden', tab !== 'roles');
+            document.getElementById('matrixPanel').classList.toggle('hidden', tab !== 'matrix');
+            document.getElementById('usersPanel').classList.toggle('hidden', tab !== 'users');
+
+            ['roles', 'matrix', 'users'].forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                el.className = tab === t ? 'btn btn-secondary tab-active rounded-b-none' : 'btn btn-secondary rounded-b-none';
+            });
+
+            if (tab === 'matrix') loadPermissionMatrix();
+        }
+
+        /**
+         * 加载角色列表
+         */
+        async function loadRoles() {
+            const content = document.getElementById('rolesContent');
+            content.innerHTML = '<p class="text-gray-500 text-center py-8">加载中...</p>';
+
+            try {
+                const data = await API.get('/api/enterprise/roles');
+                allRoles = data.roles || [];
+
+                if (allRoles.length === 0) {
+                    content.innerHTML = `
+                        <div class="text-center py-8">
+                            <p class="text-gray-500">暂无自定义角色</p>
+                            <p class="text-gray-400 text-sm mt-2">系统默认角色：admin, editor, reader</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                content.innerHTML = `
+                    <table class="w-full">
+                        <thead>
+                            <tr class="border-b-2 border-gray-200 text-left text-gray-600">
+                                <th class="py-3 px-4">角色名</th>
+                                <th class="py-3 px-4">显示名称</th>
+                                <th class="py-3 px-4">权限</th>
+                                <th class="py-3 px-4">描述</th>
+                                <th class="py-3 px-4">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${allRoles.map(role => `
+                                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                    <td class="py-3 px-4 font-mono text-sm">${escapeHtml(role.name)}</td>
+                                    <td class="py-3 px-4 font-medium">${escapeHtml(role.display_name || role.name)}</td>
+                                    <td class="py-3 px-4">
+                                        ${(role.permissions || []).map(p => `<span class="badge badge-editor mr-1">${p}</span>`).join('')}
+                                    </td>
+                                    <td class="py-3 px-4 text-sm text-gray-600">${escapeHtml(role.description || '-')}</td>
+                                    <td class="py-3 px-4">
+                                        <button onclick="showEditRoleModal('${role.id || role.name}')" class="btn btn-secondary text-xs mr-1">编辑</button>
+                                        <button onclick="deleteRole('${role.id || role.name}')" class="btn btn-danger text-xs">删除</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (e) {
+                content.innerHTML = `<p class="text-red-500 text-center py-8">加载失败: ${escapeHtml(e.message)}</p>`;
+            }
+        }
+
+        /**
+         * 加载权限矩阵
+         */
+        async function loadPermissionMatrix() {
+            const content = document.getElementById('matrixContent');
+            content.innerHTML = '<p class="text-gray-500 text-center py-8">加载中...</p>';
+
+            try {
+                const kbId = document.getElementById('matrixKBFilter').value;
+                const url = kbId ? `/api/enterprise/permissions/matrix?kb_id=${kbId}` : '/api/enterprise/permissions/matrix';
+                const data = await API.get(url);
+                const matrix = data.matrix || [];
+                const kbs = data.kbs || [];
+                const users = data.users || [];
+
+                // 更新知识库筛选器
+                const filterSelect = document.getElementById('matrixKBFilter');
+                filterSelect.innerHTML = '<option value="">全部知识库</option>';
+                kbs.forEach(kb => {
+                    filterSelect.innerHTML += `<option value="${kb.id}">${kb.name}</option>`;
+                });
+
+                if (matrix.length === 0) {
+                    content.innerHTML = '<p class="text-gray-500 text-center py-8">暂无权限数据</p>';
+                    return;
+                }
+
+                // 构建权限矩阵表格
+                const permissions = ['read', 'write', 'delete', 'admin', 'share', 'export'];
+
+                content.innerHTML = `
+                    <table class="w-full border-collapse">
+                        <thead>
+                            <tr class="matrix-header">
+                                <th class="py-3 px-4 text-left border">用户</th>
+                                <th class="py-3 px-4 text-left border">知识库</th>
+                                ${permissions.map(p => `<th class="py-3 px-2 border text-center">${p}</th>`).join('')}
+                                <th class="py-3 px-4 border text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${matrix.map(row => `
+                                <tr class="matrix-row">
+                                    <td class="py-2 px-4 border font-medium">${escapeHtml(row.username)}</td>
+                                    <td class="py-2 px-4 border">${escapeHtml(row.kb_name)}</td>
+                                    ${permissions.map(p => `
+                                        <td class="permission-cell border">
+                                            <input type="checkbox" class="permission-check"
+                                                data-user="${row.user_id}"
+                                                data-kb="${row.kb_id}"
+                                                data-permission="${p}"
+                                                ${row.permissions && row.permissions.includes(p) ? 'checked' : ''}
+                                                onchange="togglePermission(this)">
+                                        </td>
+                                    `).join('')}
+                                    <td class="py-2 px-4 border text-center">
+                                        <button onclick="revokePermission('${row.user_id}', '${row.kb_id}')" class="btn btn-danger text-xs">撤销</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (e) {
+                content.innerHTML = `<p class="text-red-500 text-center py-8">加载失败: ${escapeHtml(e.message)}</p>`;
+            }
+        }
+
+        /**
+         * 加载用户权限
+         */
+        async function loadUserPermissions() {
+            const userId = document.getElementById('userSelect').value;
+            const content = document.getElementById('userPermissionsContent');
+
+            if (!userId) {
+                content.innerHTML = '<p class="text-gray-500 text-center py-8">请选择用户查看权限</p>';
+                return;
+            }
+
+            content.innerHTML = '<p class="text-gray-500 text-center py-8">加载中...</p>';
+
+            try {
+                const data = await API.get(`/api/enterprise/users/${userId}/permissions`);
+                const permissions = data.permissions || [];
+                const user = data.user || {};
+
+                if (permissions.length === 0) {
+                    content.innerHTML = `
+                        <div class="text-center py-8">
+                            <p class="text-gray-500">该用户暂无知识库权限</p>
+                            <button onclick="showAssignPermissionModal('${userId}', '${user.username}')" class="btn btn-primary mt-4">+ 分配权限</button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                content.innerHTML = `
+                    <div class="flex justify-end mb-4">
+                        <button onclick="showAssignPermissionModal('${userId}', '${user.username}')" class="btn btn-primary">+ 分配权限</button>
+                    </div>
+                    <table class="w-full">
+                        <thead>
+                            <tr class="border-b-2 border-gray-200 text-left text-gray-600">
+                                <th class="py-3 px-4">知识库</th>
+                                <th class="py-3 px-4">角色</th>
+                                <th class="py-3 px-4">权限</th>
+                                <th class="py-3 px-4">来源</th>
+                                <th class="py-3 px-4">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${permissions.map(p => `
+                                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                    <td class="py-3 px-4 font-medium">${escapeHtml(p.kb_name)}</td>
+                                    <td class="py-3 px-4"><span class="badge badge-${p.role}">${p.role}</span></td>
+                                    <td class="py-3 px-4">
+                                        ${(p.permissions || []).map(perm => `<span class="badge badge-editor mr-1">${perm}</span>`).join('')}
+                                    </td>
+                                    <td class="py-3 px-4 text-sm text-gray-600">${p.source || 'direct'}</td>
+                                    <td class="py-3 px-4">
+                                        <button onclick="revokeUserKBPermission('${userId}', '${p.kb_id}')" class="btn btn-danger text-xs">撤销</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (e) {
+                content.innerHTML = `<p class="text-red-500 text-center py-8">加载失败: ${escapeHtml(e.message)}</p>`;
+            }
+        }
+
+        /**
+         * 加载用户列表
+         */
+        async function loadUsers() {
+            try {
+                const data = await API.get('/api/users');
+                allUsers = data.users || [];
+
+                const select = document.getElementById('userSelect');
+                select.innerHTML = '<option value="">选择用户...</option>';
+                allUsers.forEach(u => {
+                    select.innerHTML += `<option value="${u.id || u.username}">${u.username} (${u.role})</option>`;
+                });
+            } catch (e) {
+                console.error('加载用户失败:', e);
+            }
+        }
+
+        /**
+         * 加载知识库列表
+         */
+        async function loadKBs() {
+            try {
+                const data = await API.get('/api/enterprise/kbs');
+                allKBs = data.kbs || [];
+
+                // 更新分配权限选择器
+                const assignSelect = document.getElementById('assignKBSelect');
+                assignSelect.innerHTML = '<option value="">选择知识库...</option>';
+                allKBs.forEach(kb => {
+                    assignSelect.innerHTML += `<option value="${kb.id}">${kb.name}</option>`;
+                });
+            } catch (e) {
+                console.error('加载知识库失败:', e);
+            }
+        }
+
+        /**
+         * 显示创建角色弹窗
+         */
+        function showCreateRoleModal() {
+            document.getElementById('roleName').value = '';
+            document.getElementById('roleDisplayName').value = '';
+            document.getElementById('roleDescription').value = '';
+            document.querySelectorAll('#permissionCheckboxes input').forEach(cb => cb.checked = false);
+            document.getElementById('createRoleModal').style.display = 'flex';
+        }
+
+        /**
+         * 创建角色
+         */
+        async function createRole() {
+            const name = document.getElementById('roleName').value.trim();
+            const displayName = document.getElementById('roleDisplayName').value.trim();
+            const description = document.getElementById('roleDescription').value.trim();
+            const permissions = Array.from(document.querySelectorAll('#permissionCheckboxes input:checked')).map(cb => cb.value);
+
+            if (!name || !displayName) {
+                alert('角色名称和显示名称不能为空');
+                return;
+            }
+
+            try {
+                const data = await API.post('/api/enterprise/roles', {
+                    name,
+                    display_name: displayName,
+                    description,
+                    permissions
+                });
+
+                if (data.status === 'ok' || data.id) {
+                    closeModal('createRoleModal');
+                    await loadRoles();
+                    alert('角色创建成功');
+                } else {
+                    alert(data.error || '创建失败');
+                }
+            } catch (e) {
+                alert('创建失败: ' + e.message);
+            }
+        }
+
+        /**
+         * 显示编辑角色弹窗
+         */
+        function showEditRoleModal(roleId) {
+            const role = allRoles.find(r => (r.id || r.name) === roleId);
+            if (!role) {
+                alert('角色不存在');
+                return;
+            }
+
+            document.getElementById('editRoleId').value = roleId;
+            document.getElementById('editRoleName').value = role.name;
+            document.getElementById('editRoleDisplayName').value = role.display_name || role.name;
+            document.getElementById('editRoleDescription').value = role.description || '';
+
+            document.querySelectorAll('#editPermissionCheckboxes input').forEach(cb => {
+                cb.checked = (role.permissions || []).includes(cb.value);
+            });
+
+            document.getElementById('editRoleModal').style.display = 'flex';
+        }
+
+        /**
+         * 更新角色
+         */
+        async function updateRole() {
+            const roleId = document.getElementById('editRoleId').value;
+            const displayName = document.getElementById('editRoleDisplayName').value.trim();
+            const description = document.getElementById('editRoleDescription').value.trim();
+            const permissions = Array.from(document.querySelectorAll('#editPermissionCheckboxes input:checked')).map(cb => cb.value);
+
+            if (!displayName) {
+                alert('显示名称不能为空');
+                return;
+            }
+
+            try {
+                const data = await API.put(`/api/enterprise/roles/${roleId}`, {
+                    display_name: displayName,
+                    description,
+                    permissions
+                });
+
+                if (data.status === 'ok') {
+                    closeModal('editRoleModal');
+                    await loadRoles();
+                    alert('角色更新成功');
+                } else {
+                    alert(data.error || '更新失败');
+                }
+            } catch (e) {
+                alert('更新失败: ' + e.message);
+            }
+        }
+
+        /**
+         * 删除角色
+         */
+        async function deleteRole(roleId) {
+            if (!confirm('确定删除此角色？此操作不可恢复。')) return;
+
+            try {
+                const data = await API.delete(`/api/enterprise/roles/${roleId}`);
+                if (data.status === 'ok') {
+                    await loadRoles();
+                    alert('角色已删除');
+                } else {
+                    alert(data.error || '删除失败');
+                }
+            } catch (e) {
+                alert('删除失败: ' + e.message);
+            }
+        }
+
+        /**
+         * 显示分配权限弹窗
+         */
+        function showAssignPermissionModal(userId, username) {
+            document.getElementById('assignUserId').value = userId;
+            document.getElementById('assignUsername').value = username;
+            document.getElementById('assignKBSelect').value = '';
+            document.getElementById('assignRole').value = 'reader';
+            document.querySelectorAll('#assignPermissionCheckboxes input').forEach(cb => cb.checked = false);
+            document.getElementById('assignPermissionModal').style.display = 'flex';
+        }
+
+        /**
+         * 分配权限
+         */
+        async function assignPermission() {
+            const userId = document.getElementById('assignUserId').value;
+            const kbId = document.getElementById('assignKBSelect').value;
+            const role = document.getElementById('assignRole').value;
+            const permissions = Array.from(document.querySelectorAll('#assignPermissionCheckboxes input:checked')).map(cb => cb.value);
+
+            if (!kbId) {
+                alert('请选择知识库');
+                return;
+            }
+
+            try {
+                const data = await API.post(`/api/enterprise/users/${userId}/permissions`, {
+                    kb_id: parseInt(kbId),
+                    role,
+                    permissions
+                });
+
+                if (data.status === 'ok') {
+                    closeModal('assignPermissionModal');
+                    await loadUserPermissions();
+                    alert('权限已分配');
+                } else {
+                    alert(data.error || '分配失败');
+                }
+            } catch (e) {
+                alert('分配失败: ' + e.message);
+            }
+        }
+
+        /**
+         * 切换权限
+         */
+        async function togglePermission(checkbox) {
+            const userId = checkbox.dataset.user;
+            const kbId = checkbox.dataset.kb;
+            const permission = checkbox.dataset.permission;
+            const granted = checkbox.checked;
+
+            try {
+                const data = await API.put(`/api/enterprise/users/${userId}/permissions/${kbId}`, {
+                    permission,
+                    granted
+                });
+
+                if (data.status !== 'ok') {
+                    checkbox.checked = !granted; // 回滚
+                    alert(data.error || '更新失败');
+                }
+            } catch (e) {
+                checkbox.checked = !granted; // 回滚
+                alert('更新失败: ' + e.message);
+            }
+        }
+
+        /**
+         * 撤销权限
+         */
+        async function revokePermission(userId, kbId) {
+            if (!confirm('确定撤销此用户对该知识库的所有权限？')) return;
+
+            try {
+                const data = await API.delete(`/api/enterprise/users/${userId}/permissions/${kbId}`);
+                if (data.status === 'ok') {
+                    await loadPermissionMatrix();
+                    alert('权限已撤销');
+                } else {
+                    alert(data.error || '撤销失败');
+                }
+            } catch (e) {
+                alert('撤销失败: ' + e.message);
+            }
+        }
+
+        /**
+         * 撤销用户对知识库的权限
+         */
+        async function revokeUserKBPermission(userId, kbId) {
+            if (!confirm('确定撤销此权限？')) return;
+
+            try {
+                const data = await API.delete(`/api/enterprise/users/${userId}/permissions/${kbId}`);
+                if (data.status === 'ok') {
+                    await loadUserPermissions();
+                    alert('权限已撤销');
+                } else {
+                    alert(data.error || '撤销失败');
+                }
+            } catch (e) {
+                alert('撤销失败: ' + e.message);
+            }
+        }
+
+        /**
+         * 关闭弹窗
+         */
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        /**
+         * HTML 转义
+         */
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        // 启动
+        init();
+    </script>
+</body>
+</html>

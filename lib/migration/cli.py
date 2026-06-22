@@ -168,7 +168,7 @@ def cmd_migrate_status(args) -> None:
 
 async def _run_migrate_status(args) -> None:
     """执行状态查询（异步）"""
-    from ..core.factory import create_database_manager
+    from ..core.factory import StorageFactory
     from ..core.config import StorageConfig, StorageType
 
     postgres_url = args.postgres_url
@@ -178,7 +178,7 @@ async def _run_migrate_status(args) -> None:
         postgres_url=postgres_url,
     )
 
-    db = create_database_manager(config)
+    db = StorageFactory.create_database_manager(config)
 
     try:
         await db.initialize()
@@ -235,7 +235,7 @@ class MigrationCLI:
 
 async def _run_migrate_compare(args) -> None:
     """执行比较（异步）"""
-    from ..core.factory import create_database_manager
+    from ..core.factory import StorageFactory
     from ..core.config import StorageConfig, StorageType
 
     kb_path = _resolve_kb_path(args)
@@ -249,7 +249,7 @@ async def _run_migrate_compare(args) -> None:
         postgres_url=postgres_url,
     )
 
-    db = create_database_manager(config)
+    db = StorageFactory.create_database_manager(config)
 
     try:
         await db.initialize()

@@ -31,7 +31,7 @@ from .config import StorageConfig, StorageType
 from .db_manager import DatabaseManager
 from .sqlite_manager import SQLiteManager
 from .postgres_manager import PostgreSQLManager
-from .factory import create_manager, create_database_manager, get_manager_class
+from .factory import create_manager, StorageFactory, get_manager_class
 
 __all__ = [
     'DatabaseManager',
@@ -40,6 +40,6 @@ __all__ = [
     'StorageConfig',
     'StorageType',
     'create_manager',
-    'create_database_manager',
+    'StorageFactory',
     'get_manager_class',
 ]
