@@ -243,22 +243,42 @@ class DatabaseStorage(StorageInterface):
     # ==================== 事务支持 ====================
 
     async def begin_transaction(self) -> None:
-        """开始事务"""
+        """开始事务，委托给底层 db_manager."""
+        if self._in_transaction:
+            logger.warning("Transaction already active, nesting not supported")
+            return
+        await self.db_manager.begin_transaction()
         self._in_transaction = True
-        if hasattr(self.db_manager, 'begin'):
-            await self.db_manager.begin()
 
     async def commit_transaction(self) -> None:
-        """提交事务"""
-        if hasattr(self.db_manager, 'commit'):
-            await self.db_manager.commit()
-        self._in_transaction = False
+        """提交事务，委托给底层 db_manager."""
+        if not self._in_transaction:
+            logger.warning("No active transaction to commit")
+            return
+        try:
+            await self.db_manager.commit_transaction()
+        except Exception as e:
+            logger.error("Commit failed, attempting rollback: %s", e)
+            try:
+                await self.db_manager.rollback_transaction()
+            except Exception as rb_error:
+                logger.error("Rollback after failed commit also failed: %s", rb_error)
+            raise
+        finally:
+            self._in_transaction = False
 
     async def rollback_transaction(self) -> None:
-        """回滚事务"""
-        if hasattr(self.db_manager, 'rollback'):
-            await self.db_manager.rollback()
-        self._in_transaction = False
+        """回滚事务，委托给底层 db_manager."""
+        if not self._in_transaction:
+            logger.warning("No active transaction to rollback")
+            return
+        try:
+            await self.db_manager.rollback_transaction()
+        except Exception as e:
+            logger.error("Rollback failed: %s", e)
+            raise
+        finally:
+            self._in_transaction = False
 
     # ==================== 统计操作 ====================
 

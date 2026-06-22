@@ -59,27 +59,102 @@ class RLSManager:
     async def set_user_context(self, user_id: str, roles: List[str]) -> None:
         """设置当前用户的 RLS 上下文
 
+        在事务中设置 PostgreSQL 会话变量，确保 RLS 策略能正确应用。
+
         Args:
             user_id: 用户 ID
             roles: 用户角色列表
+
+        Raises:
+            ValueError: 如果输入参数无效
+            RuntimeError: 如果未在事务中执行
+            Exception: 如果设置上下文失败
         """
+        # 输入验证
+        if not user_id or not isinstance(user_id, str):
+            raise ValueError("user_id must be a non-empty string")
+        if len(user_id) > 255:
+            raise ValueError("user_id must be at most 255 characters")
+        if not roles or not isinstance(roles, list):
+            raise ValueError("roles must be a non-empty list")
+        if len(roles) > 100:
+            raise ValueError("roles must contain at most 100 items")
+        for role in roles:
+            if not isinstance(role, str) or len(role) > 64:
+                raise ValueError(
+                    f"Invalid role: {role[:20]}..."
+                    if isinstance(role, str)
+                    else "Role must be a string"
+                )
+
+        # 更新实例变量（不可变：创建新列表）
         self._current_user_id = user_id
-        self._current_user_roles = roles
+        self._current_user_roles = list(roles)
 
-        # 设置 PostgreSQL 会话变量
-        await self.db_manager.execute(
-            "SET LOCAL llmwiki.current_user_id = $1",
-            user_id
-        )
+        # 通过 PostgreSQL 原生函数验证是否在事务中
+        try:
+            result = await self.db_manager.fetch_one(
+                "SELECT pg_is_in_transaction() AS in_txn"
+            )
+            if not result or not result.get('in_txn'):
+                raise RuntimeError(
+                    "RLS context must be set within a transaction. "
+                    "Call db_manager.begin_transaction() first."
+                )
+        except RuntimeError:
+            raise
+        except Exception as e:
+            # 如果 fetch_one 不可用，回退到属性检查
+            logger.warning(
+                f"Cannot query pg_is_in_transaction(), "
+                f"falling back to attribute check: {e}"
+            )
+            if not hasattr(self.db_manager, '_transaction_conn'):
+                raise RuntimeError(
+                    "RLS context must be set within a transaction. "
+                    "Call db_manager.begin_transaction() first."
+                )
+            if self.db_manager._transaction_conn is None:
+                raise RuntimeError(
+                    "No active transaction found. "
+                    "Call db_manager.begin_transaction() before "
+                    "setting RLS context."
+                )
 
-        # 设置角色列表
-        roles_str = ','.join(roles)
-        await self.db_manager.execute(
-            "SET LOCAL llmwiki.current_user_roles = $1",
-            roles_str
-        )
+        # 获取事务连接（优先使用 _transaction_conn）
+        conn = getattr(self.db_manager, '_transaction_conn', None)
+        if conn is None:
+            raise RuntimeError(
+                "Cannot obtain a database connection for RLS context. "
+                "Ensure you are within an active transaction."
+            )
 
-        logger.debug(f"RLS context set: user={user_id}, roles={roles}")
+        try:
+            # 在事务中设置 PostgreSQL 会话变量
+            # 注意：SET LOCAL 只在当前事务中有效
+            await conn.execute(
+                "SET LOCAL llmwiki.current_user_id = $1",
+                user_id
+            )
+
+            # 设置角色列表
+            roles_str = ','.join(roles)
+            await conn.execute(
+                "SET LOCAL llmwiki.current_user_roles = $1",
+                roles_str
+            )
+
+            # 日志脱敏：生产环境不输出完整 user_id
+            logger.debug(
+                f"RLS context set: user={user_id[:8]}***, roles={roles}"
+            )
+
+        except Exception as e:
+            # 重置实例变量，防止状态不一致
+            self._current_user_id = None
+            self._current_user_roles = []
+            logger.error(f"Failed to set RLS context: {e}")
+            raise
 
     async def create_kb_policy(self, kb_id: int) -> None:
         """为知识库创建 RLS 策略

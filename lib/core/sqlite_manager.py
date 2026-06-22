@@ -542,17 +542,19 @@ class SQLiteManager(DatabaseManager):
     # ========== 事务操作 ==========
 
     async def begin_transaction(self) -> None:
-        """开始事务"""
-        # SQLite 默认自动开启事务，这里显式声明
-        pass
+        """开始事务，显式声明 BEGIN."""
+        self._conn.execute('BEGIN')
+        logger.debug("SQLite transaction started")
 
     async def commit_transaction(self) -> None:
-        """提交事务"""
+        """提交事务."""
         self._conn.commit()
+        logger.debug("SQLite transaction committed")
 
     async def rollback_transaction(self) -> None:
-        """回滚事务"""
+        """回滚事务."""
         self._conn.rollback()
+        logger.debug("SQLite transaction rolled back")
 
     # ========== 工具方法 ==========
 

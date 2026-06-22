@@ -1,10 +1,11 @@
 """HTTP API 服务，基于 Python 标准库 http.server 实现 REST API."""
 
 import json
+import os
 import re
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs, urlparse
 
 from .querier import KnowledgeQuerier, AggregatedQuerier
@@ -12,6 +13,59 @@ from .ingestor import KnowledgeIngestor
 from .constants import RESERVED_FILES
 from .yaml_parser import SimpleYAMLParser
 from .auth.auth_middleware import require_auth, public_endpoint
+from .utils.path_validator import PathValidator
+
+
+def get_allowed_origins() -> List[str]:
+    """
+    从环境变量获取允许的 CORS 来源白名单.
+
+    环境变量格式：
+    - ALLOWED_ORIGINS=https://example.com,https://app.example.com
+    - 为空时使用开发环境默认值
+
+    Returns:
+        允许的来源列表
+    """
+    origins_str = os.getenv('ALLOWED_ORIGINS', '').strip()
+    if not origins_str:
+        # 开发环境默认值
+        return ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000']
+
+    origins = [origin.strip() for origin in origins_str.split(',') if origin.strip()]
+
+    # 生产环境检查：不允许使用通配符
+    if '*' in origins:
+        print("⚠️  WARNING: Using wildcard '*' in ALLOWED_ORIGINS is not recommended for production!")
+        if os.getenv('ENV', 'development') == 'production':
+            raise ValueError("Wildcard '*' is not allowed in production environment. Set specific origins in ALLOWED_ORIGINS.")
+
+    return origins
+
+
+def validate_origin(origin: Optional[str], allowed_origins: List[str]) -> bool:
+    """
+    验证请求来源是否在白名单中.
+
+    Args:
+        origin: 请求的 Origin 标头
+        allowed_origins: 允许的来源列表
+
+    Returns:
+        是否允许该来源
+    """
+    if not origin:
+        return False
+
+    # 完全匹配
+    if origin in allowed_origins:
+        return True
+
+    # 支持通配符匹配（仅用于开发环境）
+    if '*' in allowed_origins:
+        return True
+
+    return False
 
 
 class APIServer:
@@ -21,19 +75,26 @@ class APIServer:
         self.kb_dir = kb_dir
         self.host = host
         self.port = port
+        self.allowed_origins = get_allowed_origins()
 
     def run(self) -> None:
         """启动 HTTP 服务器."""
         kb_dir = self.kb_dir
+        allowed_origins = self.allowed_origins
 
         class Handler(APIRequestHandler):
             pass
 
         Handler.kb_dir = kb_dir
+        # 初始化路径验证器，防止路径遍历攻击
+        Handler.path_validator = PathValidator([str(kb_dir)])
+        # 设置 CORS 白名单
+        Handler.allowed_origins = allowed_origins
         server = HTTPServer((self.host, self.port), Handler)
         print(f"🚀 LLM Wiki API Server")
         print(f"   Knowledge base: {kb_dir}")
         print(f"   Listening: http://{self.host}:{self.port}")
+        print(f"   CORS Origins: {', '.join(allowed_origins)}")
         print(f"   Endpoints:")
         print(f"     GET  /api/health        - 健康检查")
         print(f"     GET  /api/atoms         - 原子列表")
@@ -42,6 +103,7 @@ class APIServer:
         print(f"     POST /api/ingest        - 摄入资料")
         print(f"     GET  /api/stats         - 统计数据")
         print(f"     GET  /api/suggest?q=    - 搜索建议")
+        print(f"     OPTIONS *              - CORS 预检请求")
         print(f"\n   按 Ctrl+C 停止\n")
         try:
             server.serve_forever()
@@ -54,10 +116,114 @@ class APIRequestHandler(BaseHTTPRequestHandler):
     """API 请求处理器."""
 
     kb_dir: Path = Path('.')
+    path_validator: Optional[PathValidator] = None
+    allowed_origins: List[str] = ['http://localhost:3000']
+
+    def _is_https_request(self) -> bool:
+        """
+        检查请求是否通过 HTTPS 到达.
+
+        支持反向代理场景（X-Forwarded-Proto）和直连场景.
+
+        Returns:
+            是否为 HTTPS 请求
+        """
+        forwarded_proto = self.headers.get('X-Forwarded-Proto', '')
+        if forwarded_proto:
+            return forwarded_proto.lower() == 'https'
+        return False
+
+    def _enforce_https(self) -> bool:
+        """
+        生产环境强制 HTTPS.
+
+        如果当前为 HTTP 请求，发送 301 重定向到 HTTPS 并返回 True.
+        如果已经是 HTTPS，设置 HSTS 标头并返回 False.
+        非生产环境直接返回 False.
+
+        Returns:
+            True 表示已发送重定向响应，调用方应立即返回
+        """
+        env = os.getenv('ENV', 'development')
+        if env != 'production':
+            return False
+
+        if not self._is_https_request():
+            host = self.headers.get(
+                'Host',
+                f'{self.server.server_address[0]}:{self.server.server_address[1]}'
+            )
+            https_url = f'https://{host}{self.path}'
+            self.send_response(301)
+            self.send_header('Location', https_url)
+            self.send_header('Connection', 'close')
+            self.end_headers()
+            return True
+
+        # 已是 HTTPS，设置 HSTS
+        self.send_header(
+            'Strict-Transport-Security',
+            'max-age=31536000; includeSubDomains; preload'
+        )
+        return False
+
+    def _set_security_headers(self) -> None:
+        """设置安全响应标头."""
+        # 防止 MIME 类型嗅探
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        # 防止点击劫持
+        self.send_header('X-Frame-Options', 'DENY')
+        # 启用浏览器 XSS 过滤
+        self.send_header('X-XSS-Protection', '1; mode=block')
+        # 内容安全策略
+        self.send_header(
+            'Content-Security-Policy',
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+        )
+        # 防止引用来源泄露
+        self.send_header('Referrer-Policy', 'strict-origin-when-cross-origin')
+        # 权限策略（替代 Feature-Policy）
+        self.send_header(
+            'Permissions-Policy',
+            'camera=(), microphone=(), geolocation=()'
+        )
+
+    def _set_cors_headers(self, origin: Optional[str]) -> None:
+        """
+        设置 CORS 响应标头.
+
+        Args:
+            origin: 请求的 Origin 标头
+        """
+        if validate_origin(origin, self.allowed_origins):
+            # 来源在白名单中，允许访问
+            self.send_header('Access-Control-Allow-Origin', origin)
+            self.send_header('Access-Control-Allow-Credentials', 'true')
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-API-Key')
+            self.send_header('Access-Control-Max-Age', '3600')  # 预检请求缓存 1 小时
+        else:
+            # 来源不在白名单中，拒绝访问
+            # 不设置 Access-Control-Allow-Origin，浏览器会阻止请求
+            pass
+
+    @public_endpoint
+    def do_OPTIONS(self) -> None:
+        """处理 OPTIONS 预检请求."""
+        if self._enforce_https():
+            return
+        origin = self.headers.get('Origin')
+        self.send_response(200)
+        self._set_security_headers()
+        self._set_cors_headers(origin)
+        self.send_header('Content-Length', '0')
+        self.end_headers()
 
     @public_endpoint
     def do_GET(self) -> None:
         """处理 GET 请求."""
+        if self._enforce_https():
+            return
         parsed = urlparse(self.path)
         path = parsed.path.rstrip('/') or '/'
         params = parse_qs(parsed.query)
@@ -81,6 +247,8 @@ class APIRequestHandler(BaseHTTPRequestHandler):
     @public_endpoint
     def do_POST(self) -> None:
         """处理 POST 请求."""
+        if self._enforce_https():
+            return
         parsed = urlparse(self.path)
         path = parsed.path.rstrip('/')
 
@@ -102,14 +270,27 @@ class APIRequestHandler(BaseHTTPRequestHandler):
     @require_auth
     def _handle_get_atom(self, atom_id: str) -> None:
         """获取单个原子详情."""
-        # atom_id 可能是路径（如 atoms/methods/xxx）
-        atom_path = self.kb_dir / f"{atom_id}.md"
-        if not atom_path.exists():
-            # 尝试直接作为路径
-            atom_path = self.kb_dir / atom_id
-        if not atom_path.exists():
-            self._json_response({'error': 'Atom not found'}, 404)
+        # 验证路径安全性，防止路径遍历攻击
+        if self.path_validator is None:
+            self._json_response({'error': 'Path validator not initialized'}, 500)
             return
+
+        # 净化并验证 atom_id
+        safe_path = self.path_validator.get_safe_path(atom_id)
+        if safe_path is None:
+            self._json_response({'error': 'Invalid or unsafe path'}, 400)
+            return
+
+        # 尝试添加 .md 扩展名
+        atom_path = safe_path if safe_path.suffix == '.md' else safe_path.with_suffix('.md')
+
+        if not atom_path.exists():
+            # 尝试直接使用路径（可能是完整路径）
+            if not safe_path.exists():
+                self._json_response({'error': 'Atom not found'}, 404)
+                return
+            atom_path = safe_path
+
         content = atom_path.read_text(encoding='utf-8')
         self._json_response({
             'id': atom_id,
@@ -224,9 +405,11 @@ class APIRequestHandler(BaseHTTPRequestHandler):
 
     def _json_response(self, data: Any, status: int = 200) -> None:
         """发送 JSON 响应."""
+        origin = self.headers.get('Origin')
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        self._set_security_headers()
+        self._set_cors_headers(origin)
         body = json.dumps(data, ensure_ascii=False, indent=2).encode('utf-8')
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()

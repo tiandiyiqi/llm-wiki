@@ -3,7 +3,7 @@
 提供统一的权限检查接口，集成 RBAC 和 RLS 系统。
 支持：
 - 请求级别的权限验证
-- 权限缓存
+- 权限缓存（基于 CacheManager，支持 TTL、标签、主动失效）
 - 用户上下文管理
 """
 
@@ -15,6 +15,12 @@ from functools import wraps
 
 from lib.auth.rbac import RBACManager, Permission
 from lib.auth.rls_manager import RLSManager
+from lib.auth.cache_manager import (
+    CacheManager,
+    invalidate_user_permissions,
+    invalidate_kb_permissions,
+    invalidate_all_permissions,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +116,7 @@ class PermissionMiddleware:
     """权限验证中间件
 
     提供统一的权限检查接口，集成 RBAC 和 RLS 系统。
+    使用 CacheManager 管理权限缓存，支持标签和前缀失效。
     """
 
     def __init__(
@@ -127,13 +134,24 @@ class PermissionMiddleware:
         """
         self.rbac = rbac_manager
         self.rls = rls_manager
-        self.cache = PermissionCache(ttl_seconds=cache_ttl)
+        self.cache = CacheManager(ttl=cache_ttl)
 
     async def initialize(self) -> None:
         """初始化中间件"""
         await self.rbac.initialize()
         await self.rls.initialize()
         logger.info("PermissionMiddleware initialized")
+
+    def _make_cache_key(self, user_id: str, kb_id: int) -> str:
+        """生成权限缓存键.
+
+        格式: perm:{user_id}:{kb_id}
+        """
+        return f"perm:{user_id}:{kb_id}"
+
+    def _make_cache_tags(self, user_id: str, kb_id: int) -> set:
+        """生成缓存标签集合，用于按维度批量失效."""
+        return {f"user:{user_id}", f"kb:{kb_id}"}
 
     async def get_user_context(
         self,
@@ -149,19 +167,25 @@ class PermissionMiddleware:
         Returns:
             用户上下文
         """
-        # 检查缓存
-        cached = self.cache.get(user_id)
-        if cached:
-            return cached
-
         # 获取用户可访问的知识库
         accessible_kbs = await self.rls.get_accessible_kbs(user_id)
 
-        # 获取每个知识库的权限
+        # 获取每个知识库的权限（优先从缓存读取）
         kb_permissions: Dict[int, List[Permission]] = {}
         for kb_id in accessible_kbs:
-            perms = await self.rbac.get_user_permissions(user_id, kb_id)
-            kb_permissions[kb_id] = list(perms)
+            cache_key = self._make_cache_key(user_id, kb_id)
+            cached_perms = self.cache.get(cache_key)
+            if cached_perms is not None:
+                kb_permissions[kb_id] = cached_perms
+            else:
+                perms = await self.rbac.get_user_permissions(user_id, kb_id)
+                perm_list = list(perms)
+                kb_permissions[kb_id] = perm_list
+                self.cache.set(
+                    cache_key,
+                    perm_list,
+                    tags=self._make_cache_tags(user_id, kb_id),
+                )
 
         # 获取用户角色
         roles = []
@@ -177,9 +201,6 @@ class PermissionMiddleware:
             roles=roles,
             kb_permissions=kb_permissions
         )
-
-        # 缓存
-        self.cache.set(user_id, context)
 
         return context
 
@@ -204,11 +225,20 @@ class PermissionMiddleware:
         try:
             # 使用缓存
             if auto_cache:
-                context = self.cache.get(user_id)
-                if not context:
-                    context = await self.get_user_context(user_id)
+                cache_key = self._make_cache_key(user_id, kb_id)
+                cached_perms = self.cache.get(cache_key)
+                if cached_perms is not None:
+                    return permission in cached_perms or Permission.ADMIN in cached_perms
 
-                return context.has_permission(permission, kb_id)
+                # 缓存未命中，从 RBAC 获取并写入缓存
+                perms = await self.rbac.get_user_permissions(user_id, kb_id)
+                perm_list = list(perms)
+                self.cache.set(
+                    cache_key,
+                    perm_list,
+                    tags=self._make_cache_tags(user_id, kb_id),
+                )
+                return permission in perm_list or Permission.ADMIN in perm_list
 
             # 不使用缓存，直接检查
             return await self.rbac.check_permission(user_id, kb_id, permission)
@@ -283,19 +313,53 @@ class PermissionMiddleware:
 
         return await self.check_kb_permission(user_id, kb_id, permission)
 
-    def invalidate_user_cache(self, user_id: str) -> None:
+    def invalidate_user_cache(self, user_id: str) -> int:
         """使用户缓存失效
+
+        当用户角色变更时调用。
 
         Args:
             user_id: 用户 ID
-        """
-        self.cache.invalidate(user_id)
-        logger.debug(f"Cache invalidated for user: {user_id}")
 
-    def clear_cache(self) -> None:
-        """清空所有缓存"""
-        self.cache.clear()
-        logger.info("Permission cache cleared")
+        Returns:
+            失效的条目数
+        """
+        count = invalidate_user_permissions(user_id)
+        # 同时清除按标签索引的用户条目
+        count += self.cache.invalidate_by_tag(f"user:{user_id}")
+        logger.debug(f"Cache invalidated for user: {user_id}, {count} entries")
+        return count
+
+    def invalidate_kb_cache(self, kb_id: int) -> int:
+        """使知识库缓存失效
+
+        当知识库权限策略变更时调用。
+
+        Args:
+            kb_id: 知识库 ID
+
+        Returns:
+            失效的条目数
+        """
+        count = invalidate_kb_permissions(str(kb_id))
+        count += self.cache.invalidate_by_tag(f"kb:{kb_id}")
+        logger.debug(f"Cache invalidated for KB: {kb_id}, {count} entries")
+        return count
+
+    def clear_cache(self) -> int:
+        """清空所有缓存
+
+        Returns:
+            失效的条目数
+        """
+        count = invalidate_all_permissions()
+        logger.info(f"Permission cache cleared, {count} entries")
+        return count
+
+    @property
+    def cache_stats(self) -> Dict[str, Any]:
+        """缓存统计信息."""
+        return self.cache.stats
 
     async def set_request_context(
         self,

@@ -21,6 +21,7 @@ from .query_optimizer import (
     NPlusOneDetector,
     get_nplus_one_detector,
 )
+from .log_sanitizer import LogSanitizer
 
 __all__ = [
     # SQL 验证
@@ -56,5 +57,8 @@ __all__ = [
     'QueryOptimizer',
     'NPlusOneDetector',
     'get_nplus_one_detector',
+
+    # 日志脱敏
+    'LogSanitizer',
 ]
 

@@ -4,6 +4,7 @@
 """
 
 import getpass
+import hashlib
 import json
 import logging
 import os
@@ -13,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 
 import bcrypt
+from cryptography.fernet import Fernet, InvalidToken
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -103,7 +105,18 @@ class AuthManager:
         self.config_path = kb_dir / '.kb-access.json'
         self.session_path = kb_dir / '.llm-wiki' / 'current-user.json'
         self.session_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Token 加密密钥文件路径
+        self.key_path = kb_dir / '.llm-wiki' / '.token-key'
+        self._cipher: Optional[Fernet] = None
+
+        # Token 哈希索引（用于快速查找）
+        self._token_hash_index: Dict[str, str] = {}  # hash -> encrypted_token
+
         self.config = self._load_config()
+
+        # 初始化哈希索引
+        self._build_token_hash_index()
 
         # RBAC 和 RLS 管理器（延迟初始化）
         self._rbac: Optional['RBACManager'] = None
@@ -145,6 +158,121 @@ class AuthManager:
         self.config_path.write_text(
             json.dumps(self.config, indent=2, ensure_ascii=False), encoding='utf-8'
         )
+        # 设置文件权限为 600（仅所有者可读写）
+        try:
+            os.chmod(self.config_path, 0o600)
+        except OSError as e:
+            logger.warning(f"Failed to set file permissions: {e}")
+
+    def _build_token_hash_index(self) -> None:
+        """构建 Token 哈希索引（用于快速查找）.
+
+        遍历所有存储的 Token，解密后计算哈希，建立索引。
+        这样在验证 Token 时，可以直接通过哈希查找，无需遍历所有 Token。
+        """
+        self._token_hash_index.clear()
+        tokens_dict = self.config.get('tokens', {})
+
+        for encrypted_token, token_info in tokens_dict.items():
+            try:
+                if token_info.get('encrypted'):
+                    # 解密 Token
+                    decrypted = self._decrypt_token(encrypted_token)
+                    if decrypted:
+                        # 计算哈希
+                        token_hash = hashlib.sha256(decrypted.encode()).hexdigest()
+                        self._token_hash_index[token_hash] = encrypted_token
+                else:
+                    # 兼容旧版本：未加密的 Token
+                    token_hash = hashlib.sha256(encrypted_token.encode()).hexdigest()
+                    self._token_hash_index[token_hash] = encrypted_token
+            except Exception as e:
+                logger.warning(f"Failed to build hash index for token: {e}")
+                continue
+
+        logger.debug(f"Built token hash index: {len(self._token_hash_index)} tokens")
+
+    def _get_or_create_cipher(self) -> Fernet:
+        """获取或创建 Fernet 加密器.
+
+        优先级：
+        1. 环境变量 TOKEN_ENCRYPTION_KEY
+        2. 本地密钥文件 .llm-wiki/.token-key
+        3. 生成新密钥并保存到本地文件
+
+        Returns:
+            Fernet 加密器实例
+        """
+        if self._cipher is not None:
+            return self._cipher
+
+        # 尝试从环境变量获取密钥
+        key = os.environ.get('TOKEN_ENCRYPTION_KEY')
+
+        if key:
+            try:
+                self._cipher = Fernet(key.encode())
+                return self._cipher
+            except Exception as e:
+                logger.warning(f"Invalid TOKEN_ENCRYPTION_KEY in environment: {e}")
+
+        # 尝试从本地文件加载密钥
+        if self.key_path.exists():
+            try:
+                key = self.key_path.read_text(encoding='utf-8').strip()
+                self._cipher = Fernet(key.encode())
+                return self._cipher
+            except Exception as e:
+                logger.warning(f"Failed to load encryption key from file: {e}")
+
+        # 生成新密钥
+        key = Fernet.generate_key().decode()
+        self.key_path.parent.mkdir(parents=True, exist_ok=True)
+        self.key_path.write_text(key, encoding='utf-8')
+
+        # 设置密钥文件权限为 600
+        try:
+            os.chmod(self.key_path, 0o600)
+        except OSError as e:
+            logger.warning(f"Failed to set key file permissions: {e}")
+
+        logger.info("Generated new token encryption key")
+
+        self._cipher = Fernet(key.encode())
+        return self._cipher
+
+    def _encrypt_token(self, token: str) -> str:
+        """加密 Token.
+
+        Args:
+            token: 明文 Token
+
+        Returns:
+            加密后的 Token（Base64 编码）
+        """
+        cipher = self._get_or_create_cipher()
+        encrypted = cipher.encrypt(token.encode('utf-8'))
+        return encrypted.decode('utf-8')
+
+    def _decrypt_token(self, encrypted_token: str) -> Optional[str]:
+        """解密 Token.
+
+        Args:
+            encrypted_token: 加密的 Token
+
+        Returns:
+            解密后的明文 Token，失败返回 None
+        """
+        try:
+            cipher = self._get_or_create_cipher()
+            decrypted = cipher.decrypt(encrypted_token.encode('utf-8'))
+            return decrypted.decode('utf-8')
+        except InvalidToken:
+            logger.error("Invalid encrypted token (may be corrupted or wrong key)")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to decrypt token: {e}")
+            return None
 
     def enable(self) -> None:
         """启用权限控制."""
@@ -239,7 +367,7 @@ class AuthManager:
         return True
 
     def generate_token(self, username: str, role: Optional[str] = None) -> Optional[str]:
-        """为用户生成 API Token.
+        """为用户生成 API Token（加密存储）.
 
         Args:
             username: 用户名
@@ -252,34 +380,115 @@ class AuthManager:
             return None
         token = secrets.token_urlsafe(32)
         user_role = role or self.config['users'][username].get('role', 'reader')
-        self.config.setdefault('tokens', {})[token] = {
+
+        # 加密存储 Token
+        encrypted_token = self._encrypt_token(token)
+
+        self.config.setdefault('tokens', {})[encrypted_token] = {
             'username': username,
             'role': user_role,
             'created': datetime.now().isoformat(),
+            'encrypted': True,  # 标记为加密存储
         }
         self._save_config()
+
+        # 更新哈希索引
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        self._token_hash_index[token_hash] = encrypted_token
+
+        # 返回原始 Token（用户需要保存）
         return token
 
     def revoke_token(self, token: str) -> bool:
-        """吊销 Token."""
-        if token in self.config.get('tokens', {}):
-            del self.config['tokens'][token]
-            self._save_config()
-            return True
+        """吊销 Token（使用哈希索引优化性能）.
+
+        Args:
+            token: Token 字符串（明文）
+
+        Returns:
+            是否成功
+        """
+        # 计算 Token 哈希
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+        # 使用哈希索引快速查找
+        encrypted_token = self._token_hash_index.get(token_hash)
+
+        if encrypted_token:
+            # 找到匹配的 Token，删除
+            if encrypted_token in self.config.get('tokens', {}):
+                del self.config['tokens'][encrypted_token]
+                self._save_config()
+                # 从索引中移除
+                del self._token_hash_index[token_hash]
+                return True
+
+        # 哈希索引未找到，降级到遍历查找
+        logger.warning("Token hash index miss during revoke, falling back to linear search")
+        tokens_dict = self.config.get('tokens', {})
+
+        for enc_token, token_info in tokens_dict.items():
+            if token_info.get('encrypted'):
+                decrypted = self._decrypt_token(enc_token)
+                if decrypted and decrypted == token:
+                    del self.config['tokens'][enc_token]
+                    self._save_config()
+                    # 重建索引
+                    self._build_token_hash_index()
+                    return True
+            else:
+                # 兼容旧版本：直接比较未加密的 Token
+                if enc_token == token:
+                    del self.config['tokens'][enc_token]
+                    self._save_config()
+                    # 重建索引
+                    self._build_token_hash_index()
+                    return True
+
         return False
 
     def validate_token(self, token: str) -> Optional[str]:
-        """验证 Token，返回角色.
+        """验证 Token，返回角色（使用哈希索引优化性能）.
 
-        Args:
-            token: Token 字符串
+        Args Token 字符串（明文）
 
         Returns:
-            角色字符串，无效返回 None
+            角色返回 None
         """
-        token_info = self.config.get('tokens', {}).get(token)
-        if token_info:
-            return token_info.get('role', 'reader')
+        # 计算 Token 哈希
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+        # 使用哈希索引快速查找
+        encrypted_token = self._token_hash_index.get(token_hash)
+
+        if encrypted_token:
+            # 找到匹配的 Token，返回角色
+            token_info = self.config.get('tokens', {}).get(encrypted_token)
+            if token_info:
+                return token_info.get('role', 'reader')
+
+        # 哈希索引未找到，可能索引未同步，降级到遍历查找
+        # 这种情况只在以下场景发生：
+        # 1. 索引未正确初始化
+        # 2. Token 是旧版本未加密的
+        logger.warning("Token hash index miss, falling back to linear search")
+        tokens_dict = self.config.get('tokens', {})
+
+        for enc_token, token_info in tokens_dict.items():
+            # 如果 Token 标记为加密
+            if token_info.get('encrypted'):
+                decrypted = self._decrypt_token(enc_token)
+                if decrypted and decrypted == token:
+                    # 重建索引以提高后续查找性能
+                    self._build_token_hash_index()
+                    return token_info.get('role', 'reader')
+            else:
+                # 兼容旧版本：直接比较未加密的 Token
+                if enc_token == token:
+                    # 重建索引以提高后续查找性能
+                    self._build_token_hash_index()
+                    return token_info.get('role', 'reader')
+
         return None
 
     def add_ip_whitelist(self, ip: str) -> None:
@@ -445,12 +654,24 @@ class AuthManager:
     def list_tokens(self) -> List[Dict]:
         """列出所有 Token（脱敏显示）."""
         tokens = []
-        for token, info in self.config.get('tokens', {}).items():
+        for encrypted_token, info in self.config.get('tokens', {}).items():
+            # 尝试解密 Token（如果已加密）
+            if info.get('encrypted'):
+                decrypted = self._decrypt_token(encrypted_token)
+                if decrypted:
+                    display_token = decrypted[:8] + '...' + decrypted[-4:]
+                else:
+                    display_token = '<encrypted>'
+            else:
+                # 兼容旧版本未加密的 Token
+                display_token = encrypted_token[:8] + '...' + encrypted_token[-4:]
+
             tokens.append({
-                'token': token[:8] + '...' + token[-4:],
+                'token': display_token,
                 'username': info.get('username', ''),
                 'role': info.get('role', 'reader'),
                 'created': info.get('created', ''),
+                'encrypted': info.get('encrypted', False),
             })
         return tokens
 

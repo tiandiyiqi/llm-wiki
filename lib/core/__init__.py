@@ -32,6 +32,7 @@ from .db_manager import DatabaseManager
 from .sqlite_manager import SQLiteManager
 from .postgres_manager import PostgreSQLManager
 from .factory import create_manager, StorageFactory, get_manager_class
+from .transaction import TransactionContext, TransactionError, transaction, with_retry
 
 __all__ = [
     'DatabaseManager',
@@ -42,4 +43,8 @@ __all__ = [
     'create_manager',
     'StorageFactory',
     'get_manager_class',
+    'TransactionContext',
+    'TransactionError',
+    'transaction',
+    'with_retry',
 ]

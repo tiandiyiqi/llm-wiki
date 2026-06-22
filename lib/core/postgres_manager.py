@@ -685,21 +685,42 @@ class PostgreSQLManager(DatabaseManager):
     # ========== 事务操作 ==========
 
     async def begin_transaction(self) -> None:
-        """开始事务"""
+        """开始事务，获取独占连接."""
+        if self._transaction_conn is not None:
+            logger.warning("Transaction already active, nesting not supported")
+            return
         self._transaction_conn = await self.pool.acquire()
+        await self._transaction_conn.execute('BEGIN')
+        logger.debug("PostgreSQL transaction started")
 
     async def commit_transaction(self) -> None:
-        """提交事务"""
-        if self._transaction_conn:
-            await self._transaction_conn.reset()
+        """提交事务并释放连接."""
+        if self._transaction_conn is None:
+            logger.warning("No active transaction to commit")
+            return
+        try:
+            await self._transaction_conn.execute('COMMIT')
+            logger.debug("PostgreSQL transaction committed")
+        except Exception as e:
+            logger.error("PostgreSQL commit failed: %s", e)
+            await self._transaction_conn.execute('ROLLBACK')
+            raise
+        finally:
             await self.pool.release(self._transaction_conn)
             self._transaction_conn = None
 
     async def rollback_transaction(self) -> None:
-        """回滚事务"""
-        if self._transaction_conn:
-            # asyncpg 的 transaction 上下文管理器会自动处理回滚
-            await self._transaction_conn.reset()
+        """回滚事务并释放连接."""
+        if self._transaction_conn is None:
+            logger.warning("No active transaction to rollback")
+            return
+        try:
+            await self._transaction_conn.execute('ROLLBACK')
+            logger.debug("PostgreSQL transaction rolled back")
+        except Exception as e:
+            logger.error("PostgreSQL rollback failed: %s", e)
+            raise
+        finally:
             await self.pool.release(self._transaction_conn)
             self._transaction_conn = None
 
