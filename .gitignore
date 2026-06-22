@@ -4,32 +4,134 @@ __pycache__/
 *$py.class
 *.so
 .Python
+*.pyc
+*.pyo
+*.pyd
 
-# Distribution
+# Distribution / Packaging
 dist/
 build/
 *.egg-info/
 *.egg
+.eggs/
+MANIFEST
 
 # Virtual environments
 venv/
+.venv/
 ENV/
 env/
+.env/
 
-# IDE
+# Testing
+.coverage
+.pytest_cache/
+.mypy_cache/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# IDE / Editors
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-workspace
+*.sublime-project
 
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
 # Project specific
 *.tar.gz
 .bundle/
-.chroma/          # Semantic search embeddings
+.chroma/              # Semantic search embeddings
+.cache/               # Cache files
 
+# Build outputs
+node_modules/
+out/
+.output/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+
+# Claude Code
+.claude/plans/        # Local planning files
+.claude/project.md    # Local project config
+
+# Coverage reports
+htmlcov/
+.coverage
+
+# npm
+node_modules/
+package-lock.json
+yarn.lock
+
+# Config files with secrets
+config/local.yaml
+config/local.yml
+config/secrets.yaml
+config/secrets.yml
+*.secret
+*.key
+*.pem
+
+# Large generated files
+npminstall-debug.log
+
+# Backup files
+*.backup
+*.old
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Doc directory (keep structure, ignore content)
 Doc/
+
+# GStack
 .gstack/
+
+# Worktrees
+.claude/worktrees/
+.worktrees/
+worktrees/
