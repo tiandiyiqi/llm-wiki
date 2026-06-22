@@ -11,6 +11,7 @@ from .querier import KnowledgeQuerier, AggregatedQuerier
 from .ingestor import KnowledgeIngestor
 from .constants import RESERVED_FILES
 from .yaml_parser import SimpleYAMLParser
+from .auth.auth_middleware import require_auth, public_endpoint
 
 
 class APIServer:
@@ -54,6 +55,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
 
     kb_dir: Path = Path('.')
 
+    @public_endpoint
     def do_GET(self) -> None:
         """处理 GET 请求."""
         parsed = urlparse(self.path)
@@ -76,6 +78,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         else:
             self._json_response({'error': 'Not found'}, 404)
 
+    @public_endpoint
     def do_POST(self) -> None:
         """处理 POST 请求."""
         parsed = urlparse(self.path)
@@ -88,6 +91,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         else:
             self._json_response({'error': 'Not found'}, 404)
 
+    @require_auth
     def _handle_list_atoms(self, params: Dict) -> None:
         """列出原子."""
         atom_type = params.get('type', [None])[0]
@@ -95,6 +99,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         atoms = self._load_atoms(by_type=atom_type, limit=limit)
         self._json_response({'atoms': atoms, 'count': len(atoms)})
 
+    @require_auth
     def _handle_get_atom(self, atom_id: str) -> None:
         """获取单个原子详情."""
         # atom_id 可能是路径（如 atoms/methods/xxx）
@@ -112,6 +117,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
             'content': content
         })
 
+    @require_auth
     def _handle_query(self, params: Dict) -> None:
         """查询知识."""
         q = params.get('q', [''])[0]
@@ -131,6 +137,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
             r.pop('frontmatter', None)
         self._json_response({'query': q, 'results': results, 'count': len(results)})
 
+    @require_auth
     def _handle_suggest(self, params: Dict) -> None:
         """搜索建议."""
         prefix = params.get('q', [''])[0]
@@ -138,6 +145,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         suggestions = querier.get_suggestions(prefix)
         self._json_response({'suggestions': suggestions})
 
+    @require_auth
     def _handle_stats(self) -> None:
         """统计数据."""
         try:
@@ -148,6 +156,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         except (ImportError, OSError) as e:
             self._json_response({'error': str(e)}, 500)
 
+    @require_auth
     def _handle_ingest(self) -> None:
         """摄入资料."""
         content_length = int(self.headers.get('Content-Length', 0))
@@ -170,6 +179,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         else:
             self._json_response({'error': 'Ingest failed'}, 500)
 
+    @require_auth
     def _handle_embed(self) -> None:
         """触发向量化."""
         try:

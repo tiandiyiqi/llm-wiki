@@ -1,0 +1,30 @@
+# Python 环境配置
+
+本项目需要 Python 3.11 或更高版本。
+
+## 推荐版本
+
+- Python 3.12.x（已验证）
+- Python 3.11.x（稳定）
+- Python 3.13.x（可用）
+
+## 不支持的版本
+
+- Python 3.14.x（预览版，部分依赖不支持）
+
+## 创建虚拟环境
+
+```bash
+# 使用 Python 3.12
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+## 验证安装
+
+```bash
+source .venv/bin/activate
+python -c "import bcrypt; print(f'bcrypt {bcrypt.__version__}')"
+python -c "import chromadb; print(f'chromadb {chromadb.__version__}')"
+```
