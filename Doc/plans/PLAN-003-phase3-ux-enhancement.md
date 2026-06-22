@@ -1,24 +1,25 @@
 ---
 name: PLAN-003-phase3-ux-enhancement
 description: 阶段3 - 用户体验增强（搜索优化、媒体处理、在线预览、移动端）
-status: ready_to_start
+status: segments_generated
 created: 2026-06-22
-updated: 2026-06-22
+updated: 2026-06-23
 phase: 3
 priority: P1
 estimated_duration: 2-3个月
 depends_on:
-  - PLAN-002 (✅ 已完成 - 阶段1核心基础 + 阶段2企业功能)
+  - PLAN-002 (✅ 已完成 - 阶段1核心基础 + 阶段2知识库/权限部分)
+  - PLAN-000 阶段2其余功能 (⏳ 未开始 - 不阻塞阶段3)
 prerequisites_met: true
 ---
 
 # 阶段3：用户体验增强实施计划
 
 > **创建时间**：2026-06-22
-> **最后更新**：2026-06-22
+> **最后更新**：2026-06-23
 > **状态**：✅ **准备就绪**（PLAN-002 已完成）
 > **预计周期**：2-3个月
-> **预算范围**：21-34万元
+> **预算范围**：23-38万元
 
 ---
 
@@ -33,12 +34,20 @@ prerequisites_met: true
 - ✅ pgvector 向量搜索支持
 - ✅ 完整测试覆盖率（90.84%）
 
-**阶段 2 - 企业功能（✅ 完成）**：
+**阶段 2 - 企业功能（⚠️ 部分完成）**：
 - ✅ 多级知识库模型（4 层层级）
 - ✅ 权限系统（RBAC + RLS）
 - ✅ 知识库管理 API（20+ 端点）
 - ✅ Web UI（知识库 + 权限管理）
 - ✅ 完整 API 文档和部署指南
+- ⏳ Casdoor SSO 集成（未开始）
+- ⏳ 版本管理系统（未开始）
+- ⏳ 审计日志不可篡改（未开始）
+- ⏳ 数据加密存储（未开始）
+- ⏳ 容器化部署（未开始）
+
+> **注意**：PLAN-002 完成的是阶段1核心基础 + 阶段2中的知识库/权限部分。
+> 阶段2的 SSO/版本管理/审计/加密/容器化尚未开始，不影响阶段3执行。
 
 ### 🎯 可立即利用的基础设施
 
@@ -99,19 +108,24 @@ prerequisites_met: true
 
 **依赖**：✅ 阶段1（PostgreSQL + 存储抽象层）- **已就绪**
 
+> **⚠️ 重要发现**：`lib/db/schema.sql` 中已存在 `atom_assets` 表，支持内联/外部存储、
+> 缩略图（thumbnail BYTEA）、宽高、checksum 等字段。阶段3应**扩展现有表**，
+> 而非新建 `images` / `image_variants` 表。
+
 | 任务 | 内容 | 文件 | 周期 | 复用基础 |
 |------|------|------|------|----------|
-| 1.1 | 图像表设计（images, image_variants） | `migrations/020_images.sql` | 1天 | ✅ 数据库已配置 |
+| 1.1 | 扩展 atom_assets 表（增加多尺寸变体支持） | `lib/db/schema.sql` + `lib/migration/migrate.py` | 1天 | ✅ atom_assets 表已存在 |
 | 1.2 | 图像存储服务（ImageStorageService） | `lib/media/image_storage.py` | 2天 | ✅ StorageInterface 可复用 |
 | 1.3 | 缩略图生成（Pillow） | `lib/media/thumbnail.py` | 2天 | 新功能 |
 | 1.4 | 图像上传 API | `lib/api/image_api.py` | 2天 | ✅ API 框架可复用 |
 | 1.5 | 图像服务集成测试 | `tests/media/test_image_storage.py` | 2天 | ✅ 测试框架已建立 |
 
 **技术方案**：
-- PostgreSQL 存储：元数据 + 文件路径
+- PostgreSQL 存储：元数据 + 文件路径（复用 `atom_assets` 表）
 - 文件系统：原图 + 多尺寸缩略图
 - 支持：JPEG, PNG, WebP, GIF
 - **新增优势**：可直接使用 `StorageInterface` 统一接口
+- **迁移方式**：通过 `lib/migration/migrate.py` 添加增量迁移（非 SQL 文件）
 
 **并行机会**：
 - 任务 1.2 和 1.3 可并行（不同开发者）
@@ -135,30 +149,39 @@ prerequisites_met: true
 
 ### 阶段 3.2：搜索优化（2周）
 
-#### 任务组 3：搜索引擎基础
+#### 任务组 3：搜索引擎增强
 
 **依赖**：✅ 阶段1（PostgreSQL + pgvector）- **已就绪**
 
+> **⚠️ 重要发现**：`lib/search/` 已完整实现搜索功能：
+> - `engine.py` — 搜索引擎抽象基类（含 SearchEngine, SearchResult, SearchFilters）
+> - `postgres_search.py` — 已实现全文搜索、高亮（ts_headline）、联想（suggest）、向量搜索、混合搜索（RRF）
+> - `hybrid_search.py` — RRF 混合检索优化器
+> - `lib/db/indexes.sql` — 已包含 GIN 全文索引（`idx_atoms_tsv`）
+>
+> 阶段3.2 的重点是**增强现有搜索**，而非从零构建。
+
 | 任务 | 内容 | 文件 | 周期 | 复用基础 |
 |------|------|------|------|----------|
-| 3.1 | 全文搜索索引（GIN + pg_trgm） | `migrations/030_search_indexes.sql` | 1天 | ✅ 数据库已配置 |
-| 3.2 | 搜索高亮（ts_headline） | `lib/search/highlight.py` | 2天 | 新功能 |
-| 3.3 | 搜索联想（前缀匹配） | `lib/search/suggest.py` | 2天 | 新功能 |
+| 3.1 | 启用 pg_trgm 扩展 + 中文搜索支持 | `lib/db/schema.sql` + `lib/migration/migrate.py` | 2天 | ✅ GIN 索引已存在，需加 pg_trgm + zhparser |
+| 3.2 | 搜索高亮增强（多字段高亮、自定义片段） | `lib/search/highlight.py` | 1天 | ✅ postgres_search.py 已有 search_with_highlights |
+| 3.3 | 搜索联想增强（历史搜索、热门建议） | `lib/search/suggest.py` | 2天 | ✅ postgres_search.py 已有 suggest |
 | 3.4 | 摘要生成（LLM 抽取） | `lib/search/summary.py` | 2天 | 新功能 |
-| 3.5 | 向量搜索集成 | `lib/search/vector_search.py` | 2天 | ✅ pgvector 已启用 |
+| 3.5 | 向量搜索优化（索引策略、批量嵌入） | `lib/search/vector_search.py` | 1天 | ✅ pgvector 已集成，需优化索引创建时机 |
 
 **技术方案**：
-- PostgreSQL 全文搜索（tsvector + tsquery）
-- pg_trgm 支持模糊匹配
-- pgvector 支持语义搜索
-- 混合搜索：关键词 + 向量
-- **新增优势**：pgvector 扩展已在 PLAN-002 中启用
+- PostgreSQL 全文搜索（tsvector + tsquery）— ✅ 已实现
+- pg_trgm 支持模糊匹配 — 需启用扩展
+- zhparser 中文分词 — 需安装扩展（信创友好，见 indexes.sql 注释）
+- pgvector 支持语义搜索 — ✅ 已实现
+- 混合搜索：关键词 + 向量 — ✅ 已实现（RRF）
+- **新增重点**：中文搜索支持、LLM 摘要生成、搜索体验优化
 
 #### 任务组 4：搜索 API & UI
 
 | 任务 | 内容 | 文件 | 周期 |
 |------|------|------|------|
-| 4.1 | 搜索 API（统一接口） | `lib/api/search_api.py` | 2天 |
+| 4.1 | 搜索 API（统一接口，对接现有 SearchEngine） | `lib/api/search_api.py` | 1天 |
 | 4.2 | 搜索前端组件 | `views/components/search-box.html` | 3天 |
 | 4.3 | 搜索结果页面 | `views/search/results.html` | 2天 |
 
@@ -177,15 +200,19 @@ prerequisites_met: true
 
 | 任务 | 内容 | 文件 | 周期 |
 |------|------|------|------|
-| 5.1 | OCR 任务表设计 | `migrations/040_ocr_tasks.sql` | 1天 |
+| 5.1 | OCR 任务表设计 | `lib/db/schema.sql` + `lib/migration/migrate.py` | 1天 |
 | 5.2 | PaddleOCR 集成 | `lib/ocr/paddle_ocr.py` | 5天 |
 | 5.3 | OCR 任务队列（Celery/Redis） | `lib/ocr/task_queue.py` | 3天 |
 | 5.4 | OCR 结果存储 | `lib/ocr/result_store.py` | 2天 |
+| 5.5 | OCR 任务重试与死信队列 | `lib/ocr/task_queue.py` | 1天 |
 
 **技术方案**：
 - PaddleOCR（开源、信创友好）
 - 任务队列：Celery + Redis
 - 结果存储：PostgreSQL + 文件系统
+- 任务重试：最多 3 次，指数退避
+- 死信队列：超过重试次数的任务进入死信队列，需人工处理
+- 超时处理：单页 OCR 超时 60s，整文档超时 10min
 
 **并行机会**：
 - 任务 5.2 和 5.3 可并行（不同开发者）
@@ -214,14 +241,14 @@ prerequisites_met: true
 
 | 任务 | 内容 | 文件 | 周期 |
 |------|------|------|------|
-| 7.1 | 预览表设计（previews） | `migrations/050_previews.sql` | 1天 |
-| 7.2 | PDF.js 集成（PDF 预览） | `lib/preview/pdf_viewer.py` | 4天 |
-| 7.3 | KKFileView 集成（Office） | `lib/preview/office_viewer.py` | 5天 |
+| 7.1 | 预览表设计（previews） | `lib/db/schema.sql` + `lib/migration/migrate.py` | 1天 |
+| 7.2 | PDF.js 前端集成（浏览器端 PDF 渲染） | `views/components/pdf-viewer.html` + `views/lib/pdf.js/` | 4天 |
+| 7.3 | KKFileView 集成（Office 文档转换服务） | `lib/preview/office_viewer.py` | 5天 |
 | 7.4 | 预览缓存管理 | `lib/preview/cache_manager.py` | 3天 |
 
 **技术方案**：
-- PDF.js：浏览器端 PDF 渲染
-- KKFileView：Office 文档转换（信创友好）
+- PDF.js：浏览器端 PDF 渲染（前端组件，非后端服务）
+- KKFileView：Office 文档转换（后端服务，信创友好）
 - 缓存：Redis + 文件系统
 
 **并行机会**：
@@ -255,14 +282,15 @@ prerequisites_met: true
 | 9.1 | 响应式布局框架 | `views/layouts/responsive.html` | 3天 |
 | 9.2 | 移动端导航 | `views/components/mobile-nav.html` | 2天 |
 | 9.3 | 移动端编辑器 | `views/components/mobile-editor.html` | 5天 |
-| 9.4 | 触摸手势支持 | `static/js/touch-gestures.js` | 3天 |
+| 9.4 | 触摸手势支持 | `views/js/touch-gestures.js` | 3天 |
+| 9.5 | 现有 JS 库移动端兼容性评估 | `views/lib/` (cytoscape 等) | 1天 |
 
 #### 任务组 10：PWA 支持
 
 | 任务 | 内容 | 文件 | 周期 |
 |------|------|------|------|
-| 10.1 | Service Worker | `static/sw.js` | 3天 |
-| 10.2 | 离线缓存策略 | `static/js/offline-cache.js` | 3天 |
+| 10.1 | Service Worker | `views/js/sw.js` | 3天 |
+| 10.2 | 离线缓存策略 | `views/js/offline-cache.js` | 3天 |
 | 10.3 | 安装提示 | `views/components/pwa-install.html` | 1天 |
 | 10.4 | Push 通知 | `lib/push/notification.py` | 4天 |
 
@@ -313,7 +341,7 @@ graph TB
 
 **可并行**：
 - ✅ 3.1（图像）和 3.2（搜索）- 无依赖
-- ✅ 3.3（OCR）和 3.4（预览）- 无依赖（等3.1完成）
+- ✅ 3.3（OCR）和 3.4（预览）- 3.3 依赖 3.1，3.4 依赖阶段1；3.1 完成后 3.3 和 3.4 可并行
 - ✅ 3.1 内部任务 1.2 和 1.3
 - ✅ 3.3 内部任务 5.2 和 5.3
 - ✅ 3.4 内部任务 7.2 和 7.3
@@ -437,6 +465,8 @@ graph TB
 | KKFileView 部署复杂 | Office 预览延期 | 提前搭建测试环境 |
 | PaddleOCR 性能瓶颈 | OCR 响应慢 | GPU 加速 + 任务队列 |
 | 移动端兼容性问题 | 部分设备异常 | 主流设备测试覆盖 |
+| zhparser 编译安装 | 中文搜索不可用 | 备选：pg_jieba 或简单分词方案 |
+| Redis 单点故障 | OCR/缓存不可用 | Redis Sentinel 高可用 |
 
 ### 中风险（MEDIUM）
 
@@ -460,11 +490,11 @@ graph TB
 | 阶段 | 人力成本 | 基础设施 | 合计 |
 |------|----------|----------|------|
 | 3.1 图像存储 | 5-8万 | 1-2万 | 6-10万 |
-| 3.2 搜索优化 | 3-5万 | 0.5万 | 3.5-5.5万 |
-| 3.3 OCR | 4-7万 | 1万 | 5-8万 |
-| 3.4 在线预览 | 4-6万 | 1万 | 5-7万 |
+| 3.2 搜索优化 | 2-4万 | 0.5万 | 2.5-4.5万 |
+| 3.3 OCR | 5-8万 | 1-2万 | 6-10万 |
+| 3.4 在线预览 | 4-6万 | 1-2万 | 5-8万 |
 | 3.5 移动端 | 3-5万 | 0.5万 | 3.5-5.5万 |
-| **总计** | **19-31万** | **4万** | **23-35万** |
+| **总计** | **19-31万** | **4-6.5万** | **23-37.5万** |
 
 **说明**：
 - 人力成本：按 1-2 名开发者计算
@@ -534,14 +564,18 @@ graph TB
 
 1. **环境准备**
    ```bash
-   # 安装依赖
+   # 安装 Python 依赖（更新 pyproject.toml）
    pip install Pillow paddleocr pdf2image redis celery
 
-   # 启动 Redis（OCR 队列）
+   # 启动 Redis（OCR 队列 + 预览缓存）
    docker run -d -p 6379:6379 redis:latest
 
-   # 部署 KKFileView
+   # 部署 KKFileView（Office 文档预览）
    docker run -d -p 8012:8012 keking/kkfileview
+
+   # 安装 zhparser（中文分词，需编译）
+   # 参考：https://github.com/amutu/zhparser
+   # 需要 PostgreSQL superuser 权限
    ```
 
 2. **启动阶段 3.1**
@@ -576,6 +610,30 @@ graph TB
 ---
 
 **计划创建时间**：2026-06-22
-**最后更新时间**：2026-06-22
+**最后更新时间**：2026-06-23
 **状态**：✅ **准备就绪，可立即启动**
 **前置条件**：✅ PLAN-002 已完成（100%）
+
+---
+
+## 附录：修订记录
+
+### 2026-06-23 修订
+
+基于项目实际代码结构校验，修正以下问题：
+
+| # | 类型 | 原内容 | 修正内容 |
+|---|------|--------|----------|
+| 1 | 🔴 严重 | 迁移文件路径 `migrations/020_images.sql` 等 | 项目无 `migrations/` 目录，迁移通过 `lib/migration/migrate.py` 执行 |
+| 2 | 🔴 严重 | 阶段3.2 从零构建搜索高亮/联想/向量搜索 | `lib/search/` 已完整实现，阶段3.2 改为**增强现有功能** |
+| 3 | 🔴 严重 | 新建 `images`/`image_variants` 表 | `atom_assets` 表已存在，应扩展而非新建 |
+| 4 | 🔴 严重 | `static/sw.js`、`static/js/` 路径 | 项目无 `static/` 目录，JS 在 `views/js/` |
+| 5 | 🔴 严重 | 全文索引需新建 | `lib/db/indexes.sql` 已包含 GIN 全文索引 |
+| 6 | 🟡 中等 | 阶段2标注"✅ 完成" | 修正为"⚠️ 部分完成"，SSO/版本管理/审计/加密/容器化未开始 |
+| 7 | 🟡 中等 | 未提及中文搜索支持 | 增加 zhparser/pg_jieba 中文分词方案 |
+| 8 | 🟡 中等 | 预算头部"21-34万"与表格"23-35万"不一致 | 统一为"23-38万"（含 Redis 基础设施） |
+| 9 | 🟡 中等 | 缺少 Redis 依赖说明 | 环境准备增加 Redis Sentinel + pyproject.toml 说明 |
+| 10 | 🟡 中等 | PDF.js 描述为后端 `lib/preview/pdf_viewer.py` | 修正为前端组件 `views/components/pdf-viewer.html` |
+| 11 | 🟢 轻微 | 并行策略"3.3和3.4无依赖" | 修正：3.3依赖3.1，3.4依赖阶段1；3.1完成后3.3和3.4可并行 |
+| 12 | 🟢 轻微 | 缺少OCR任务重试/死信策略 | 增加：3次重试+指数退避+死信队列+超时处理 |
+| 13 | 🟢 轻微 | 未评估现有JS库移动端兼容性 | 增加任务9.5：cytoscape等库移动端兼容性评估 |

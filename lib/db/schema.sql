@@ -12,6 +12,14 @@
 -- 启用 pgvector 扩展（向量索引）
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- 启用 pg_trgm 扩展（模糊匹配）
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- 中文分词配置（zhparser 需单独安装）
+-- 如果 zhparser 可用：
+-- CREATE TEXT SEARCH CONFIGURATION zh (PARSER = zhparser);
+-- ALTER TEXT SEARCH CONFIGURATION zh ADD MAPPING FOR n,v,a,i,e,l,j WITH simple;
+
 -- 启用 pgcrypto 扩展（字段加密）
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -86,6 +94,14 @@ CREATE TYPE audit_action AS ENUM (
     'import',       -- 导入
     'login',        -- 登录
     'logout'        -- 登出
+);
+
+-- 资产变体类型
+CREATE TYPE asset_variant_type AS ENUM (
+    'original',     -- 原始图像
+    'thumbnail',    -- 缩略图
+    'medium',       -- 中等尺寸
+    'large'         -- 大尺寸
 );
 
 -- 审计资源类型
@@ -490,7 +506,10 @@ CREATE TABLE atom_assets (
     -- 图像元数据
     width INTEGER,
     height INTEGER,
-    thumbnail BYTEA,                         -- 缩略图
+
+    -- 变体支持
+    variant_type asset_variant_type DEFAULT 'original',
+    variant_of_id INTEGER REFERENCES atom_assets(id) ON DELETE SET NULL,
 
     -- 时间戳
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -500,12 +519,23 @@ CREATE TABLE atom_assets (
     CONSTRAINT chk_storage_consistency CHECK (
         (storage_type = 'inline' AND data IS NOT NULL) OR
         (storage_type = 'external' AND storage_path IS NOT NULL)
+    ),
+
+    -- 变体一致性约束：原始图像不能有 variant_of_id
+    CONSTRAINT chk_variant_consistency CHECK (
+        variant_type = 'original' OR variant_of_id IS NOT NULL
     )
 );
 
 COMMENT ON TABLE atom_assets IS '知识原子图像资产表';
 COMMENT ON COLUMN atom_assets.storage_type IS '存储类型：inline（内联）/external（外部）';
 COMMENT ON COLUMN atom_assets.storage_provider IS '外部存储提供商：local/minio/s3/oss';
+COMMENT ON COLUMN atom_assets.variant_type IS '变体类型：original/thumbnail/medium/large';
+COMMENT ON COLUMN atom_assets.variant_of_id IS '所属原始图像ID（变体图像指向原始图像）';
+
+-- 变体查询索引
+CREATE INDEX idx_atom_assets_variant_of_id ON atom_assets(variant_of_id);
+CREATE INDEX idx_atom_assets_variant_type ON atom_assets(variant_type);
 
 -- ----------------------------------------------------------------------------
 -- 审计日志表（分区表）

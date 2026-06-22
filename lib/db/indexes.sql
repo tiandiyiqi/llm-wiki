@@ -91,6 +91,38 @@ CREATE INDEX idx_atoms_tsv ON atoms USING GIN(content_tsv);
 -- );
 
 -- ----------------------------------------------------------------------------
+-- pg_trgm 模糊搜索索引
+-- ----------------------------------------------------------------------------
+
+-- 标题模糊匹配索引（支持 LIKE '%keyword%' 和相似度搜索）
+CREATE INDEX IF NOT EXISTS idx_atoms_title_trgm ON atoms USING gin(title gin_trgm_ops);
+
+-- 描述模糊匹配索引
+CREATE INDEX IF NOT EXISTS idx_atoms_description_trgm ON atoms USING gin(description gin_trgm_ops)
+    WHERE description IS NOT NULL;
+
+-- 搜索历史表（用于搜索联想和热门搜索词统计）
+CREATE TABLE IF NOT EXISTS search_history (
+    id BIGSERIAL PRIMARY KEY,
+    query TEXT NOT NULL,
+    user_id VARCHAR(64),
+    kb_id INTEGER REFERENCES knowledge_bases(id) ON DELETE SET NULL,
+    result_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE search_history IS '搜索历史记录表';
+COMMENT ON COLUMN search_history.query IS '搜索查询字符串';
+COMMENT ON COLUMN search_history.result_count IS '搜索结果数量';
+
+-- 搜索历史索引
+CREATE INDEX IF NOT EXISTS idx_search_history_query ON search_history(query);
+CREATE INDEX IF NOT EXISTS idx_search_history_user ON search_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_search_history_kb ON search_history(kb_id);
+CREATE INDEX IF NOT EXISTS idx_search_history_created ON search_history(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_search_history_query_trgm ON search_history USING gin(query gin_trgm_ops);
+
+-- ----------------------------------------------------------------------------
 -- 向量索引（pgvector）
 -- ----------------------------------------------------------------------------
 
