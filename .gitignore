@@ -125,8 +125,10 @@ npminstall-debug.log
 .Trashes
 ehthumbs.db
 
-# Doc directory (keep structure, ignore content)
-Doc/
+# Doc directory - keep structure, ignore generated content
+Doc/plans/*.segments.md
+Doc/*.tmp
+Doc/*.draft
 
 # GStack
 .gstack/
