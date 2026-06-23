@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>搜索结果 - LLM Wiki</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/views/css/responsive.css">
     <style>
         body { background: #f7fafc; }
         .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
@@ -40,6 +41,9 @@
         .page-btn:hover { border-color: #667eea; color: #667eea; }
         .page-btn.active { background: #667eea; color: white; border-color: #667eea; }
         .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        @media (max-width: 767px) {
+            .page-btn { min-width: 32px; height: 32px; font-size: 12px; }
+        }
         .summary-content { line-height: 1.7; color: #2d3748; }
         .summary-content h1, .summary-content h2, .summary-content h3 { font-weight: 600; margin: 1em 0 0.5em; color: #1a202c; }
         .summary-content code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
@@ -49,31 +53,39 @@
 <body class="min-h-screen">
     <!-- 顶部导航 -->
     <header class="bg-white shadow-sm">
-        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <div class="flex items-center gap-4">
-                <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
-                <h1 class="text-xl font-bold text-gray-800">搜索结果</h1>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+            <div class="flex items-center gap-2 sm:gap-4">
+                <a href="/" class="text-gray-600 hover:text-gray-800 text-sm sm:text-base">← 返回首页</a>
+                <h1 class="text-base sm:text-xl font-bold text-gray-800">搜索结果</h1>
             </div>
-            <div class="flex items-center gap-3">
-                <span class="text-sm text-gray-600">当前: <strong id="currentUserName">-</strong></span>
-                <button onclick="API.logout()" class="btn btn-secondary btn-sm">退出</button>
+            <div class="flex items-center gap-2 sm:gap-3">
+                <span class="text-xs sm:text-sm text-gray-600 hidden sm:inline">当前: <strong id="currentUserName">-</strong></span>
+                <button onclick="API.logout()" class="btn btn-secondary btn-sm touch-target">退出</button>
             </div>
         </div>
     </header>
 
-    <div class="max-w-7xl mx-auto px-6 py-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         <!-- 搜索栏 -->
-        <div class="card p-6 mb-4">
-            <div class="flex gap-3">
-                <input type="text" id="searchInput" class="search-input flex-1"
+        <div class="card p-4 sm:p-6 mb-4">
+            <div class="flex flex-col sm:flex-row gap-3">
+                <input type="text" id="searchInput" class="search-input flex-1 w-full"
                     placeholder="输入搜索关键词..." onkeydown="if(event.key==='Enter')doSearch()">
-                <button onclick="doSearch()" class="btn btn-primary" style="padding:12px 24px;font-size:16px;">搜索</button>
+                <button onclick="doSearch()" class="btn btn-primary touch-target w-full sm:w-auto" style="padding:12px 24px;font-size:16px;">搜索</button>
             </div>
         </div>
 
         <!-- 筛选器 -->
         <div class="card p-4 mb-4">
-            <div class="flex items-center gap-6 flex-wrap">
+            <!-- 移动端筛选切换按钮 -->
+            <button id="filterToggle" class="flex items-center justify-between w-full sm:hidden text-sm font-medium text-gray-700 mb-2 touch-target"
+                onclick="toggleFilterPanel()">
+                <span>筛选条件</span>
+                <svg id="filterToggleIcon" class="w-4 h-4 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+            <div id="filterPanel" class="hidden sm:flex items-center gap-6 flex-wrap">
                 <!-- 搜索类型 -->
                 <div class="flex items-center gap-2">
                     <span class="text-sm text-gray-600 font-medium">搜索类型:</span>
@@ -125,7 +137,7 @@
         </div>
 
         <!-- 搜索结果列表 -->
-        <div id="resultsList" class="space-y-4"></div>
+        <div id="resultsList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
 
         <!-- 空结果提示 -->
         <div id="emptyState" class="text-center py-16 hidden">
@@ -142,12 +154,12 @@
         </div>
 
         <!-- 分页 -->
-        <div id="pagination" class="flex items-center justify-center gap-2 mt-6 hidden"></div>
+        <div id="pagination" class="flex items-center justify-center gap-1 sm:gap-2 mt-6 hidden flex-wrap"></div>
     </div>
 
     <!-- 摘要弹窗 -->
     <div id="summaryModal" class="modal-overlay">
-        <div class="modal">
+        <div class="modal modal-fullscreen-mobile">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-bold text-gray-800">AI 摘要</h3>
                 <button onclick="closeSummaryModal()" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
@@ -161,6 +173,23 @@
     </div>
 
     <script>
+        /**
+         * 移动端筛选面板折叠切换
+         */
+        function toggleFilterPanel() {
+            const panel = document.getElementById('filterPanel');
+            const icon = document.getElementById('filterToggleIcon');
+            if (panel.classList.contains('hidden')) {
+                panel.classList.remove('hidden');
+                panel.classList.add('flex');
+                icon.style.transform = 'rotate(180deg)';
+            } else {
+                panel.classList.add('hidden');
+                panel.classList.remove('flex');
+                icon.style.transform = 'rotate(0deg)';
+            }
+        }
+
         /**
          * API 封装
          */

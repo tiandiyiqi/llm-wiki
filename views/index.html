@@ -455,6 +455,13 @@
             transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
         }
     </style>
+    <link rel="stylesheet" href="/css/responsive.css">
+    <!-- PWA Support -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="LLM Wiki">
     <!-- Apply theme immediately to prevent flash -->
     <script>
             (function () {
@@ -653,9 +660,67 @@
         </div>
     </header>
 
-    <div class="flex pt-14">
+    <!-- 移动端顶部导航栏 -->
+    <div class="mobile-topbar safe-area-top lg:hidden">
+        <button @click="sidebarOpen = !sidebarOpen" class="touch-target flex items-center justify-center rounded-lg hover:bg-gray-100" aria-label="打开菜单">
+            <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+            </svg>
+        </button>
+        <h1 class="text-lg font-semibold gradient-title">LLM Wiki</h1>
+        <div class="flex items-center space-x-2">
+            <span class="text-xs text-on-muted" x-text="atoms.length + ' 原子'"></span>
+            <button onclick="WikiAPI.logout()" class="touch-target text-xs text-on-muted hover:text-red-500 px-2 py-1">退出</button>
+        </div>
+    </div>
+
+    <!-- 移动端侧边栏遮罩 -->
+    <div x-show="sidebarOpen" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="sidebar-overlay" :class="{ 'open': sidebarOpen }" @click="sidebarOpen = false" style="display:none;"></div>
+
+    <!-- 移动端侧边栏抽屉 -->
+    <aside x-show="sidebarOpen" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full" class="sidebar-drawer bg-bg-surface shadow-xl" :class="{ 'open': sidebarOpen }" style="display:none;">
+        <div class="flex items-center justify-between p-4 border-b border-border-th">
+            <h2 class="text-lg font-semibold gradient-title">LLM Wiki</h2>
+            <button @click="sidebarOpen = false" class="touch-target flex items-center justify-center rounded-lg hover:bg-bg-hover" aria-label="关闭菜单">
+                <svg class="w-6 h-6 text-on-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <nav class="p-4">
+            <div class="space-y-1">
+                <button @click="view='overview'; sidebarOpen = false"
+                    :class="view === 'overview' ? 'bg-accent-soft text-accent border-l-4 border-accent' : 'text-on-surface hover:bg-bg-hover border-l-4 border-transparent'"
+                    class="w-full text-left px-3 py-2 rounded-md text-sm font-medium touch-target">概览</button>
+                <button @click="view='browse'; sidebarOpen = false"
+                    :class="view === 'browse' ? 'bg-accent-soft text-accent border-l-4 border-accent' : 'text-on-surface hover:bg-bg-hover border-l-4 border-transparent'"
+                    class="w-full text-left px-3 py-2 rounded-md text-sm font-medium touch-target">浏览</button>
+                <button @click="view='graph'; sidebarOpen = false"
+                    :class="view === 'graph' ? 'bg-accent-soft text-accent border-l-4 border-accent' : 'text-on-surface hover:bg-bg-hover border-l-4 border-transparent'"
+                    class="w-full text-left px-3 py-2 rounded-md text-sm font-medium touch-target">图谱</button>
+                <button @click="view='timeline'; sidebarOpen = false"
+                    :class="view === 'timeline' ? 'bg-accent-soft text-accent border-l-4 border-accent' : 'text-on-surface hover:bg-bg-hover border-l-4 border-transparent'"
+                    class="w-full text-left px-3 py-2 rounded-md text-sm font-medium touch-target">时间线</button>
+                <button @click="view='gaps'; sidebarOpen = false"
+                    :class="view === 'gaps' ? 'bg-accent-soft text-accent border-l-4 border-accent' : 'text-on-surface hover:bg-bg-hover border-l-4 border-transparent'"
+                    class="w-full text-left px-3 py-2 rounded-md text-sm font-medium touch-target">
+                    缺口
+                    <span class="ml-1 text-xs bg-accent-soft text-accent px-1 rounded" x-text="gaps.length" x-show="gaps.length > 0"></span>
+                </button>
+            </div>
+            <div class="mt-4 pt-4 border-t border-border-th space-y-1">
+                <a href="/admin/qa.html" class="touch-target block px-3 py-2 text-sm text-accent hover:bg-bg-hover rounded">AI 问答</a>
+                <a href="/admin/dashboard.html" class="touch-target block px-3 py-2 text-sm text-accent hover:bg-bg-hover rounded">看板</a>
+                <a href="/admin/quality.html" class="touch-target block px-3 py-2 text-sm text-accent hover:bg-bg-hover rounded">质检</a>
+                <a href="/admin/duplicates.html" class="touch-target block px-3 py-2 text-sm text-accent hover:bg-bg-hover rounded">去重</a>
+                <a href="/public.html" class="touch-target block px-3 py-2 text-sm text-green-600 hover:bg-bg-hover rounded" target="_blank">公开门户</a>
+            </div>
+        </nav>
+    </aside>
+
+    <div class="flex pt-28 lg:pt-14">
         <!-- Sidebar -->
-        <aside class="w-48 bg-bg-surface border-r border-border-th fixed left-0 top-14 bottom-0 overflow-y-auto z-10">
+        <aside class="w-48 lg:w-48 bg-bg-surface border-r border-border-th fixed left-0 top-14 bottom-0 overflow-y-auto z-10 hidden lg:block">
             <nav class="p-4">
                 <div class="space-y-1">
                     <button @click="view='overview'"
@@ -722,7 +787,7 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="ml-48 flex-1">
+        <main class="ml-0 lg:ml-48 flex-1">
 
             <!-- 概览视图 -->
             <div x-show="view === 'overview'" x-cloak class="animate-fade-in">
@@ -735,7 +800,7 @@
                     </div>
 
                     <!-- Stats Grid -->
-                    <div class="grid grid-cols-4 gap-5 mb-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
                         <div class="overview-card text-center">
                             <div class="gradient-number" x-text="atoms.length"></div>
                             <div class="text-on-surface text-sm mt-1">知识原子总数</div>
@@ -755,7 +820,7 @@
                     </div>
 
                     <!-- Navigation Cards -->
-                    <div class="grid grid-cols-4 gap-5 mb-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
                         <div class="overview-card cursor-pointer" @click="view='browse'">
                             <div class="text-center">
                                 <div class="text-4xl mb-3">📚</div>
@@ -792,7 +857,7 @@
                             <span class="text-2xl mr-2">📊</span>
                             类型分布
                         </h2>
-                        <div class="grid grid-cols-4 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             <template x-for="item in typeStats" :key="item.type">
                                 <div
                                     class="flex items-center justify-between px-4 py-3 bg-bg-surface-alt rounded-lg hover:bg-bg-hover">
@@ -891,7 +956,7 @@
 
             <!-- 浏览视图 -->
             <div x-show="view === 'browse'" x-cloak class="p-6 animate-fade-in">
-                <div class="grid grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     <!-- 原子列表 -->
                     <div class="col-span-2">
                         <div class="bg-bg-surface rounded-lg shadow-lg">
@@ -1215,9 +1280,9 @@
             </div>
 
             <!-- 图谱视图 - Cytoscape.js 全屏交互式图谱 -->
-            <div x-show="view === 'graph'" x-cloak class="animate-fade-in absolute inset-0 pt-14 pl-48 bg-bg-base">
+            <div x-show="view === 'graph'" x-cloak class="animate-fade-in absolute inset-0 pt-14 lg:pl-48 bg-bg-base">
                 <!-- 全屏图谱画布 -->
-                <div class="absolute inset-0 ml-48 mt-14 bg-bg-surface">
+                <div class="absolute inset-0 lg:ml-48 mt-14 bg-bg-surface">
                     <div id="cy" class="w-full h-full"></div>
 
                     <!-- 空知识库提示 -->
@@ -1272,7 +1337,7 @@
                         <!-- fcose 预置档位（仅 fcose/cose 时显示） -->
                         <div class="mb-3" x-show="graphSettings.layout === 'fcose' || graphSettings.layout === 'cose'">
                             <label class="text-xs text-on-muted mb-1 block">原子规模预置</label>
-                            <div class="grid grid-cols-4 gap-1">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1">
                                 <template
                                     x-for="[key, preset] in Object.entries(typeof FCOSE_PRESETS !== 'undefined' ? FCOSE_PRESETS : {})"
                                     :key="key">
@@ -1545,6 +1610,9 @@
                 typeFilter: '',
                 loading: true,
                 kbName: '知识库',
+
+                // 移动端侧边栏状态
+                sidebarOpen: false,
 
                 // 协同运营状态
                 comments: [],
@@ -2251,6 +2319,21 @@
                     }
                 }
             }
+        }
+    </script>
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(function(reg) {
+                        console.log('[PWA] Service Worker registered, scope:', reg.scope);
+                    })
+                    .catch(function(err) {
+                        console.log('[PWA] Service Worker registration failed:', err);
+                    });
+            });
         }
     </script>
 

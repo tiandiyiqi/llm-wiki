@@ -33,11 +33,12 @@
         .tree-node { margin-left: 20px; }
         .tree-toggle { cursor: pointer; user-select: none; }
     </style>
+    <link rel="stylesheet" href="../css/responsive.css">
 </head>
 <body class="min-h-screen">
     <!-- 顶部导航 -->
     <header class="bg-white shadow-sm">
-        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex flex-wrap gap-2 items-center justify-between">
             <div class="flex items-center gap-4">
                 <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
                 <h1 class="text-xl font-bold text-gray-800">知识库管理</h1>
@@ -52,7 +53,7 @@
 
     <!-- Tab 切换 -->
     <div class="max-w-7xl mx-auto px-6 py-6">
-        <div class="flex gap-2 mb-6">
+        <div class="flex flex-wrap gap-2 mb-6">
             <button onclick="switchTab('list')" id="tab-list" class="btn btn-primary">知识库列表</button>
             <button onclick="switchTab('tree')" id="tab-tree" class="btn btn-secondary">层级树</button>
             <button onclick="switchTab('members')" id="tab-members" class="btn btn-secondary">成员管理</button>
@@ -82,6 +83,7 @@
             </div>
 
             <!-- 知识库表格 -->
+            <div class="overflow-x-auto">
             <table class="w-full" id="kbTable">
                 <thead>
                     <tr class="border-b-2 border-gray-200 text-left text-gray-600">
@@ -96,6 +98,7 @@
                 </thead>
                 <tbody id="kbTableBody"></tbody>
             </table>
+            </div>
         </div>
 
         <!-- 层级树 -->
@@ -117,7 +120,7 @@
                     <option value="">选择知识库...</option>
                 </select>
             </div>
-            <div id="membersContent">
+            <div id="membersContent" class="overflow-x-auto">
                 <p class="text-gray-500 text-center py-8">请先选择知识库</p>
             </div>
         </div>
@@ -125,7 +128,7 @@
 
     <!-- 创建知识库弹窗 -->
     <div id="createKBModal" class="modal-overlay">
-        <div class="modal">
+        <div class="modal modal-fullscreen-mobile">
             <h3 class="text-lg font-bold mb-4">创建知识库</h3>
             <form id="createKBForm" class="space-y-4">
                 <div>
@@ -170,7 +173,7 @@
 
     <!-- 编辑知识库弹窗 -->
     <div id="editKBModal" class="modal-overlay">
-        <div class="modal">
+        <div class="modal modal-fullscreen-mobile">
             <h3 class="text-lg font-bold mb-4">编辑知识库</h3>
             <input type="hidden" id="editKBId">
             <form id="editKBForm" class="space-y-4">
@@ -210,7 +213,7 @@
 
     <!-- 添加成员弹窗 -->
     <div id="addMemberModal" class="modal-overlay">
-        <div class="modal">
+        <div class="modal modal-fullscreen-mobile">
             <h3 class="text-lg font-bold mb-4">添加成员</h3>
             <input type="hidden" id="memberKBId">
             <div class="space-y-4">
@@ -236,7 +239,7 @@
 
     <!-- 统计信息弹窗 -->
     <div id="statsModal" class="modal-overlay">
-        <div class="modal">
+        <div class="modal modal-fullscreen-mobile">
             <h3 class="text-lg font-bold mb-4">知识库统计</h3>
             <div id="statsContent" class="space-y-4"></div>
             <div class="flex gap-2 mt-6">

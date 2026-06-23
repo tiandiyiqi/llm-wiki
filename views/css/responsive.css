@@ -1,0 +1,206 @@
+/* ========================================
+   responsive.css — 移动端优先响应式工具样式
+   ======================================== */
+
+/* 断点参考（与 Tailwind 一致）：
+   sm: 640px, md: 768px, lg: 1024px, xl: 1280px */
+
+/* --- 全局触摸优化 --- */
+@media (max-width: 767px) {
+  /* 消除 300ms 点击延迟 */
+  * { touch-action: manipulation; }
+
+  /* 按钮和链接最小触摸区域 */
+  button, a, [role="button"], input[type="submit"], input[type="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* 按钮间距增大 */
+  button + button, a + a {
+    margin-left: 0.25rem;
+  }
+}
+
+/* --- 隐藏/显示工具类 --- */
+.mobile-only { display: none; }
+.desktop-only { display: block; }
+
+@media (max-width: 767px) {
+  .mobile-only { display: block; }
+  .desktop-only { display: none; }
+}
+
+/* --- 移动端安全区域（刘海屏适配） --- */
+@supports (padding: env(safe-area-inset-top)) {
+  .safe-area-top { padding-top: env(safe-area-inset-top); }
+  .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-area-left { padding-left: env(safe-area-inset-left); }
+  .safe-area-right { padding-right: env(safe-area-inset-right); }
+}
+
+/* --- 触摸目标优化 --- */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* --- 移动端滚动优化 --- */
+.smooth-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* --- 移动端侧边栏抽屉 --- */
+.sidebar-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  max-width: 80vw;
+  z-index: 50;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease-in-out;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sidebar-drawer.open {
+  transform: translateX(0);
+}
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background-color: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+  pointer-events: none;
+}
+
+.sidebar-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* --- 移动端顶部导航栏 --- */
+.mobile-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  min-height: 48px;
+}
+
+@media (max-width: 767px) {
+  .mobile-topbar { display: flex; }
+}
+
+/* --- 移动端模态框全屏 --- */
+@media (max-width: 767px) {
+  .modal-fullscreen-mobile {
+    position: fixed !important;
+    inset: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* --- 移动端底部弹出菜单 --- */
+.bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  transform: translateY(100%);
+  transition: transform 0.3s ease-in-out;
+  border-radius: 1rem 1rem 0 0;
+  background-color: #ffffff;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.bottom-sheet.open {
+  transform: translateY(0);
+}
+
+/* --- 移动端卡片布局（替代表格） --- */
+@media (max-width: 767px) {
+  .mobile-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .mobile-card-list > * {
+    display: block;
+    padding: 0.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    background-color: #ffffff;
+  }
+}
+
+/* --- 移动端浮动操作按钮 (FAB) --- */
+.fab {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 20;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+}
+
+@media (max-width: 767px) {
+  .fab { display: flex; }
+}
+
+/* --- 性能优化 --- */
+
+/* 图片懒加载（配合 loading="lazy" 属性） */
+img[loading="lazy"] {
+  content-visibility: auto;
+}
+
+/* 减少移动端首屏 DOM（隐藏图谱视图直到激活） */
+@media (max-width: 767px) {
+  /* 图谱视图默认不渲染，激活时由 JS 显示 */
+  [x-cloak] { display: none !important; }
+
+  /* 移动端减少动画以提升性能 */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* --- 触摸操作工具类 --- */
+.touch-manipulation { touch-action: manipulation; }
+.touch-pan-x { touch-action: pan-x; }
+.touch-pan-y { touch-action: pan-y; }
+.touch-none { touch-action: none; }
+
+/* --- 性能提示工具类 --- */
+.will-change-transform { will-change: transform; }
+.will-change-opacity { will-change: opacity; }
+.contain-layout { contain: layout; }
+.contain-content { contain: content; }

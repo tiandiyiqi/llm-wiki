@@ -27,11 +27,12 @@
         .badge-rejected { background: #fed7d7; color: #c53030; }
         .badge-submitted { background: #bee3f8; color: #2b6cb0; }
     </style>
+    <link rel="stylesheet" href="../css/responsive.css">
 </head>
 <body class="min-h-screen">
     <!-- 顶部导航 -->
     <header class="bg-white shadow-sm">
-        <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex flex-wrap gap-2 items-center justify-between">
             <div class="flex items-center gap-4">
                 <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
                 <h1 class="text-xl font-bold text-gray-800">审批中心</h1>
@@ -47,7 +48,7 @@
 
     <div class="max-w-6xl mx-auto px-6 py-6">
         <!-- Tab 切换 -->
-        <div class="flex gap-2 mb-6">
+        <div class="flex flex-wrap gap-2 mb-6">
             <button onclick="switchTab('pending')" id="tab-pending" class="btn btn-primary">待审批</button>
             <button onclick="switchTab('history')" id="tab-history" class="btn btn-secondary">审批历史</button>
         </div>
@@ -61,7 +62,7 @@
             <div id="pendingEmpty" class="text-center py-12 text-gray-500 hidden">
                 <p class="text-lg">🎉 暂无待审批内容</p>
             </div>
-            <table class="w-full" id="pendingTable">
+            <div class="overflow-x-auto"><table class="w-full" id="pendingTable">
                 <thead>
                     <tr class="border-b-2 border-gray-200 text-left text-gray-600">
                         <th class="py-3 px-4">原子 ID</th>
@@ -72,7 +73,7 @@
                     </tr>
                 </thead>
                 <tbody id="pendingTableBody"></tbody>
-            </table>
+            </table></div>
         </div>
 
         <!-- 审批历史 -->
@@ -84,7 +85,7 @@
             <div id="historyEmpty" class="text-center py-12 text-gray-500 hidden">
                 <p class="text-lg">暂无审批历史</p>
             </div>
-            <table class="w-full" id="historyTable">
+            <div class="overflow-x-auto"><table class="w-full" id="historyTable">
                 <thead>
                     <tr class="border-b-2 border-gray-200 text-left text-gray-600">
                         <th class="py-3 px-4">原子 ID</th>
@@ -96,13 +97,13 @@
                     </tr>
                 </thead>
                 <tbody id="historyTableBody"></tbody>
-            </table>
+            </table></div>
         </div>
     </div>
 
     <!-- 驳回弹窗 -->
     <div id="rejectModal" class="modal-overlay">
-        <div class="modal">
+        <div class="modal modal-fullscreen-mobile">
             <h3 class="text-lg font-bold mb-4">驳回审批</h3>
             <p class="text-sm text-gray-600 mb-4">原子: <strong id="rejectAtomId">-</strong></p>
             <div>

@@ -29,11 +29,12 @@
         .preview-area ul, .preview-area ol { padding-left: 1.5em; margin: 0.5em 0; }
         .tag-pill { display: inline-block; padding: 2px 8px; background: #ebf8ff; color: #2b6cb0; border-radius: 12px; font-size: 12px; margin-right: 4px; }
     </style>
+    <link rel="stylesheet" href="../css/responsive.css">
 </head>
 <body class="min-h-screen">
     <!-- 顶部导航 -->
     <header class="bg-white shadow-sm">
-        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex flex-wrap gap-2 items-center justify-between">
             <div class="flex items-center gap-4">
                 <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
                 <h1 class="text-xl font-bold text-gray-800" id="pageTitle">新建原子</h1>
@@ -78,7 +79,7 @@
             <div class="card p-4">
                 <div class="flex items-center justify-between mb-2">
                     <h2 class="text-sm font-medium text-gray-700">Markdown 编辑器</h2>
-                    <div class="flex gap-1">
+                    <div class="flex flex-wrap gap-1">
                         <button onclick="insertText('**', '**', '粗体')" class="btn btn-secondary text-xs px-2 py-1">B</button>
                         <button onclick="insertText('*', '*', '斜体')" class="btn btn-secondary text-xs px-2 py-1">I</button>
                         <button onclick="insertText('## ', '', '标题')" class="btn btn-secondary text-xs px-2 py-1">H</button>
@@ -98,7 +99,7 @@
         </div>
 
         <!-- 操作按钮 -->
-        <div class="flex gap-2 mt-4">
+        <div class="flex flex-wrap gap-2 mt-4">
             <button onclick="saveAtom()" class="btn btn-success">保存原子</button>
             <button onclick="saveAndPublish()" class="btn btn-primary">保存并发布</button>
             <button onclick="loadAtom()" class="btn btn-secondary">加载已有原子</button>
@@ -107,7 +108,7 @@
 
         <!-- 加载原子的弹窗 -->
         <div id="loadModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-            <div class="bg-white rounded-xl p-6 w-full max-w-md">
+            <div class="bg-white rounded-xl p-6 w-full max-w-md modal-fullscreen-mobile">
                 <h3 class="text-lg font-bold mb-4">加载已有原子</h3>
                 <div class="space-y-3">
                     <input type="text" id="loadAtomId" class="input" placeholder="原子 ID 或路径（如 atoms/facts/xxx）">

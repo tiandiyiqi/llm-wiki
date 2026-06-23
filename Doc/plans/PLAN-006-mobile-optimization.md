@@ -2,7 +2,7 @@
 name: PLAN-006-mobile-optimization
 description: 阶段 3.5 — 移动端优化实施计划（响应式设计 + PWA）
 priority: P2
-status: draft
+status: completed
 created: 2026-06-23
 updated: 2026-06-23
 ---
@@ -464,4 +464,5 @@ Phase 1（响应式基础）
 ---
 
 **计划创建时间**：2026-06-23
-**计划状态**：draft — 等待审批
+**计划状态**：segments-generated — 任务组已拆分，等待执行
+**任务组文件**：[PLAN-006-mobile-optimization-segments.md](./PLAN-006-mobile-optimization-segments.md)

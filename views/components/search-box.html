@@ -5,12 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SearchBox Component - LLM Wiki</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/views/css/responsive.css">
     <style>
         /* SearchBox 组件样式 - 使用项目主题变量 */
         .search-box-wrapper {
             position: relative;
             width: 100%;
             max-width: 600px;
+        }
+
+        @media (max-width: 767px) {
+            .search-box-wrapper {
+                max-width: 100%;
+            }
         }
 
         .search-box-input-group {
@@ -68,6 +75,15 @@
             line-height: 1.4;
         }
 
+        @media (max-width: 767px) {
+            .search-box-shortcut {
+                display: none;
+            }
+            .search-box-input {
+                padding-right: 12px;
+            }
+        }
+
         .search-box-dropdown {
             position: absolute;
             top: calc(100% + 4px);
@@ -81,6 +97,26 @@
             max-height: 400px;
             overflow-y: auto;
             display: none;
+        }
+
+        @media (max-width: 767px) {
+            .search-box-dropdown {
+                position: fixed;
+                top: auto;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                max-height: 70vh;
+                border-radius: 1rem 1rem 0 0;
+                box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+                display: none;
+                transform: translateY(100%);
+                transition: transform 0.3s ease-in-out;
+            }
+            .search-box-dropdown.visible {
+                display: block;
+                transform: translateY(0);
+            }
         }
 
         .search-box-dropdown.visible {
@@ -609,7 +645,7 @@
             var icon = createSearchIcon();
             var input = document.createElement('input');
             input.type = 'text';
-            input.className = 'search-box-input';
+            input.className = 'search-box-input touch-target smooth-scroll';
             input.placeholder = '搜索知识库... (Ctrl+K)';
             input.setAttribute('autocomplete', 'off');
             input.setAttribute('role', 'combobox');

@@ -684,6 +684,24 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
         user = getattr(self, '_current_user', None)
         return user.get('role', 'guest') if user else 'guest'
 
+    def _is_mobile_request(self) -> bool:
+        """检测是否为移动端请求.
+
+        通过 User-Agent 或 Sec-CH-UA-Mobile 请求头判断。
+        用于移动端 API 优化（返回精简数据）。
+        """
+        # 优先使用 Client Hints（现代浏览器）
+        mobile_hint = self.headers.get('Sec-CH-UA-Mobile', '')
+        if mobile_hint == '?1':
+            return True
+        # 回退到 User-Agent 检测
+        user_agent = self.headers.get('User-Agent', '')
+        mobile_patterns = [
+            'Android', 'iPhone', 'iPad', 'iPod',
+            'Windows Phone', 'BlackBerry', 'Mobile',
+        ]
+        return any(p in user_agent for p in mobile_patterns)
+
     # ========================================================================
     # 认证 API
     # ========================================================================
@@ -933,9 +951,10 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
     # ========================================================================
 
     def _api_atom_list(self, params: Dict) -> None:
-        """原子列表（支持双模式）."""
+        """原子列表（支持双模式 + 移动端精简）."""
         atom_type = params.get('type', [None])[0]
         limit = int(params.get('limit', ['100'])[0])
+        is_mobile = self._is_mobile_request()
 
         if self.storage and self.storage.mode == 'db':
             # db_mode: 通过 StorageInterface 查询
@@ -944,18 +963,28 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
                 # 统一响应格式
                 result = []
                 for a in atoms:
-                    result.append({
-                        'id': str(a.get('id', '')),
-                        'path': a.get('slug', ''),
-                        'type': a.get('type', 'Unknown'),
-                        'title': a.get('title', ''),
-                        'description': a.get('description', ''),
-                        'tags': a.get('tags', []),
-                        'status': a.get('status', 'active'),
-                        'author': a.get('author_id', ''),
-                        'created': a.get('created_at', ''),
-                        'updated': a.get('updated_at', ''),
-                    })
+                    if is_mobile:
+                        # 移动端精简：只返回核心字段
+                        result.append({
+                            'id': str(a.get('id', '')),
+                            'path': a.get('slug', ''),
+                            'type': a.get('type', 'Unknown'),
+                            'title': a.get('title', ''),
+                            'description': a.get('description', '')[:80],  # 截断描述
+                        })
+                    else:
+                        result.append({
+                            'id': str(a.get('id', '')),
+                            'path': a.get('slug', ''),
+                            'type': a.get('type', 'Unknown'),
+                            'title': a.get('title', ''),
+                            'description': a.get('description', ''),
+                            'tags': a.get('tags', []),
+                            'status': a.get('status', 'active'),
+                            'author': a.get('author_id', ''),
+                            'created': a.get('created_at', ''),
+                            'updated': a.get('updated_at', ''),
+                        })
                 self._json_response({'atoms': result, 'count': len(result)})
                 return
             except Exception as e:
@@ -963,7 +992,20 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
 
         # file_mode（或 db_mode 降级）：文件扫描
         atoms = self._load_atoms(by_type=atom_type, limit=limit)
-        self._json_response({'atoms': atoms, 'count': len(atoms)})
+        if is_mobile:
+            # 移动端精简：只保留核心字段
+            slim_atoms = []
+            for a in atoms:
+                slim_atoms.append({
+                    'id': a.get('id', ''),
+                    'path': a.get('path', ''),
+                    'type': a.get('type', 'Unknown'),
+                    'title': a.get('title', ''),
+                    'description': (a.get('description', '') or '')[:80],
+                })
+            self._json_response({'atoms': slim_atoms, 'count': len(slim_atoms)})
+        else:
+            self._json_response({'atoms': atoms, 'count': len(atoms)})
 
     def _api_atom_get(self, atom_id: str) -> None:
         """获取原子详情（支持双模式）."""
@@ -2032,6 +2074,9 @@ tags: [{tags_str}]
     def _serve_file(self, file_path: Path) -> None:
         """发送静态文件."""
         content_type = self._get_content_type(file_path.suffix)
+        # PWA manifest.json 应使用 manifest+json MIME 类型
+        if file_path.name == 'manifest.json':
+            content_type = 'application/manifest+json; charset=utf-8'
         try:
             content = file_path.read_bytes()
             self.send_response(200)
@@ -2050,6 +2095,7 @@ tags: [{tags_str}]
             '.css': 'text/css; charset=utf-8',
             '.js': 'application/javascript; charset=utf-8',
             '.json': 'application/json; charset=utf-8',
+            '.webmanifest': 'application/manifest+json; charset=utf-8',
             '.png': 'image/png',
             '.jpg': 'image/jpeg',
             '.jpeg': 'image/jpeg',

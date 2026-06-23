@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>登录 - LLM Wiki</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/views/css/responsive.css">
     <style>
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -20,6 +21,13 @@
             padding: 40px;
             width: 100%;
             max-width: 400px;
+        }
+        @media (max-width: 640px) {
+            .login-card {
+                margin: 16px;
+                padding: 24px 16px;
+                border-radius: 12px;
+            }
         }
         .login-input {
             width: 100%;
@@ -78,7 +86,7 @@
                 <input type="password" id="password" class="login-input" placeholder="请输入密码" required>
             </div>
             <div id="errorMsg" class="error-msg"></div>
-            <button type="submit" id="loginBtn" class="login-btn">登 录</button>
+            <button type="submit" id="loginBtn" class="login-btn touch-target">登 录</button>
         </form>
 
         <!-- SSO 登录区域（由 JS 动态显示） -->
@@ -88,13 +96,13 @@
                 <span class="px-3 text-sm text-gray-500">或使用企业账号</span>
                 <div class="flex-1 h-px bg-gray-300"></div>
             </div>
-            <div id="ssoProviders" class="space-y-2"></div>
+            <div id="ssoProviders" class="flex flex-col sm:flex-row gap-2"></div>
         </div>
 
-        <div class="mt-6 p-4 bg-blue-50 rounded-lg text-sm text-blue-700">
+        <div class="mt-6 p-3 sm:p-4 bg-blue-50 rounded-lg text-sm text-blue-700">
             <p class="font-medium mb-1">💡 首次使用提示：</p>
-            <p>1. 使用 CLI 创建管理员：<code class="bg-white px-1 rounded">llm-wiki user-add &lt;kb&gt; admin --role admin --password xxx</code></p>
-            <p>2. 使用 CLI 启用权限：<code class="bg-white px-1 rounded">编辑 .kb-access.json 设置 enabled: true</code></p>
+            <p class="text-xs sm:text-sm">1. 使用 CLI 创建管理员：<code class="bg-white px-1 rounded text-xs sm:text-sm">llm-wiki user-add &lt;kb&gt; admin --role admin --password xxx</code></p>
+            <p class="text-xs sm:text-sm">2. 使用 CLI 启用权限：<code class="bg-white px-1 rounded text-xs sm:text-sm">编辑 .kb-access.json 设置 enabled: true</code></p>
         </div>
     </div>
 
@@ -171,7 +179,7 @@
                     providers.forEach(p => {
                         const btn = document.createElement('button');
                         btn.type = 'button';
-                        btn.className = 'w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium mb-2';
+                        btn.className = 'w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium touch-target';
                         btn.textContent = p.display_name || '企业 SSO 登录';
                         btn.onclick = () => window.location.href = p.login_url || '/api/auth/sso/login';
                         container.appendChild(btn);

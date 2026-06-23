@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>图片上传 - LLM Wiki</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/views/css/responsive.css">
     <style>
         body { background: #f7fafc; }
         .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
@@ -144,11 +145,11 @@
     </style>
 </head>
 <body>
-    <div id="app" class="max-w-2xl mx-auto p-6">
-        <div class="card p-6">
+    <div id="app" class="max-w-2xl mx-auto p-4 sm:p-6">
+        <div class="card p-4 sm:p-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4">图片上传</h2>
 
-            <div id="dropZone" class="drop-zone">
+            <div id="dropZone" class="drop-zone w-full">
                 <div class="text-gray-500">
                     <svg class="mx-auto mb-3 w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
@@ -167,9 +168,9 @@
                 <div id="previewGrid" class="preview-grid"></div>
             </div>
 
-            <div id="actions" class="mt-4 flex gap-2" style="display:none;">
-                <button id="uploadBtn" class="btn btn-primary" onclick="startAllUploads()">开始上传</button>
-                <button id="clearBtn" class="btn btn-secondary" onclick="clearAllFiles()">清空</button>
+            <div id="actions" class="mt-4 flex flex-col sm:flex-row gap-2" style="display:none;">
+                <button id="uploadBtn" class="btn btn-primary touch-target w-full sm:w-auto" onclick="startAllUploads()">开始上传</button>
+                <button id="clearBtn" class="btn btn-secondary touch-target w-full sm:w-auto" onclick="clearAllFiles()">清空</button>
             </div>
         </div>
     </div>

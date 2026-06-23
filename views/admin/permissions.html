@@ -31,11 +31,12 @@
         .matrix-row:hover { background: #f7fafc; }
         .tab-active { border-bottom: 3px solid #667eea; }
     </style>
+    <link rel="stylesheet" href="../css/responsive.css">
 </head>
 <body class="min-h-screen">
     <!-- 顶部导航 -->
     <header class="bg-white shadow-sm">
-        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex flex-wrap gap-2 items-center justify-between">
             <div class="flex items-center gap-4">
                 <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
                 <h1 class="text-xl font-bold text-gray-800">权限管理</h1>
@@ -50,7 +51,7 @@
 
     <!-- Tab 切换 -->
     <div class="max-w-7xl mx-auto px-6 py-6">
-        <div class="flex gap-2 mb-6 border-b border-gray-200">
+        <div class="flex flex-wrap gap-2 mb-6 border-b border-gray-200">
             <button onclick="switchTab('roles')" id="tab-roles" class="btn btn-secondary tab-active rounded-b-none">角色管理</button>
             <button onclick="switchTab('matrix')" id="tab-matrix" class="btn btn-secondary rounded-b-none">权限矩阵</button>
             <button onclick="switchTab('users')" id="tab-users" class="btn btn-secondary rounded-b-none">用户权限查询</button>
@@ -63,7 +64,7 @@
                 <button onclick="showCreateRoleModal()" class="btn btn-primary">+ 创建角色</button>
             </div>
 
-            <div id="rolesContent">
+            <div id="rolesContent" class="overflow-x-auto">
                 <p class="text-gray-500 text-center py-8">加载中...</p>
             </div>
         </div>
@@ -97,7 +98,7 @@
                 </div>
             </div>
 
-            <div id="userPermissionsContent">
+            <div id="userPermissionsContent" class="overflow-x-auto">
                 <p class="text-gray-500 text-center py-8">请选择用户查看权限</p>
             </div>
         </div>
@@ -105,7 +106,7 @@
 
     <!-- 创建角色弹窗 -->
     <div id="createRoleModal" class="modal-overlay">
-        <div class="modal">
+        <div class="modal modal-fullscreen-mobile">
             <h3 class="text-lg font-bold mb-4">创建角色</h3>
             <form id="createRoleForm" class="space-y-4">
                 <div>
@@ -153,7 +154,7 @@
 
     <!-- 编辑角色弹窗 -->
     <div id="editRoleModal" class="modal-overlay">
-        <div class="modal">
+        <div class="modal modal-fullscreen-mobile">
             <h3 class="text-lg font-bold mb-4">编辑角色</h3>
             <input type="hidden" id="editRoleId">
             <form id="editRoleForm" class="space-y-4">
@@ -202,7 +203,7 @@
 
     <!-- 分配权限弹窗 -->
     <div id="assignPermissionModal" class="modal-overlay">
-        <div class="modal">
+        <div class="modal modal-fullscreen-mobile">
             <h3 class="text-lg font-bold mb-4">分配权限</h3>
             <input type="hidden" id="assignUserId">
             <input type="hidden" id="assignKBId">

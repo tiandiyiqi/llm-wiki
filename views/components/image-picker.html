@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>图像选择器 - LLM Wiki</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/views/css/responsive.css">
     <style>
         body { background: #f7fafc; }
         .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
@@ -60,10 +61,11 @@
 
         /* 图像网格 */
         .image-grid {
-            display: grid; grid-template-columns: repeat(4, 1fr);
+            display: grid; grid-template-columns: repeat(2, 1fr);
             gap: 12px; margin-top: 12px;
         }
-        @media (max-width: 640px) { .image-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (min-width: 640px) { .image-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (min-width: 1024px) { .image-grid { grid-template-columns: repeat(4, 1fr); } }
 
         /* 缩略图卡片 */
         .thumb-card {
@@ -101,7 +103,7 @@
 <body>
     <!-- 弹窗容器 -->
     <div id="imagePickerOverlay" class="picker-overlay" style="display:none;">
-        <div class="picker-modal">
+        <div class="picker-modal modal-fullscreen-mobile">
             <div class="picker-header">
                 <h2 class="text-lg font-bold text-gray-800">选择图像</h2>
                 <button onclick="ImagePicker.close()" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
@@ -128,8 +130,8 @@
             </div>
             <div class="picker-footer">
                 <span id="pickerSelectedInfo" class="text-sm text-gray-500 mr-auto"></span>
-                <button onclick="ImagePicker.close()" class="btn btn-secondary">取消</button>
-                <button onclick="ImagePicker.confirm()" id="pickerConfirmBtn" class="btn btn-primary" disabled>插入图像</button>
+                <button onclick="ImagePicker.close()" class="btn btn-secondary touch-target">取消</button>
+                <button onclick="ImagePicker.confirm()" id="pickerConfirmBtn" class="btn btn-primary touch-target" disabled>插入图像</button>
             </div>
         </div>
     </div>

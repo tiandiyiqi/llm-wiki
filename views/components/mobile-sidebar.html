@@ -1,0 +1,128 @@
+<!-- Mobile Sidebar Component — 移动端抽屉式侧边栏 -->
+<!-- 使用方式：在页面中 include 此组件，通过 Alpine.js 控制开关 -->
+
+<!-- 侧边栏遮罩层 -->
+<div
+  x-show="sidebarOpen"
+  x-transition:enter="transition ease-out duration-300"
+  x-transition:enter-start="opacity-0"
+  x-transition:enter-end="opacity-100"
+  x-transition:leave="transition ease-in duration-200"
+  x-transition:leave-start="opacity-100"
+  x-transition:leave-end="opacity-0"
+  class="sidebar-overlay"
+  :class="{ 'open': sidebarOpen }"
+  @click="sidebarOpen = false"
+  @touchstart="handleOverlayTouch($event)"
+></div>
+
+<!-- 侧边栏抽屉 -->
+<aside
+  x-show="sidebarOpen"
+  x-transition:enter="transition ease-out duration-300"
+  x-transition:enter-start="-translate-x-full"
+  x-transition:enter-end="translate-x-0"
+  x-transition:leave="transition ease-in duration-200"
+  x-transition:leave-start="translate-x-0"
+  x-transition:leave-end="-translate-x-full"
+  class="sidebar-drawer bg-white shadow-xl"
+  :class="{ 'open': sidebarOpen }"
+  @touchstart="handleDrawerTouchStart($event)"
+  @touchmove="handleDrawerTouchMove($event)"
+  @touchend="handleDrawerTouchEnd($event)"
+>
+  <!-- 侧边栏头部 -->
+  <div class="flex items-center justify-between p-4 border-b border-gray-200">
+    <h2 class="text-lg font-semibold text-gray-800">LLM Wiki</h2>
+    <button
+      @click="sidebarOpen = false"
+      class="touch-target flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+      aria-label="关闭侧边栏"
+    >
+      <svg class="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- 侧边栏内容（由页面动态填充） -->
+  <div class="p-4">
+    <slot name="sidebar-content">
+      <!-- 默认内容：知识库列表 -->
+      <div class="space-y-1" id="mobile-sidebar-content">
+        <!-- 动态渲染知识库列表 -->
+      </div>
+    </slot>
+  </div>
+
+  <!-- 侧边栏底部 -->
+  <div class="border-t border-gray-200 p-4 mt-auto">
+    <a href="/admin" class="touch-target flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+      </svg>
+      <span>管理后台</span>
+    </a>
+  </div>
+</aside>
+
+<script>
+// 手势滑动关闭支持
+document.addEventListener('alpine:init', () => {
+  Alpine.data('mobileSidebar', () => ({
+    sidebarOpen: false,
+    touchStartX: 0,
+    touchCurrentX: 0,
+    isSwiping: false,
+
+    toggleSidebar() {
+      this.sidebarOpen = !this.sidebarOpen;
+      // 控制页面滚动
+      if (this.sidebarOpen) {
+        document.body.style.overflow = 'hidden';
+      } else {
+        document.body.style.overflow = '';
+      }
+    },
+
+    openSidebar() {
+      this.sidebarOpen = true;
+      document.body.style.overflow = 'hidden';
+    },
+
+    closeSidebar() {
+      this.sidebarOpen = false;
+      document.body.style.overflow = '';
+    },
+
+    handleOverlayTouch(event) {
+      // 遮罩层点击已通过 @click 处理
+    },
+
+    handleDrawerTouchStart(event) {
+      this.touchStartX = event.touches[0].clientX;
+      this.isSwiping = true;
+    },
+
+    handleDrawerTouchMove(event) {
+      if (!this.isSwiping) return;
+      this.touchCurrentX = event.touches[0].clientX;
+    },
+
+    handleDrawerTouchEnd(event) {
+      if (!this.isSwiping) return;
+      this.isSwiping = false;
+
+      const deltaX = this.touchCurrentX - this.touchStartX;
+      // 向左滑动超过 50px 关闭侧边栏
+      if (deltaX < -50) {
+        this.closeSidebar();
+      }
+
+      this.touchStartX = 0;
+      this.touchCurrentX = 0;
+    }
+  }));
+});
+</script>

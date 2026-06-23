@@ -24,11 +24,12 @@
         .badge-editor { background: #bee3f8; color: #2b6cb0; }
         .badge-reader { background: #c6f6d5; color: #276749; }
     </style>
+    <link rel="stylesheet" href="../css/responsive.css">
 </head>
 <body class="min-h-screen">
     <!-- 顶部导航 -->
     <header class="bg-white shadow-sm">
-        <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex flex-wrap gap-2 items-center justify-between">
             <div class="flex items-center gap-4">
                 <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
                 <h1 class="text-xl font-bold text-gray-800">用户管理</h1>
@@ -42,7 +43,7 @@
 
     <!-- Tab 切换 -->
     <div class="max-w-6xl mx-auto px-6 py-6">
-        <div class="flex gap-2 mb-6">
+        <div class="flex flex-wrap gap-2 mb-6">
             <button onclick="switchTab('users')" id="tab-users" class="btn btn-primary">用户列表</button>
             <button onclick="switchTab('tokens')" id="tab-tokens" class="btn btn-secondary">Token 管理</button>
         </div>
@@ -53,7 +54,7 @@
                 <h2 class="text-lg font-bold text-gray-800">用户列表</h2>
                 <button onclick="showAddUserModal()" class="btn btn-primary">+ 添加用户</button>
             </div>
-            <table class="w-full">
+            <div class="overflow-x-auto"><table class="w-full">
                 <thead>
                     <tr class="border-b-2 border-gray-200 text-left text-gray-600">
                         <th class="py-3 px-4">用户名</th>
@@ -63,7 +64,7 @@
                     </tr>
                 </thead>
                 <tbody id="usersTableBody"></tbody>
-            </table>
+            </table></div>
         </div>
 
         <!-- Token 管理 -->
@@ -72,7 +73,7 @@
                 <h2 class="text-lg font-bold text-gray-800">Token 列表</h2>
                 <button onclick="showGenerateTokenModal()" class="btn btn-primary">+ 生成 Token</button>
             </div>
-            <table class="w-full">
+            <div class="overflow-x-auto"><table class="w-full">
                 <thead>
                     <tr class="border-b-2 border-gray-200 text-left text-gray-600">
                         <th class="py-3 px-4">Token</th>
@@ -83,13 +84,13 @@
                     </tr>
                 </thead>
                 <tbody id="tokensTableBody"></tbody>
-            </table>
+            </table></div>
         </div>
     </div>
 
     <!-- 添加用户弹窗 -->
     <div id="addUserModal" class="modal-overlay">
-        <div class="modal">
+        <div class="modal modal-fullscreen-mobile">
             <h3 class="text-lg font-bold mb-4">添加用户</h3>
             <div class="space-y-4">
                 <div>
@@ -118,7 +119,7 @@
 
     <!-- 生成 Token 弹窗 -->
     <div id="generateTokenModal" class="modal-overlay">
-        <div class="modal">
+        <div class="modal modal-fullscreen-mobile">
             <h3 class="text-lg font-bold mb-4">生成 API Token</h3>
             <div class="space-y-4">
                 <div>
@@ -148,7 +149,7 @@
 
     <!-- 修改密码弹窗 -->
     <div id="passwordModal" class="modal-overlay">
-        <div class="modal">
+        <div class="modal modal-fullscreen-mobile">
             <h3 class="text-lg font-bold mb-4">修改密码</h3>
             <p class="text-sm text-gray-600 mb-4">用户: <strong id="passwordUsername">-</strong></p>
             <div>

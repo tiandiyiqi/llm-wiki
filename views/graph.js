@@ -169,6 +169,9 @@ function initCytoscapeGraph(app) {
     }
 
     // 初始化 Cytoscape
+    // 移动端优化配置
+    const isMobile = window.innerWidth < 768;
+
     cy = cytoscape({
         container: container,
         elements: elements,
@@ -179,7 +182,18 @@ function initCytoscapeGraph(app) {
         },
         wheelSensitivity: 0.3,
         minZoom: 0.2,
-        maxZoom: 3
+        maxZoom: 3,
+        // 触摸交互优化
+        touchTapThreshold: 8,
+        desktopTapThreshold: 4,
+        boxSelectionEnabled: !isMobile,
+        // 捏合缩放
+        zoomOnPinch: true,
+        pinchToZoom: true,
+        // 拖拽平移
+        panningEnabled: true,
+        // 移动端减少运动
+        motionBlur: !isMobile
     });
 
     // 绑定事件
@@ -784,6 +798,8 @@ function runCytoscapeWithFallback(app) {
     const container = document.getElementById('cy');
     const elements = convertToElements(app.graphData);
 
+    const isMobile = window.innerWidth < 768;
+
     cy = cytoscape({
         container: container,
         elements: elements,
@@ -792,7 +808,14 @@ function runCytoscapeWithFallback(app) {
         renderer: { name: 'canvas' },
         wheelSensitivity: 0.3,
         minZoom: 0.2,
-        maxZoom: 3
+        maxZoom: 3,
+        touchTapThreshold: 8,
+        desktopTapThreshold: 4,
+        boxSelectionEnabled: !isMobile,
+        zoomOnPinch: true,
+        pinchToZoom: true,
+        panningEnabled: true,
+        motionBlur: !isMobile
     });
 
     bindEvents();

@@ -20,10 +20,11 @@
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 50; }
         .modal { background: white; border-radius: 12px; padding: 24px; width: 480px; max-width: 90vw; }
     </style>
+    <link rel="stylesheet" href="../css/responsive.css">
 </head>
 <body class="min-h-screen">
     <header class="bg-white shadow-sm">
-        <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between flex-wrap gap-2 text-sm">
             <div class="flex items-center gap-4">
                 <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
                 <h1 class="text-xl font-bold text-gray-800">内容去重管理</h1>
@@ -60,7 +61,7 @@
 
     <!-- 合并弹窗 -->
     <div id="mergeModal" class="modal-overlay hidden">
-        <div class="modal">
+        <div class="modal modal-fullscreen-mobile">
             <h3 class="text-lg font-semibold text-gray-800 mb-4">合并重复内容</h3>
             <div id="mergeInfo" class="text-sm text-gray-600 mb-4"></div>
             <div class="mb-3">
@@ -158,7 +159,7 @@
                     <div class="similarity-bar mb-3">
                         <div class="similarity-fill" style="width: ${simPercent}%"></div>
                     </div>
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div class="bg-gray-50 p-3 rounded">
                             <div class="text-xs text-gray-500 mb-1">文档 A</div>
                             <a href="/?atom=${encodeURIComponent(d.atom1)}" class="text-sm font-medium text-blue-600 hover:underline">${escapeHtml(d.atom1_title)}</a>

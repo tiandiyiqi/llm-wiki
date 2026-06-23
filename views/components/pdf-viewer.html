@@ -19,30 +19,30 @@
 -->
 
 <template id="pdf-viewer-template">
-  <div class="pdf-viewer">
+  <div class="pdf-viewer modal-fullscreen-mobile">
     <!-- 工具栏 -->
     <div class="pdf-toolbar">
       <div class="pdf-toolbar-group">
-        <button class="pdf-btn" id="pdf-prev" title="上一页">&#9664;</button>
+        <button class="pdf-btn touch-target" id="pdf-prev" title="上一页">&#9664;</button>
         <span class="pdf-page-info">
           <input type="number" id="pdf-page-input" min="1" value="1" />
           / <span id="pdf-page-count">0</span>
         </span>
-        <button class="pdf-btn" id="pdf-next" title="下一页">&#9654;</button>
+        <button class="pdf-btn touch-target" id="pdf-next" title="下一页">&#9654;</button>
       </div>
 
-      <div class="pdf-toolbar-group">
-        <button class="pdf-btn" id="pdf-zoom-out" title="缩小">-</button>
+      <div class="pdf-toolbar-group pdf-toolbar-zoom">
+        <button class="pdf-btn touch-target" id="pdf-zoom-out" title="缩小">-</button>
         <span id="pdf-zoom-level" class="pdf-zoom-info">100%</span>
-        <button class="pdf-btn" id="pdf-zoom-in" title="放大">+</button>
-        <button class="pdf-btn" id="pdf-fit-width" title="适应宽度">W</button>
-        <button class="pdf-btn" id="pdf-fit-page" title="适应页面">P</button>
+        <button class="pdf-btn touch-target" id="pdf-zoom-in" title="放大">+</button>
+        <button class="pdf-btn touch-target" id="pdf-fit-width" title="适应宽度">W</button>
+        <button class="pdf-btn touch-target" id="pdf-fit-page" title="适应页面">P</button>
       </div>
 
-      <div class="pdf-toolbar-group">
+      <div class="pdf-toolbar-group pdf-toolbar-search">
         <input type="text" id="pdf-search-input" placeholder="搜索..." />
-        <button class="pdf-btn" id="pdf-search-prev" title="上一个">&#9650;</button>
-        <button class="pdf-btn" id="pdf-search-next" title="下一个">&#9660;</button>
+        <button class="pdf-btn touch-target" id="pdf-search-prev" title="上一个">&#9650;</button>
+        <button class="pdf-btn touch-target" id="pdf-search-next" title="下一个">&#9660;</button>
         <span id="pdf-search-count" class="pdf-search-info"></span>
       </div>
     </div>
@@ -226,7 +226,31 @@
   color: #aaa;
   margin: 8px 0 16px;
 }
+
+/* 移动端响应式 */
+@media (max-width: 767px) {
+  .pdf-toolbar {
+    gap: 6px;
+    padding: 6px 8px;
+  }
+  .pdf-toolbar-zoom {
+    display: none;
+  }
+  .pdf-toolbar-search {
+    width: 100%;
+  }
+  .pdf-toolbar-search #pdf-search-input {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+  .pdf-document-container {
+    padding: 8px;
+  }
+}
 </style>
+
+<link rel="stylesheet" href="/views/css/responsive.css">
 
 <script>
 /**

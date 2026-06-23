@@ -160,7 +160,7 @@ updated: 2026-06-23
 | 3.2 搜索优化 | 🔄 代码已实现 | 2026-06-22 | - | 75% | 7模块 + 高亮/联想/摘要/向量搜索；缺搜索结果排序优化 |
 | 3.3 OCR 扫描件识别 | 🔄 代码已实现 | 2026-06-22 | - | 65% | paddle_ocr + task_queue + result_store；缺 PaddleOCR 实际部署和云服务降级 |
 | 3.4 在线预览 | 🔄 部分实现 | 2026-06-22 | - | 55% | cache_manager + office_viewer；缺 PDF.js 集成和 KKFileView 对接 |
-| 3.5 移动端优化 | ⏳ 待开始 | - | - | 0% | 无代码；待创建规划和调研 |
+| 3.5 移动端优化 | 🔄 代码已实现 | 2026-06-23 | - | 85% | responsive.css + mobile-sidebar + PWA(manifest/sw.js/icons) + 触摸优化 + 移动端API精简；待 Lighthouse 审计和跨设备测试 |
 
 ---
 
