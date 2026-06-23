@@ -34,6 +34,22 @@ services:
       retries: 5
     restart: unless-stopped
 
+  casdoor:
+    image: casbin/casdoor-all-in-one:v1.678.0
+    container_name: llm-wiki-casdoor
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      RUNNING_IN_DOCKER: "true"
+      DRIVER_NAME: "postgres"
+      DATA_SOURCE_NAME: "user=${POSTGRES_USER:-llm_wiki} password=${POSTGRES_PASSWORD:-llm_wiki_dev} host=postgres port=5432 sslmode=disable dbname=casdoor"
+    ports:
+      - "${CASDOOR_PORT:-8001}:8000"
+    volumes:
+      - casdoor_data:/var/casdoor
+    restart: unless-stopped
+
   llm-wiki:
     build:
       context: .
@@ -47,6 +63,15 @@ services:
       LLM_WIKI_POOL_SIZE: ${LLM_WIKI_POOL_SIZE:-10}
       # Redis（用于缓存和 OCR 任务队列）
       REDIS_URL: redis://redis:6379/0
+      # SSO / Casdoor（SSO 默认禁用，启用需设置 SSO_ENABLED=true）
+      SSO_ENABLED: ${SSO_ENABLED:-false}
+      CASDOOR_ENDPOINT: ${CASDOOR_ENDPOINT:-http://casdoor:8000}
+      CASDOOR_CLIENT_ID: ${CASDOOR_CLIENT_ID:-}
+      CASDOOR_CLIENT_SECRET: ${CASDOOR_CLIENT_SECRET:-}
+      CASDOOR_ORGANIZATION: ${CASDOOR_ORGANIZATION:-llm-wiki}
+      CASDOOR_APPLICATION: ${CASDOOR_APPLICATION:-llm-wiki-app}
+      CASDOOR_CERTIFICATE: ${CASDOOR_CERTIFICATE:-}
+      CASDOOR_REDIRECT_URI: ${CASDOOR_REDIRECT_URI:-http://localhost:8000/api/auth/sso/callback}
       # 服务配置
       LLM_WIKI_HOST: ${LLM_WIKI_HOST:-0.0.0.0}
       LLM_WIKI_PORT: ${LLM_WIKI_PORT:-8000}
@@ -64,4 +89,5 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  casdoor_data:
   wiki_data:

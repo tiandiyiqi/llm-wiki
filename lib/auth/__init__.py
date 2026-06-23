@@ -32,6 +32,7 @@ from .auth_middleware import (
     AuthMiddleware,
 )
 from .session_manager import Session, SessionManager
+from .casdoor_config import CasdoorConfig
 from .cache_manager import (
     CacheManager,
     get_permission_cache,
@@ -64,6 +65,8 @@ __all__ = [
     # 会话
     'Session',
     'SessionManager',
+    # SSO 配置
+    'CasdoorConfig',
     # 缓存
     'CacheManager',
     'get_permission_cache',
