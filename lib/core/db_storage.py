@@ -57,7 +57,7 @@ class DatabaseStorage(StorageInterface):
         if self.db_manager:
             await self.db_manager.close()
 
-    def set_current_user(self, user_id: str, roles: List[str]) -> None:
+    async def set_current_user(self, user_id: str, roles: List[str]) -> None:
         """设置当前用户上下文（用于 RLS）
 
         Args:
@@ -67,14 +67,7 @@ class DatabaseStorage(StorageInterface):
         self._current_user_id = user_id
         self._current_user_roles = roles
         if hasattr(self.db_manager, 'set_rls_context'):
-            # set_rls_context 是 async 方法，需要事件循环
-            import asyncio
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(self.db_manager.set_rls_context(user_id, roles))
-            except RuntimeError:
-                # 没有运行中的事件循环，稍后设置
-                logger.debug("No running event loop, RLS context will be set on next operation")
+            await self.db_manager.set_rls_context(user_id, roles)
         logger.debug("RLS context set: user=%s, roles=%s", user_id, roles)
 
     # ==================== 知识库操作 ====================
@@ -245,7 +238,7 @@ class DatabaseStorage(StorageInterface):
             return await self.db_manager.get_kb_stats(kb_id)
 
         # 全局统计
-        try:
+        if hasattr(self.db_manager, 'fetch_one'):
             result = await self.db_manager.fetch_one(
                 "SELECT COUNT(*) as count FROM knowledge_bases"
             )
@@ -253,6 +246,4 @@ class DatabaseStorage(StorageInterface):
                 'kb_count': result['count'] if result else 0,
                 'total_atoms': 0,
             }
-        except AttributeError:
-            # SQLiteManager 可能没有 fetch_one
-            return await self.db_manager.get_kb_stats(kb_id) if kb_id else {'kb_count': 0}
+        return {'kb_count': 0}

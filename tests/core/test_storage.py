@@ -811,14 +811,10 @@ class TestDatabaseStorageInitialization:
         mock_db_manager.set_rls_context = AsyncMock()
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
-        storage.set_current_user('user123', ['admin', 'editor'])
+        await storage.set_current_user('user123', ['admin', 'editor'])
 
         assert storage._current_user_id == 'user123'
         assert storage._current_user_roles == ['admin', 'editor']
-        # set_rls_context 通过 create_task 调度，在异步上下文中会被调用
-        # 给事件循环一个机会执行 create_task
-        import asyncio
-        await asyncio.sleep(0)
         mock_db_manager.set_rls_context.assert_called_once_with('user123', ['admin', 'editor'])
 
 

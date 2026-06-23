@@ -98,6 +98,17 @@ async def postgres_manager(postgres_config: StorageConfig, mock_pool, mock_conne
     mock_pool.acquire.return_value.__aexit__ = AsyncMock()
 
     await manager.initialize()
+
+    # Mock _acquire_context 使其返回 mock_connection
+    # 这样所有 CRUD 操作都会使用 mock_connection
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def _mock_acquire_context():
+        yield mock_connection
+
+    manager._acquire_context = _mock_acquire_context
+
     yield manager
     await manager.close()
 

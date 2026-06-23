@@ -51,6 +51,7 @@ class PostgreSQLManager(DatabaseManager):
         self.pool = None
         self._connected = False
         self._transaction_conn = None
+        self._current_user_id: Optional[str] = None
 
     async def initialize(self) -> None:
         """初始化数据库连接池和表结构"""
@@ -64,7 +65,7 @@ class PostgreSQLManager(DatabaseManager):
             command_timeout=60,
         )
 
-        # 加载完整 schema 初始化表结构
+        # 加载完整 schema 初始化表结构（不需要 RLS 上下文）
         async with self.pool.acquire() as conn:
             await self._init_schema(conn)
 
@@ -182,7 +183,7 @@ class PostgreSQLManager(DatabaseManager):
             执行结果字符串
         """
         async def _exec():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 return await conn.execute(query, *args)
 
         return await self._execute_with_retry(_exec)
@@ -198,7 +199,7 @@ class PostgreSQLManager(DatabaseManager):
             记录字典，不存在返回 None
         """
         async def _fetch():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 row = await conn.fetchrow(query, *args)
                 return dict(row) if row else None
 
@@ -215,7 +216,7 @@ class PostgreSQLManager(DatabaseManager):
             记录字典列表
         """
         async def _fetch():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 rows = await conn.fetch(query, *args)
                 return [dict(row) for row in rows]
 
@@ -226,31 +227,49 @@ class PostgreSQLManager(DatabaseManager):
     async def set_rls_context(self, user_id: str, roles: Optional[List[str]] = None) -> None:
         """设置 RLS 用户上下文
 
-        在每个请求开始时调用，设置当前用户 ID，
-        使 RLS 策略基于此 ID 进行权限过滤。
+        存储当前用户 ID，后续每次获取连接时自动设置会话变量。
+        这确保 RLS 策略在正确的连接上生效。
 
         Args:
             user_id: 用户 ID
             roles: 用户角色列表（可选，Python 层 RBAC 使用）
         """
-        async def _set():
-            async with self.pool.acquire() as conn:
-                await conn.execute("SELECT set_current_user_id($1)", user_id)
-
-        await self._execute_with_retry(_set)
-        logger.debug("RLS context set: user_id=%s", user_id)
+        self._current_user_id = user_id
+        logger.debug("RLS context stored: user_id=%s", user_id)
 
     async def clear_rls_context(self) -> None:
-        """清除 RLS 用户上下文
+        """清除 RLS 用户上下文"""
+        self._current_user_id = None
 
-        在请求结束后调用，清除用户上下文，
-        避免连接归还池后保留上一个用户的信息。
+    async def _acquire_conn(self):
+        """获取连接并自动设置 RLS 上下文
+
+        如果设置了 _current_user_id，在获取连接后立即调用
+        set_current_user_id，确保 RLS 策略生效。
         """
-        async def _clear():
-            async with self.pool.acquire() as conn:
-                await conn.execute("SELECT clear_current_user_id()")
+        conn = await self.pool.acquire()
+        if self._current_user_id:
+            try:
+                await conn.execute("SELECT set_current_user_id($1)", self._current_user_id)
+            except Exception as e:
+                logger.warning("Failed to set RLS context on connection: %s", e)
+        return conn
 
-        await self._execute_with_retry(_clear)
+    async def _release_conn(self, conn) -> None:
+        """释放连接前清除 RLS 上下文"""
+        if self._current_user_id:
+            try:
+                await conn.execute("SELECT clear_current_user_id()")
+            except Exception:
+                pass  # 清除失败不影响连接释放
+        await self.pool.release(conn)
+
+    def _acquire_context(self):
+        """返回一个异步上下文管理器，自动处理 RLS 上下文
+
+        用法: async with self._acquire_context() as conn:
+        """
+        return _RLSConnectionContext(self)
 
     # ========== 重试机制 ==========
 
@@ -285,7 +304,7 @@ class PostgreSQLManager(DatabaseManager):
             raise ValueError("Invalid kb_data: missing required fields (name)")
 
         async def _create():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 row = await conn.fetchrow('''
                     INSERT INTO knowledge_bases
                     (name, slug, type, description, organization_id,
@@ -314,7 +333,7 @@ class PostgreSQLManager(DatabaseManager):
     async def get_kb(self, kb_id: int) -> Optional[Dict[str, Any]]:
         """获取知识库信息"""
         async def _get():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 row = await conn.fetchrow(
                     'SELECT * FROM knowledge_bases WHERE id = $1', kb_id
                 )
@@ -325,7 +344,7 @@ class PostgreSQLManager(DatabaseManager):
     async def get_kb_by_name(self, name: str) -> Optional[Dict[str, Any]]:
         """根据名称获取知识库信息"""
         async def _get():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 row = await conn.fetchrow(
                     'SELECT * FROM knowledge_bases WHERE name = $1', name
                 )
@@ -337,7 +356,7 @@ class PostgreSQLManager(DatabaseManager):
                        scope: str = 'all') -> List[Dict[str, Any]]:
         """列出知识库"""
         async def _list():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 if scope == 'all':
                     rows = await conn.fetch(
                         'SELECT * FROM knowledge_bases ORDER BY name'
@@ -354,7 +373,7 @@ class PostgreSQLManager(DatabaseManager):
     async def update_kb(self, kb_id: int, kb_data: Dict[str, Any]) -> bool:
         """更新知识库"""
         async def _update():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 # 允许更新的字段白名单
                 allowed_fields = {
                     'name', 'slug', 'type', 'description',
@@ -388,7 +407,7 @@ class PostgreSQLManager(DatabaseManager):
     async def delete_kb(self, kb_id: int) -> bool:
         """删除知识库"""
         async def _delete():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 # ON DELETE CASCADE 会自动删除关联的原子和子关系
                 result = await conn.execute(
                     'DELETE FROM knowledge_bases WHERE id = $1', kb_id
@@ -406,7 +425,7 @@ class PostgreSQLManager(DatabaseManager):
             raise ValueError("Invalid atom_data: missing required fields (kb_id, title, content, type)")
 
         async def _create():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 row = await conn.fetchrow('''
                     INSERT INTO atoms
                     (kb_id, title, slug, type, description,
@@ -432,7 +451,7 @@ class PostgreSQLManager(DatabaseManager):
     async def get_atom(self, atom_id: int) -> Optional[Dict[str, Any]]:
         """获取知识原子"""
         async def _get():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 row = await conn.fetchrow(
                     'SELECT * FROM atoms WHERE id = $1', atom_id
                 )
@@ -443,7 +462,7 @@ class PostgreSQLManager(DatabaseManager):
     async def get_atom_by_path(self, kb_id: int, path: str) -> Optional[Dict[str, Any]]:
         """根据 slug 获取知识原子（兼容旧 path 参数）"""
         async def _get():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 # 优先按 slug 查找，兼容旧系统用 path 查找
                 row = await conn.fetchrow(
                     'SELECT * FROM atoms WHERE kb_id = $1 AND slug = $2',
@@ -463,7 +482,7 @@ class PostgreSQLManager(DatabaseManager):
     async def update_atom(self, atom_id: int, atom_data: Dict[str, Any]) -> bool:
         """更新知识原子"""
         async def _update():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 # 检查锁定状态
                 current = await conn.fetchrow(
                     'SELECT is_locked FROM atoms WHERE id = $1', atom_id
@@ -503,26 +522,29 @@ class PostgreSQLManager(DatabaseManager):
 
         return await self._execute_with_retry(_update)
 
-    async def delete_atom(self, atom_id: int) -> bool:
-        """删除知识原子（支持软删除）"""
-        async def _delete():
-            async with self.pool.acquire() as conn:
-                # 默认软删除（标记为 archived）
-                hard_delete = False
-                if 'hard_delete' in str(atom_id):
-                    hard_delete = True
+    async def delete_atom(self, atom_id: int, hard_delete: bool = False) -> bool:
+        """删除知识原子（支持软删除）
 
+        Args:
+            atom_id: 原子 ID
+            hard_delete: 是否硬删除（默认软删除：标记为 archived）
+
+        Returns:
+            是否成功
+        """
+        async def _delete():
+            async with self._acquire_context() as conn:
                 if hard_delete:
                     result = await conn.execute(
                         'DELETE FROM atoms WHERE id = $1', atom_id
                     )
+                    return result == 'DELETE 1'
                 else:
+                    # 软删除：标记为 archived
                     result = await conn.execute(
                         "UPDATE atoms SET status = 'archived' WHERE id = $1", atom_id
                     )
                     return result == 'UPDATE 1'
-
-                return result == 'DELETE 1'
 
         return await self._execute_with_retry(_delete)
 
@@ -530,7 +552,7 @@ class PostgreSQLManager(DatabaseManager):
                          limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """列出知识原子"""
         async def _list():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 if by_type:
                     rows = await conn.fetch('''
                         SELECT * FROM atoms
@@ -558,10 +580,7 @@ class PostgreSQLManager(DatabaseManager):
                            limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
         """搜索知识原子（使用 PostgreSQL 全文搜索 + pg_trgm 模糊搜索）"""
         async def _search():
-            async with self.pool.acquire() as conn:
-                # 优先使用全文搜索
-                ts_query = ' & '.join(query.split())
-
+            async with self._acquire_context() as conn:
                 sql = '''
                     SELECT a.*, kb.name as kb_name,
                            ts_rank(a.content_tsv, websearch_to_tsquery('english', $1)) as rank
@@ -631,9 +650,7 @@ class PostgreSQLManager(DatabaseManager):
         filters = filters or {}
 
         async def _search():
-            async with self.pool.acquire() as conn:
-                ts_query = ' & '.join(query.split())
-
+            async with self._acquire_context() as conn:
                 sql = '''
                     SELECT a.*, kb.name as kb_name,
                            ts_rank(a.content_tsv, websearch_to_tsquery('english', $1)) as rank
@@ -703,7 +720,7 @@ class PostgreSQLManager(DatabaseManager):
                                  child_path: str) -> bool:
         """注册子知识库到父知识库"""
         async def _register():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 async with conn.transaction():
                     # 使用聚合表替代 kb_children
                     await conn.execute('''
@@ -725,7 +742,7 @@ class PostgreSQLManager(DatabaseManager):
     async def get_child_kbs(self, parent_id: int) -> List[Dict[str, Any]]:
         """获取子知识库列表"""
         async def _get():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 rows = await conn.fetch('''
                     SELECT kb.*, kbagg.include_private, kbagg.priority
                     FROM knowledge_bases kb
@@ -741,7 +758,7 @@ class PostgreSQLManager(DatabaseManager):
     async def get_parent_kb(self, child_id: int) -> Optional[Dict[str, Any]]:
         """获取父知识库信息"""
         async def _get():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 row = await conn.fetchrow('''
                     SELECT kb.*
                     FROM knowledge_bases kb
@@ -758,7 +775,7 @@ class PostgreSQLManager(DatabaseManager):
     async def get_kb_stats(self, kb_id: int) -> Dict[str, Any]:
         """获取知识库统计信息"""
         async def _stats():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 row = await conn.fetchrow('''
                     SELECT
                         COUNT(*) AS total_atoms,
@@ -780,7 +797,7 @@ class PostgreSQLManager(DatabaseManager):
     async def get_atom_count(self, kb_id: int, by_type: Optional[str] = None) -> int:
         """获取知识原子数量"""
         async def _count():
-            async with self.pool.acquire() as conn:
+            async with self._acquire_context() as conn:
                 if by_type:
                     row = await conn.fetchrow(
                         "SELECT COUNT(*) as count FROM atoms WHERE kb_id = $1 AND type = $2::atom_type AND status = 'active'",
@@ -840,10 +857,10 @@ class PostgreSQLManager(DatabaseManager):
     # ========== 工具方法 ==========
 
     @staticmethod
-    def _row_to_kb_dict(row) -> Dict[str, Any]:
+    def _row_to_kb_dict(row) -> Optional[Dict[str, Any]]:
         """将数据库行转换为知识库字典"""
         if row is None:
-            return {}
+            return None
         return {
             'id': row['id'],
             'name': row['name'],
@@ -864,10 +881,10 @@ class PostgreSQLManager(DatabaseManager):
         }
 
     @staticmethod
-    def _row_to_atom_dict(row) -> Dict[str, Any]:
+    def _row_to_atom_dict(row) -> Optional[Dict[str, Any]]:
         """将数据库行转换为知识原子字典"""
         if row is None:
-            return {}
+            return None
         metadata = row.get('metadata', {})
         if isinstance(metadata, str):
             try:
@@ -901,7 +918,28 @@ class PostgreSQLManager(DatabaseManager):
         # 附加搜索相关字段
         if 'kb_name' in (row.keys() if hasattr(row, 'keys') else {}):
             result['kb_name'] = row['kb_name']
-        if 'rank' in (row.keys() if hasattr(row, 'keys') else {}):
+        if 'rank' in row:
             result['rank'] = float(row['rank'])
 
         return result
+
+
+class _RLSConnectionContext:
+    """异步上下文管理器：获取连接时自动设置 RLS，释放时自动清除。
+
+    用法: async with self._acquire_context() as conn:
+    """
+
+    def __init__(self, manager: PostgreSQLManager):
+        self._manager = manager
+        self._conn = None
+
+    async def __aenter__(self):
+        self._conn = await self._manager._acquire_conn()
+        return self._conn
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self._conn:
+            await self._manager._release_conn(self._conn)
+            self._conn = None
+        return False

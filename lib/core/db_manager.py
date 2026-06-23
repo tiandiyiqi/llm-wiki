@@ -185,11 +185,12 @@ class DatabaseManager(ABC):
         pass
 
     @abstractmethod
-    async def delete_atom(self, atom_id: int) -> bool:
+    async def delete_atom(self, atom_id: int, hard_delete: bool = False) -> bool:
         """删除知识原子
 
         Args:
             atom_id: 知识原子 ID
+            hard_delete: 是否硬删除（默认软删除）
 
         Returns:
             是否删除成功
