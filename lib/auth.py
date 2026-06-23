@@ -3,6 +3,7 @@
 集成 RBAC 和 RLS 系统，提供细粒度的权限控制。
 """
 
+import asyncio
 import getpass
 import hashlib
 import json
@@ -122,6 +123,10 @@ class AuthManager:
         self._rbac: Optional['RBACManager'] = None
         self._rls: Optional['RLSManager'] = None
         self._permission_middleware: Optional['PermissionMiddleware'] = None
+
+        # SSO 相关（延迟初始化）
+        self._sso_provider: Optional[Any] = None
+        self._session_manager: Optional[Any] = None  # RedisSessionManager 或 SessionManager
 
     @property
     def rbac(self) -> Optional['RBACManager']:
@@ -450,11 +455,37 @@ class AuthManager:
     def validate_token(self, token: str) -> Optional[str]:
         """验证 Token，返回角色（使用哈希索引优化性能）.
 
-        Args Token 字符串（明文）
+        支持两种 Token 类型：
+        1. 本地 API Token（Fernet 加密存储）
+        2. SSO JWT Token（以 'eyJ' 开头）
+
+        Args:
+            token: Token 字符串（明文）
 
         Returns:
-            角色返回 None
+            角色字符串，验证失败返回 None
         """
+        # 检测 JWT 格式 token（SSO）
+        if token.startswith('eyJ') and self._sso_provider is not None:
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 在已有事件循环中无法直接 await，返回 None
+                    # SSO JWT 应在异步上下文中通过 validate_sso_token 验证
+                    return None
+                claims = loop.run_until_complete(self._sso_provider.validate_sso_token(token))
+            except Exception:
+                claims = None
+            if claims:
+                # 从 JWT claims 中提取角色
+                roles = claims.get('roles', [])
+                if isinstance(roles, list) and 'admin' in roles:
+                    return 'admin'
+                return 'user'
+            return None
+
+        # 本地 API Token 验证
         # 计算 Token 哈希
         token_hash = hashlib.sha256(token.encode()).hexdigest()
 
@@ -890,3 +921,132 @@ class AuthManager:
 
         except Exception as e:
             logger.error(f"Failed to close permission system: {e}")
+
+    # --- SSO 相关方法 ---
+
+    def setup_sso(self, sso_provider: Any, session_manager: Any) -> None:
+        """配置 SSO 认证提供者和会话管理器.
+
+        Args:
+            sso_provider: SSOAuthProvider 实例
+            session_manager: SessionManager 或 RedisSessionManager 实例
+        """
+        self._sso_provider = sso_provider
+        self._session_manager = session_manager
+        logger.info("SSO provider configured for AuthManager")
+
+    def is_sso_enabled(self) -> bool:
+        """检查 SSO 是否已启用.
+
+        Returns:
+            SSO 提供者是否已配置
+        """
+        return self._sso_provider is not None
+
+    async def sso_login(self, redirect_url: Optional[str] = None) -> Any:
+        """发起 SSO 登录.
+
+        Args:
+            redirect_url: 登录成功后的重定向 URL
+
+        Returns:
+            SSOAuthResult 认证结果
+
+        Raises:
+            RuntimeError: SSO 未启用
+        """
+        if self._sso_provider is None:
+            raise RuntimeError("SSO is not enabled. Call setup_sso() first.")
+        return await self._sso_provider.initiate_login(redirect_url=redirect_url)
+
+    async def sso_callback(self, code: str, state: str) -> Any:
+        """处理 SSO 登录回调.
+
+        Args:
+            code: OAuth2 授权码
+            state: CSRF 防护的 state 参数
+
+        Returns:
+            SSOAuthResult 认证结果
+
+        Raises:
+            RuntimeError: SSO 未启用
+        """
+        if self._sso_provider is None:
+            raise RuntimeError("SSO is not enabled. Call setup_sso() first.")
+        return await self._sso_provider.handle_callback(code=code, state=state)
+
+    async def sso_logout(self, session_id: str) -> Any:
+        """处理 SSO 登出.
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            SSOAuthResult 包含 Casdoor 登出 URL
+
+        Raises:
+            RuntimeError: SSO 未启用
+        """
+        if self._sso_provider is None:
+            raise RuntimeError("SSO is not enabled. Call setup_sso() first.")
+
+        # 销毁本地会话
+        if self._session_manager is not None:
+            if hasattr(self._session_manager, 'destroy_session'):
+                if asyncio.iscoroutinefunction(self._session_manager.destroy_session):
+                    await self._session_manager.destroy_session(session_id)
+                else:
+                    self._session_manager.destroy_session(session_id)
+
+        return await self._sso_provider.handle_logout(session_id=session_id)
+
+    async def validate_sso_token(self, token: str) -> Optional[Dict]:
+        """验证 SSO JWT Token.
+
+        Args:
+            token: JWT 令牌字符串
+
+        Returns:
+            解码后的 JWT claims，验证失败返回 None
+        """
+        if self._sso_provider is None:
+            return None
+        return await self._sso_provider.validate_sso_token(token)
+
+    async def validate_sso_session(self, session_id: str) -> Optional[Dict]:
+        """从会话管理器获取 SSO 会话信息.
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            包含 user_id 和 roles 的字典，不存在返回 None
+        """
+        if self._session_manager is None:
+            return None
+
+        try:
+            if hasattr(self._session_manager, 'get_session'):
+                if asyncio.iscoroutinefunction(self._session_manager.get_session):
+                    session = await self._session_manager.get_session(session_id)
+                else:
+                    session = self._session_manager.get_session(session_id)
+
+                if session is None:
+                    return None
+
+                # 兼容 dict 和 Session 对象
+                if isinstance(session, dict):
+                    return {
+                        'user_id': session.get('user_id', ''),
+                        'roles': session.get('metadata', {}).get('roles', []),
+                    }
+                # Session dataclass
+                return {
+                    'user_id': getattr(session, 'user_id', ''),
+                    'roles': getattr(session, 'metadata', {}).get('roles', []),
+                }
+        except Exception as exc:
+            logger.error("Failed to validate SSO session: %s", exc)
+            return None
