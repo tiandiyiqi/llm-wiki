@@ -172,6 +172,42 @@ const API = {
     },
 
     /**
+     * 获取 SSO 提供商列表
+     */
+    async getSSOProviders() {
+        try {
+            const result = await this.get('/api/auth/sso/providers');
+            return result.providers || [];
+        } catch (e) {
+            return [];
+        }
+    },
+
+    /**
+     * 发起 SSO 登录（重定向到 Casdoor）
+     */
+    ssoLogin(provider) {
+        window.location.href = '/api/auth/sso/login' + (provider ? '?provider=' + encodeURIComponent(provider) : '');
+    },
+
+    /**
+     * 处理 SSO 回调（从 URL 解析 code 和 state）
+     */
+    async handleSSOCallback() {
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const state = params.get('state');
+        return { code, state };
+    },
+
+    /**
+     * SSO 是否可用
+     */
+    isSSOEnabled() {
+        return this._ssoProviders && this._ssoProviders.length > 0;
+    },
+
+    /**
      * 应用权限控制：隐藏无权限的元素
      */
     applyPermissions() {

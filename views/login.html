@@ -81,6 +81,16 @@
             <button type="submit" id="loginBtn" class="login-btn">登 录</button>
         </form>
 
+        <!-- SSO 登录区域（由 JS 动态显示） -->
+        <div id="ssoSection" style="display:none" class="mt-6">
+            <div class="flex items-center my-4">
+                <div class="flex-1 h-px bg-gray-300"></div>
+                <span class="px-3 text-sm text-gray-500">或使用企业账号</span>
+                <div class="flex-1 h-px bg-gray-300"></div>
+            </div>
+            <div id="ssoProviders" class="space-y-2"></div>
+        </div>
+
         <div class="mt-6 p-4 bg-blue-50 rounded-lg text-sm text-blue-700">
             <p class="font-medium mb-1">💡 首次使用提示：</p>
             <p>1. 使用 CLI 创建管理员：<code class="bg-white px-1 rounded">llm-wiki user-add &lt;kb&gt; admin --role admin --password xxx</code></p>
@@ -138,6 +148,39 @@
                 }
             })
             .catch(() => {});
+
+        // 页面加载后初始化 SSO
+        (async function initSSO() {
+            // 检查 URL 中的错误参数（SSO 回调失败）
+            const params = new URLSearchParams(window.location.search);
+            const errorParam = params.get('error');
+            if (errorParam) {
+                document.getElementById('errorMsg').textContent = decodeURIComponent(errorParam);
+                document.getElementById('errorMsg').style.display = 'block';
+            }
+
+            // 获取 SSO 提供商列表
+            try {
+                const response = await fetch('/api/auth/sso/providers', { credentials: 'same-origin' });
+                const data = await response.json();
+                const providers = data.providers || [];
+
+                if (providers.length > 0) {
+                    document.getElementById('ssoSection').style.display = 'block';
+                    const container = document.getElementById('ssoProviders');
+                    providers.forEach(p => {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium mb-2';
+                        btn.textContent = p.display_name || '企业 SSO 登录';
+                        btn.onclick = () => window.location.href = p.login_url || '/api/auth/sso/login';
+                        container.appendChild(btn);
+                    });
+                }
+            } catch (e) {
+                // SSO 不可用，不影响本地登录
+            }
+        })();
     </script>
 </body>
 </html>

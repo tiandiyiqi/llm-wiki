@@ -69,6 +69,8 @@ def _run_async(coro):
 PUBLIC_ENDPOINTS = {
     '/api/health',
     '/api/auth/login',
+    '/api/auth/sso/providers',
+    '/api/auth/sso/callback',
 }
 
 # 通过正则匹配的公开端点（用于带路径参数的公开端点）
@@ -268,6 +270,18 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
             self._json_response({'error': '未登录或认证失效', 'need_login': True}, 401)
             return
 
+        # 如果是 db_mode 且有 storage，设置 RLS 用户上下文
+        if hasattr(self, 'storage') and self.storage and hasattr(self.storage, 'set_current_user'):
+            current_user = getattr(self, '_current_user', None)
+            if current_user and current_user.get('username', 'anonymous') != 'anonymous':
+                try:
+                    _run_async(self.storage.set_current_user(
+                        current_user['username'],
+                        [current_user.get('role', 'user')]
+                    ))
+                except Exception:
+                    pass
+
         # 权限检查（公开端点跳过）
         route_key_for_public = f"{self.command}:{path}"
         is_public = path in PUBLIC_ENDPOINTS or any(p.match(route_key_for_public) for p in PUBLIC_ENDPOINT_PATTERNS)
@@ -288,6 +302,16 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
                 self._api_logout()
             elif route_key == 'GET:/api/auth/whoami':
                 self._api_whoami()
+
+            # SSO 认证相关
+            elif route_key == 'GET:/api/auth/sso/providers':
+                self._api_sso_providers()
+            elif route_key == 'GET:/api/auth/sso/login':
+                self._api_sso_login()
+            elif method == 'GET' and path.startswith('/api/auth/sso/callback'):
+                self._api_sso_callback()
+            elif route_key == 'POST:/api/auth/sso/logout':
+                self._api_sso_logout()
 
             # 用户管理
             elif route_key == 'GET:/api/users':
@@ -517,6 +541,8 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
                 self._api_config_mode()
             elif route_key == 'GET:/api/config/status':
                 self._api_config_status()
+            elif route_key == 'GET:/api/config/sso':
+                self._api_config_sso()
 
             else:
                 self._json_response({'error': f'未知的 API 端点: {method} {path}'}, 404)
@@ -528,6 +554,24 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
     # ========================================================================
     # 认证中间件
     # ========================================================================
+
+    def _get_cookie(self, name: str) -> Optional[str]:
+        """从请求中获取指定 cookie 的值.
+
+        Args:
+            name: Cookie 名称
+
+        Returns:
+            Cookie 值，不存在返回 None
+        """
+        cookie_header = self.headers.get('Cookie', '')
+        if not cookie_header:
+            return None
+        for part in cookie_header.split(';'):
+            part = part.strip()
+            if part.startswith(f'{name}='):
+                return part[len(name) + 1:]
+        return None
 
     def _authenticate(self, path: str) -> bool:
         """认证中间件，检查请求是否已登录.
@@ -565,7 +609,21 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
         if auth.is_logged_in():
             self._current_user = auth.get_current_user()
             return True
-        # 3. 未启用权限控制时，允许匿名访问
+        # 3. 检查 SSO 会话 cookie
+        if auth.is_sso_enabled():
+            sso_session_id = self._get_cookie('sso_session_id')
+            if sso_session_id:
+                try:
+                    session_info = _run_async(auth.validate_sso_session(sso_session_id))
+                    if session_info:
+                        self._current_user = {
+                            'username': session_info.get('user_id', 'anonymous'),
+                            'role': session_info.get('roles', ['user'])[0] if session_info.get('roles') else 'user',
+                        }
+                        return True
+                except Exception as exc:
+                    logger.warning("SSO session validation failed: %s", exc)
+        # 4. 未启用权限控制时，允许匿名访问
         if not auth.is_enabled():
             self._current_user = {'username': 'anonymous', 'role': 'guest'}
             return True
@@ -664,6 +722,125 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
             self._json_response({'user': user})
         else:
             self._json_response({'user': None, 'message': '未登录'})
+
+    # ========================================================================
+    # SSO 认证 API
+    # ========================================================================
+
+    def _api_sso_providers(self) -> None:
+        """返回可用 SSO 提供商列表."""
+        auth = self._get_auth_manager()
+        if not auth.is_sso_enabled():
+            self._json_response({'providers': []})
+            return
+        self._json_response({
+            'providers': [
+                {
+                    'name': 'casdoor',
+                    'display_name': '企业 SSO',
+                    'login_url': '/api/auth/sso/login',
+                }
+            ]
+        })
+
+    def _api_sso_login(self) -> None:
+        """发起 SSO 登录（302 重定向到 IdP）."""
+        auth = self._get_auth_manager()
+        if not auth.is_sso_enabled():
+            self._json_response({'error': 'SSO is not enabled'}, 501)
+            return
+        try:
+            result = _run_async(auth.sso_login())
+            if hasattr(result, 'redirect_url') and result.redirect_url:
+                self.send_response(302)
+                self.send_header('Location', result.redirect_url)
+                self._send_cors_headers()
+                self.end_headers()
+            else:
+                error_msg = getattr(result, 'error', 'Unknown SSO login error')
+                self._json_response({'error': error_msg}, 500)
+        except Exception as exc:
+            logger.error("SSO login failed: %s", exc)
+            self._json_response({'error': str(exc)}, 500)
+
+    def _api_sso_callback(self) -> None:
+        """OAuth2 回调处理."""
+        # 从 URL query 参数获取 code 和 state
+        parsed = urlparse(self.path)
+        params = parse_qs(parsed.query)
+        code = params.get('code', [''])[0]
+        state = params.get('state', [''])[0]
+
+        if not code or not state:
+            self.send_response(302)
+            self.send_header('Location', '/login.html?error=missing_params')
+            self._send_cors_headers()
+            self.end_headers()
+            return
+
+        auth = self._get_auth_manager()
+        try:
+            result = _run_async(auth.sso_callback(code, state))
+            if hasattr(result, 'success') and result.success:
+                # 获取会话 ID 并设置 cookie
+                session_id = getattr(result, 'session_id', None)
+                user_id = getattr(result, 'user_id', 'anonymous')
+                self.send_response(302)
+                self.send_header('Location', '/')
+                if session_id:
+                    self.send_header(
+                        'Set-Cookie',
+                        f'sso_session_id={session_id}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400'
+                    )
+                self._send_cors_headers()
+                self.end_headers()
+            else:
+                error_msg = getattr(result, 'error', 'SSO callback failed')
+                self.send_response(302)
+                self.send_header('Location', f'/login.html?error={error_msg}')
+                self._send_cors_headers()
+                self.end_headers()
+        except Exception as exc:
+            logger.error("SSO callback failed: %s", exc)
+            self.send_response(302)
+            self.send_header('Location', f'/login.html?error={exc}')
+            self._send_cors_headers()
+            self.end_headers()
+
+    def _api_sso_logout(self) -> None:
+        """SSO 登出."""
+        auth = self._get_auth_manager()
+        if not auth.is_sso_enabled():
+            self._json_response({'error': 'SSO is not enabled'}, 501)
+            return
+
+        # 获取当前 SSO 会话 ID
+        session_id = self._get_cookie('sso_session_id')
+        if not session_id:
+            # 也尝试从 header 获取
+            session_id = self.headers.get('X-SSO-Session-Id', '')
+
+        try:
+            result = _run_async(auth.sso_logout(session_id or ''))
+            redirect_url = getattr(result, 'redirect_url', None)
+            # 清除 SSO 会话 cookie
+            self.send_response(200)
+            self.send_header(
+                'Set-Cookie',
+                'sso_session_id=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'
+            )
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self._send_cors_headers()
+            body = json.dumps(
+                {'logout_url': redirect_url, 'status': 'ok'},
+                ensure_ascii=False, indent=2
+            ).encode('utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception as exc:
+            logger.error("SSO logout failed: %s", exc)
+            self._json_response({'error': str(exc)}, 500)
 
     # ========================================================================
     # 用户管理 API
@@ -1984,6 +2161,42 @@ tags: [{tags_str}]
                 'connected': False,
                 'error': str(e),
             })
+
+    def _api_config_sso(self) -> None:
+        """获取 SSO 配置信息（仅 admin 可访问）."""
+        user = getattr(self, '_current_user', None)
+        if not user or user.get('role', 'guest') != 'admin':
+            self._json_response({'error': '仅 admin 可访问此端点'}, 403)
+            return
+
+        auth = self._get_auth_manager()
+        if not auth.is_sso_enabled():
+            self._json_response({
+                'enabled': False,
+                'endpoint': '',
+                'providers': [],
+            })
+            return
+
+        # 获取 SSO 提供商信息
+        provider = auth._sso_provider
+        endpoint = ''
+        if hasattr(provider, 'config') and hasattr(provider.config, 'endpoint'):
+            endpoint = provider.config.endpoint or ''
+        elif hasattr(provider, 'endpoint'):
+            endpoint = provider.endpoint or ''
+
+        self._json_response({
+            'enabled': True,
+            'endpoint': endpoint,
+            'providers': [
+                {
+                    'name': 'casdoor',
+                    'display_name': '企业 SSO',
+                    'login_url': '/api/auth/sso/login',
+                }
+            ],
+        })
 
     # ========================================================================
     # 辅助方法
