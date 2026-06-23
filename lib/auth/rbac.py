@@ -306,8 +306,8 @@ class RBACManager:
         )
 
         ROLE_DEFINITIONS[role_name] = role_def
-        self._role_cache[role_name] = permissions
-
+        # 不预填缓存，让 get_role_permissions 首次查询时
+        # 自动计算包含继承的完整权限并缓存
         logger.info(f"Created custom role: {role_name}")
         return True
 

@@ -6,11 +6,14 @@
 
 import asyncio
 import json
+import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from .db_manager import DatabaseManager
 from .config import StorageConfig, StorageType
+
+logger = logging.getLogger(__name__)
 
 
 class PostgreSQLManager(DatabaseManager):

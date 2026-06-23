@@ -14,6 +14,7 @@ class SQLValidator:
     ALLOWED_TABLES: Set[str] = {
         'atoms',
         'knowledge_bases',
+        'kb_members',
         'users',
         'roles',
         'permissions',

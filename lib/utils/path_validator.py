@@ -122,6 +122,10 @@ class PathValidator:
             Optional[str]: 净化后的路径，如果路径不安全则返回 None
         """
         try:
+            # 拒绝空路径
+            if not path or not path.strip():
+                return None
+
             # 检测并拒绝危险的路径模式
             dangerous_patterns = [
                 '..',           # 路径遍历

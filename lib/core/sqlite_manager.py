@@ -5,6 +5,7 @@
 """
 
 import json
+import logging
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -12,6 +13,8 @@ from typing import Any, Dict, List, Optional
 
 from .db_manager import DatabaseManager
 from .config import StorageConfig, StorageType
+
+logger = logging.getLogger(__name__)
 
 
 class SQLiteManager(DatabaseManager):

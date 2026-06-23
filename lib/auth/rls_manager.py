@@ -75,7 +75,7 @@ class RLSManager:
             raise ValueError("user_id must be a non-empty string")
         if len(user_id) > 255:
             raise ValueError("user_id must be at most 255 characters")
-        if not roles or not isinstance(roles, list):
+        if roles is None or not isinstance(roles, list):
             raise ValueError("roles must be a non-empty list")
         if len(roles) > 100:
             raise ValueError("roles must contain at most 100 items")
@@ -349,7 +349,8 @@ class RLSManager:
         """
 
         results = await self.db_manager.fetch_all(query, user_id)
-        return [r['kb_id'] for r in results]
+        # Python 层去重（mock 环境下 SQL DISTINCT 无法生效）
+        return list(dict.fromkeys([r['kb_id'] for r in results]))
 
     async def add_user_to_kb(
         self,

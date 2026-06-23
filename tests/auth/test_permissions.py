@@ -460,7 +460,9 @@ class TestCustomRoleManagement:
 
         assert result is True
         assert 'contributor' in ROLE_DEFINITIONS
-        assert 'contributor' in initialized_rbac._role_cache
+        # 验证角色权限可正确获取（触发缓存填充）
+        perms = initialized_rbac.get_role_permissions('contributor')
+        assert Permission.ATOM_CREATE in perms
 
     @pytest.mark.asyncio
     async def test_create_custom_role_with_inheritance(self, initialized_rbac, clean_role_definitions):

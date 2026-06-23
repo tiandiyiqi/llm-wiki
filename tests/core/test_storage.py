@@ -725,9 +725,9 @@ def mock_db_manager():
     manager = Mock()
     manager.initialize = AsyncMock()
     manager.close = AsyncMock()
-    manager.begin = AsyncMock()
-    manager.commit = AsyncMock()
-    manager.rollback = AsyncMock()
+    manager.begin_transaction = AsyncMock()
+    manager.commit_transaction = AsyncMock()
+    manager.rollback_transaction = AsyncMock()
     manager.set_rls_context = Mock()
     manager.fetch_one = AsyncMock()
     manager.fetch_all = AsyncMock()
@@ -1107,7 +1107,7 @@ class TestDatabaseStorageTransaction:
         await storage.begin_transaction()
 
         assert storage._in_transaction is True
-        mock_db_manager.begin.assert_called_once()
+        mock_db_manager.begin_transaction.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_commit_transaction_calls_manager(self, storage_config, mock_db_manager):
@@ -1117,7 +1117,7 @@ class TestDatabaseStorageTransaction:
         await storage.begin_transaction()
         await storage.commit_transaction()
 
-        mock_db_manager.commit.assert_called_once()
+        mock_db_manager.commit_transaction.assert_called_once()
         assert storage._in_transaction is False
 
     @pytest.mark.asyncio
@@ -1128,7 +1128,7 @@ class TestDatabaseStorageTransaction:
         await storage.begin_transaction()
         await storage.rollback_transaction()
 
-        mock_db_manager.rollback.assert_called_once()
+        mock_db_manager.rollback_transaction.assert_called_once()
         assert storage._in_transaction is False
 
 

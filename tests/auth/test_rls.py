@@ -22,8 +22,12 @@ def mock_db_manager():
     """创建 mock 数据库管理器"""
     db = AsyncMock()
     db.execute = AsyncMock()
-    db.fetch_one = AsyncMock()
+    db.fetch_one = AsyncMock(return_value={'in_txn': True})
     db.fetch_all = AsyncMock()
+    # 模拟事务连接，用于 set_user_context
+    mock_conn = AsyncMock()
+    mock_conn.execute = AsyncMock()
+    db._transaction_conn = mock_conn
     return db
 
 
@@ -60,8 +64,10 @@ class TestRLSInitialization:
         # 验证为三个表启用了 RLS
         table_names = ['knowledge_bases', 'atoms', 'kb_members']
         for table in table_names:
+            # 兼容带引号标识符（"knowledge_bases"）和无引号格式
             found = any(
                 f'ALTER TABLE {table} ENABLE ROW LEVEL SECURITY' in str(call)
+                or f'ALTER TABLE "{table}" ENABLE ROW LEVEL SECURITY' in str(call)
                 for call in calls
             )
             assert found, f"RLS not enabled for table: {table}"
@@ -93,8 +99,13 @@ class TestRLSEnableDisable:
 
         # 验证 SQL 语句
         for table in ['knowledge_bases', 'atoms', 'kb_members']:
-            expected_sql = f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY"
-            assert any(expected_sql in str(call) for call in calls)
+            # 兼容带引号标识符（"knowledge_bases"）和无引号格式
+            expected_sql_unquoted = f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY"
+            expected_sql_quoted = f'ALTER TABLE "{table}" ENABLE ROW LEVEL SECURITY'
+            assert any(
+                expected_sql_unquoted in str(call) or expected_sql_quoted in str(call)
+                for call in calls
+            )
 
     @pytest.mark.asyncio
     async def test_enable_rls_handles_errors(self, rls_manager):
@@ -124,8 +135,9 @@ class TestUserContextSetting:
         assert initialized_rls._current_user_id == 'user1'
         assert initialized_rls._current_user_roles == ['reader', 'editor']
 
-        # 验证数据库调用
-        calls = initialized_rls.db_manager.execute.call_args_list
+        # 验证事务连接的 execute 调用（SET LOCAL 通过 conn.execute 执行）
+        conn = initialized_rls.db_manager._transaction_conn
+        calls = conn.execute.call_args_list
 
         # 应设置用户 ID
         assert any('llmwiki.current_user_id' in str(call) for call in calls)
@@ -203,7 +215,12 @@ class TestPolicyManagement:
         calls = initialized_rls.db_manager.execute.call_args_list
         policy_name = f"kb_{kb_id}_policy"
 
-        assert any(f"DROP POLICY IF EXISTS {policy_name}" in str(call) for call in calls)
+        # 兼容带引号标识符（"kb_100_policy"）和无引号格式
+        assert any(
+            f"DROP POLICY IF EXISTS {policy_name}" in str(call)
+            or f'DROP POLICY IF EXISTS "{policy_name}"' in str(call)
+            for call in calls
+        )
 
     @pytest.mark.asyncio
     async def test_create_atom_policy(self, initialized_rls):
@@ -228,7 +245,12 @@ class TestPolicyManagement:
         calls = initialized_rls.db_manager.execute.call_args_list
         policy_name = f"atom_kb_{kb_id}_policy"
 
-        assert any(f"DROP POLICY IF EXISTS {policy_name}" in str(call) for call in calls)
+        # 兼容带引号标识符（"atom_kb_100_policy"）和无引号格式
+        assert any(
+            f"DROP POLICY IF EXISTS {policy_name}" in str(call)
+            or f'DROP POLICY IF EXISTS "{policy_name}"' in str(call)
+            for call in calls
+        )
 
     @pytest.mark.asyncio
     async def test_policy_names_are_unique(self, initialized_rls):
@@ -586,8 +608,9 @@ class TestSQLInjectionPrevention:
             # 应使用参数化查询（$1 占位符）
             await initialized_rls.set_user_context(user_id, ['reader'])
 
-            # 验证使用了参数化查询
-            call_args = initialized_rls.db_manager.execute.call_args
+            # 验证事务连接使用了参数化查询
+            conn = initialized_rls.db_manager._transaction_conn
+            call_args = conn.execute.call_args
             # 参数化查询使用 $1, $2 等
             assert '$1' in str(call_args) or len(call_args[0]) > 1
 
