@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: llm-wiki-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-llm_wiki}
+      POSTGRES_USER: ${POSTGRES_USER:-llm_wiki}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-llm_wiki_dev}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-llm_wiki}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: llm-wiki-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  llm-wiki:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: llm-wiki-app
+    environment:
+      # 存储模式：db (PostgreSQL) 或 file (Markdown)
+      LLM_WIKI_STORAGE_MODE: ${LLM_WIKI_STORAGE_MODE:-db}
+      LLM_WIKI_STORAGE_TYPE: ${LLM_WIKI_STORAGE_TYPE:-postgres}
+      LLM_WIKI_POSTGRES_URL: postgresql://${POSTGRES_USER:-llm_wiki}:${POSTGRES_PASSWORD:-llm_wiki_dev}@postgres:5432/${POSTGRES_DB:-llm_wiki}
+      LLM_WIKI_POOL_SIZE: ${LLM_WIKI_POOL_SIZE:-10}
+      # Redis（用于缓存和 OCR 任务队列）
+      REDIS_URL: redis://redis:6379/0
+      # 服务配置
+      LLM_WIKI_HOST: ${LLM_WIKI_HOST:-0.0.0.0}
+      LLM_WIKI_PORT: ${LLM_WIKI_PORT:-8000}
+    ports:
+      - "${LLM_WIKI_PORT:-8000}:8000"
+    volumes:
+      - wiki_data:/app/knowledge-bases
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  wiki_data:

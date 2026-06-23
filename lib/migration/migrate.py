@@ -1,10 +1,13 @@
 """迁移主逻辑
 
 实现从文件系统到 PostgreSQL 的数据迁移。
+支持 Schema 版本追踪和增量迁移。
 """
 
 import asyncio
+import hashlib
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -13,10 +16,15 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..core.factory import StorageFactory
 from ..core.config import StorageConfig, StorageType
-from ..core.config import StorageConfig, StorageType
 from ..core.postgres_manager import PostgreSQLManager
 from ..yaml_parser import SimpleYAMLParser
 from ..constants import RESERVED_FILES
+
+logger = logging.getLogger(__name__)
+
+# 当前迁移版本号（每次 schema 变更时递增）
+MIGRATION_VERSION = 1
+MIGRATION_NAME = "initial_schema"
 
 
 @dataclass
@@ -85,13 +93,66 @@ class MigrationManager:
         self.yaml_parser = SimpleYAMLParser()
 
     async def initialize(self) -> None:
-        """初始化数据库连接"""
+        """初始化数据库连接并记录迁移版本"""
         config = StorageConfig(
             type=StorageType.POSTGRES,
             postgres_url=self.postgres_url,
         )
         self.db = PostgreSQLManager(config)
         await self.db.initialize()
+        # 记录迁移版本
+        await self._record_migration_version()
+
+    async def _record_migration_version(self) -> None:
+        """记录当前迁移版本到 schema_migrations 表"""
+        if self.dry_run:
+            return
+        try:
+            # 检查是否已记录此版本
+            existing = await self.db.fetch_one(
+                "SELECT version FROM schema_migrations WHERE version = $1",
+                MIGRATION_VERSION,
+            )
+            if not existing:
+                # 计算当前 schema 文件的校验和
+                checksum = self._compute_schema_checksum()
+                await self.db.execute('''
+                    INSERT INTO schema_migrations (version, name, checksum)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (version) DO NOTHING
+                ''', MIGRATION_VERSION, MIGRATION_NAME, checksum)
+                logger.info("Recorded migration v%d: %s", MIGRATION_VERSION, MIGRATION_NAME)
+        except Exception as e:
+            # 版本记录失败不影响迁移
+            logger.warning("Failed to record migration version: %s", e)
+
+    @staticmethod
+    def _compute_schema_checksum() -> str:
+        """计算 SQL 文件的校验和"""
+        db_dir = Path(__file__).parent.parent / "db"
+        hasher = hashlib.sha256()
+        for sql_file in ["schema.sql", "functions.sql", "indexes.sql", "rls.sql"]:
+            path = db_dir / sql_file
+            if path.exists():
+                hasher.update(path.read_bytes())
+        return hasher.hexdigest()[:16]
+
+    async def get_migration_status(self) -> List[Dict[str, Any]]:
+        """获取迁移状态（所有已应用的版本）
+
+        Returns:
+            迁移版本列表
+        """
+        if not self.db:
+            await self.initialize()
+        try:
+            rows = await self.db.fetch_all(
+                "SELECT version, name, applied_at, checksum FROM schema_migrations ORDER BY version"
+            )
+            return rows or []
+        except Exception as e:
+            logger.error("Failed to get migration status: %s", e)
+            return []
 
     async def close(self) -> None:
         """关闭数据库连接"""
