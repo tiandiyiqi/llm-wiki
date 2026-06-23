@@ -104,6 +104,27 @@ CREATE TYPE asset_variant_type AS ENUM (
     'large'         -- 大尺寸
 );
 
+-- OCR 任务状态
+CREATE TYPE ocr_task_status AS ENUM (
+    'pending',      -- 待处理
+    'processing',   -- 处理中
+    'completed',    -- 已完成
+    'failed',       -- 失败
+    'dead_letter'   -- 死信（超过重试次数）
+);
+
+-- 预览格式
+CREATE TYPE preview_format AS ENUM (
+    'pdf',          -- PDF 文档
+    'word',         -- Word 文档
+    'excel',        -- Excel 文档
+    'ppt',          -- PPT 文档
+    'image',        -- 图像
+    'markdown',     -- Markdown
+    'text',         -- 纯文本
+    'other'         -- 其他格式
+);
+
 -- 审计资源类型
 CREATE TYPE audit_resource_type AS ENUM (
     'atom',         -- 知识原子
@@ -538,6 +559,93 @@ CREATE INDEX idx_atom_assets_variant_of_id ON atom_assets(variant_of_id);
 CREATE INDEX idx_atom_assets_variant_type ON atom_assets(variant_type);
 
 -- ----------------------------------------------------------------------------
+-- OCR 任务表
+-- ----------------------------------------------------------------------------
+
+CREATE TABLE ocr_tasks (
+    id SERIAL PRIMARY KEY,
+    asset_id INTEGER NOT NULL REFERENCES atom_assets(id) ON DELETE CASCADE,
+
+    -- 任务状态
+    status ocr_task_status DEFAULT 'pending',
+
+    -- OCR 配置
+    language VARCHAR(16) DEFAULT 'chi_sim+eng',  -- 中英文
+
+    -- 结果
+    result_text TEXT,
+    result_json JSONB,
+
+    -- 错误信息
+    error_message TEXT,
+
+    -- 重试控制
+    retry_count INTEGER DEFAULT 0,
+    max_retries INTEGER DEFAULT 3,
+
+    -- 时间戳
+    processing_started_at TIMESTAMP WITH TIME ZONE,
+    processing_completed_at TIMESTAMP WITH TIME ZONE,
+    created_by VARCHAR(64) REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE ocr_tasks IS 'OCR 文字识别任务表';
+COMMENT ON COLUMN ocr_tasks.asset_id IS '关联的图像资产 ID';
+COMMENT ON COLUMN ocr_tasks.status IS '任务状态：pending/processing/completed/failed/dead_letter';
+COMMENT ON COLUMN ocr_tasks.language IS 'OCR 识别语言，默认 chi_sim+eng（中英文）';
+COMMENT ON COLUMN ocr_tasks.result_text IS 'OCR 识别的纯文本结果';
+COMMENT ON COLUMN ocr_tasks.result_json IS 'OCR 识别的结构化 JSON 结果（含位置信息）';
+COMMENT ON COLUMN ocr_tasks.error_message IS '错误信息';
+COMMENT ON COLUMN ocr_tasks.retry_count IS '已重试次数';
+COMMENT ON COLUMN ocr_tasks.max_retries IS '最大重试次数（默认 3）';
+COMMENT ON COLUMN ocr_tasks.processing_started_at IS '处理开始时间';
+COMMENT ON COLUMN ocr_tasks.processing_completed_at IS '处理完成时间';
+
+-- OCR 任务索引
+CREATE INDEX idx_ocr_tasks_asset_id ON ocr_tasks(asset_id);
+CREATE INDEX idx_ocr_tasks_status ON ocr_tasks(status);
+CREATE INDEX idx_ocr_tasks_created_at ON ocr_tasks(created_at);
+
+-- ----------------------------------------------------------------------------
+-- 预览缓存表
+-- ----------------------------------------------------------------------------
+
+CREATE TABLE previews (
+    id SERIAL PRIMARY KEY,
+    atom_id INTEGER NOT NULL REFERENCES atoms(id) ON DELETE CASCADE,
+
+    -- 预览信息
+    format preview_format NOT NULL,
+    source_mime_type VARCHAR(64),
+
+    -- 缓存
+    cache_path VARCHAR(512),
+    cache_expires_at TIMESTAMP WITH TIME ZONE,
+    file_size INTEGER,
+
+    -- 时间戳
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    -- 唯一约束：每个原子的每种格式只有一条记录
+    UNIQUE(atom_id, format)
+);
+
+COMMENT ON TABLE previews IS '预览缓存表';
+COMMENT ON COLUMN previews.atom_id IS '关联的知识原子 ID';
+COMMENT ON COLUMN previews.format IS '预览格式：pdf/word/excel/ppt/image/markdown/text/other';
+COMMENT ON COLUMN previews.source_mime_type IS '源文件 MIME 类型';
+COMMENT ON COLUMN previews.cache_path IS '缓存文件路径';
+COMMENT ON COLUMN previews.cache_expires_at IS '缓存过期时间';
+COMMENT ON COLUMN previews.file_size IS '缓存文件大小（字节）';
+
+-- 预览缓存索引
+CREATE INDEX idx_previews_atom_id ON previews(atom_id);
+CREATE INDEX idx_previews_format ON previews(format);
+CREATE INDEX idx_previews_expires_at ON previews(cache_expires_at);
+
+-- ----------------------------------------------------------------------------
 -- 审计日志表（分区表）
 -- ----------------------------------------------------------------------------
 
@@ -612,6 +720,10 @@ CREATE TRIGGER knowledge_bases_updated_at
 
 CREATE TRIGGER atoms_updated_at
     BEFORE UPDATE ON atoms
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+
+CREATE TRIGGER ocr_tasks_updated_at
+    BEFORE UPDATE ON ocr_tasks
     FOR EACH ROW EXECUTE FUNCTION update_timestamp();
 
 -- ----------------------------------------------------------------------------

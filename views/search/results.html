@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>搜索结果 - LLM Wiki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #f7fafc; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-secondary { background: #e2e8f0; color: #4a5568; }
+        .btn-secondary:hover { background: #cbd5e0; }
+        .btn-success { background: #38a169; color: white; }
+        .btn-success:hover { background: #2f855a; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        .input { width: 100%; padding: 8px 12px; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 14px; }
+        .input:focus { outline: none; border-color: #667eea; }
+        .badge { padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .type-fact { background: #dcfce7; color: #15803d; }
+        .type-method { background: #dbeafe; color: #1d4ed8; }
+        .type-definition { background: #f3e8ff; color: #7c3aed; }
+        .type-opinion { background: #fee2e2; color: #b91c1c; }
+        .type-data { background: #ffedd5; color: #c2410c; }
+        .type-question { background: #ccfbf1; color: #0f766e; }
+        .type-reference { background: #f3f4f6; color: #374151; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 50; }
+        .modal { background: white; border-radius: 12px; padding: 24px; width: 100%; max-width: 700px; max-height: 85vh; overflow-y: auto; }
+        .loading { opacity: 0.5; pointer-events: none; }
+        .search-input { width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 16px; }
+        .search-input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.15); }
+        .result-card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; transition: all 0.2s; }
+        .result-card:hover { border-color: #667eea; box-shadow: 0 4px 12px rgba(102,126,234,0.1); }
+        .highlight { background: #fef08a; padding: 1px 2px; border-radius: 2px; }
+        .filter-radio { appearance: none; width: 16px; height: 16px; border: 2px solid #cbd5e0; border-radius: 50%; cursor: pointer; transition: all 0.2s; vertical-align: middle; }
+        .filter-radio:checked { border-color: #667eea; background: #667eea; box-shadow: inset 0 0 0 3px white; }
+        .page-btn { min-width: 36px; height: 36px; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; border: 1px solid #e2e8f0; background: white; color: #4a5568; }
+        .page-btn:hover { border-color: #667eea; color: #667eea; }
+        .page-btn.active { background: #667eea; color: white; border-color: #667eea; }
+        .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .summary-content { line-height: 1.7; color: #2d3748; }
+        .summary-content h1, .summary-content h2, .summary-content h3 { font-weight: 600; margin: 1em 0 0.5em; color: #1a202c; }
+        .summary-content code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+        .summary-content ul, .summary-content ol { padding-left: 1.5em; margin: 0.5em 0; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/" class="text-gray-600 hover:text-gray-800">← 返回首页</a>
+                <h1 class="text-xl font-bold text-gray-800">搜索结果</h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="text-sm text-gray-600">当前: <strong id="currentUserName">-</strong></span>
+                <button onclick="API.logout()" class="btn btn-secondary btn-sm">退出</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-6 py-6">
+        <!-- 搜索栏 -->
+        <div class="card p-6 mb-4">
+            <div class="flex gap-3">
+                <input type="text" id="searchInput" class="search-input flex-1"
+                    placeholder="输入搜索关键词..." onkeydown="if(event.key==='Enter')doSearch()">
+                <button onclick="doSearch()" class="btn btn-primary" style="padding:12px 24px;font-size:16px;">搜索</button>
+            </div>
+        </div>
+
+        <!-- 筛选器 -->
+        <div class="card p-4 mb-4">
+            <div class="flex items-center gap-6 flex-wrap">
+                <!-- 搜索类型 -->
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-gray-600 font-medium">搜索类型:</span>
+                    <label class="flex items-center gap-1 cursor-pointer">
+                        <input type="radio" name="searchType" value="fulltext" class="filter-radio" checked>
+                        <span class="text-sm">全文</span>
+                    </label>
+                    <label class="flex items-center gap-1 cursor-pointer">
+                        <input type="radio" name="searchType" value="vector" class="filter-radio">
+                        <span class="text-sm">向量</span>
+                    </label>
+                    <label class="flex items-center gap-1 cursor-pointer">
+                        <input type="radio" name="searchType" value="hybrid" class="filter-radio">
+                        <span class="text-sm">混合</span>
+                    </label>
+                </div>
+
+                <!-- 知识库筛选 -->
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-gray-600 font-medium">知识库:</span>
+                    <select id="kbFilter" class="input" style="width:auto;min-width:160px;padding:6px 10px;font-size:13px;">
+                        <option value="">全部知识库</option>
+                    </select>
+                </div>
+
+                <!-- 时间范围 -->
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-gray-600 font-medium">时间:</span>
+                    <select id="timeFilter" class="input" style="width:auto;min-width:120px;padding:6px 10px;font-size:13px;">
+                        <option value="">全部</option>
+                        <option value="7d">近一周</option>
+                        <option value="30d">近一月</option>
+                        <option value="90d">近三月</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- 结果统计 -->
+        <div class="flex items-center justify-between mb-4">
+            <div id="resultStats" class="text-sm text-gray-500"></div>
+            <div id="searchTime" class="text-sm text-gray-400"></div>
+        </div>
+
+        <!-- 加载状态 -->
+        <div id="loadingIndicator" class="text-center py-12 hidden">
+            <div class="animate-spin inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full"></div>
+            <p class="text-gray-500 mt-2">搜索中...</p>
+        </div>
+
+        <!-- 搜索结果列表 -->
+        <div id="resultsList" class="space-y-4"></div>
+
+        <!-- 空结果提示 -->
+        <div id="emptyState" class="text-center py-16 hidden">
+            <div class="text-6xl mb-4">🔍</div>
+            <h3 class="text-lg font-medium text-gray-700 mb-2">未找到相关结果</h3>
+            <p class="text-gray-500">尝试更换关键词或调整筛选条件</p>
+        </div>
+
+        <!-- 初始提示 -->
+        <div id="initialState" class="text-center py-16">
+            <div class="text-6xl mb-4">📚</div>
+            <h3 class="text-lg font-medium text-gray-700 mb-2">输入关键词开始搜索</h3>
+            <p class="text-gray-500">支持全文搜索、向量搜索和混合搜索</p>
+        </div>
+
+        <!-- 分页 -->
+        <div id="pagination" class="flex items-center justify-center gap-2 mt-6 hidden"></div>
+    </div>
+
+    <!-- 摘要弹窗 -->
+    <div id="summaryModal" class="modal-overlay">
+        <div class="modal">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-gray-800">AI 摘要</h3>
+                <button onclick="closeSummaryModal()" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            </div>
+            <div id="summaryLoading" class="text-center py-8 hidden">
+                <div class="animate-spin inline-block w-6 h-6 border-3 border-blue-600 border-t-transparent rounded-full"></div>
+                <p class="text-gray-500 mt-2 text-sm">正在生成摘要...</p>
+            </div>
+            <div id="summaryContent" class="summary-content"></div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * API 封装
+         */
+        const API = {
+            currentUser: null,
+            async init() {
+                try {
+                    const r = await fetch('/api/auth/whoami', { credentials: 'same-origin' });
+                    const d = await r.json();
+                    if (d.user) {
+                        this.currentUser = d.user;
+                        document.getElementById('currentUserName').textContent = d.user.username;
+                        return true;
+                    }
+                } catch (e) {}
+                window.location.href = '/login.html';
+                return false;
+            },
+            async get(url) {
+                const r = await fetch(url, { credentials: 'same-origin' });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                if (!r.ok) { throw new Error(`HTTP ${r.status}`); }
+                return r.json();
+            },
+            async post(url, data) {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data || {}),
+                    credentials: 'same-origin',
+                });
+                if (r.status === 401) { window.location.href = '/login.html'; throw new Error('未登录'); }
+                if (!r.ok) { throw new Error(`HTTP ${r.status}`); }
+                return r.json();
+            },
+            async logout() {
+                await this.post('/api/auth/logout').catch(() => {});
+                window.location.href = '/login.html';
+            }
+        };
+
+        /** 每页条数 */
+        const PAGE_SIZE = 20;
+
+        /** 当前搜索状态 */
+        let state = {
+            query: '',
+            type: 'fulltext',
+            kbId: '',
+            timeRange: '',
+            page: 1,
+            total: 0,
+            results: [],
+            loading: false
+        };
+
+        /**
+         * 从 URL 参数恢复搜索状态
+         */
+        function readUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            const query = params.get('q') || '';
+            const type = params.get('type') || 'fulltext';
+            const kbId = params.get('kb_id') || '';
+            const page = parseInt(params.get('page') || '1', 10);
+
+            state = { ...state, query, type, kbId, page };
+
+            document.getElementById('searchInput').value = query;
+            const radio = document.querySelector(`input[name="searchType"][value="${type}"]`);
+            if (radio) radio.checked = true;
+        }
+
+        /**
+         * 将搜索状态写入 URL
+         */
+        function writeUrlParams() {
+            const params = new URLSearchParams();
+            if (state.query) params.set('q', state.query);
+            if (state.type && state.type !== 'fulltext') params.set('type', state.type);
+            if (state.kbId) params.set('kb_id', state.kbId);
+            if (state.page > 1) params.set('page', String(state.page));
+
+            const newUrl = params.toString()
+                ? `${window.location.pathname}?${params.toString()}`
+                : window.location.pathname;
+            window.history.replaceState(null, '', newUrl);
+        }
+
+        /**
+         * 加载知识库列表
+         */
+        async function loadKBList() {
+            try {
+                const data = await API.get('/api/enterprise/kbs');
+                const kbs = data.kbs || [];
+                const select = document.getElementById('kbFilter');
+                const options = kbs.map(kb =>
+                    `<option value="${kb.id}">${escapeHtml(kb.name)}</option>`
+                ).join('');
+                select.innerHTML = `<option value="">全部知识库</option>${options}`;
+
+                if (state.kbId) select.value = state.kbId;
+            } catch (e) {
+                console.error('加载知识库列表失败:', e);
+            }
+        }
+
+        /**
+         * 构建搜索 API URL
+         */
+        function buildSearchUrl() {
+            const offset = (state.page - 1) * PAGE_SIZE;
+            const params = new URLSearchParams();
+            params.set('q', state.query);
+            params.set('type', state.type);
+            params.set('limit', String(PAGE_SIZE));
+            params.set('offset', String(offset));
+            if (state.kbId) params.set('kb_id', state.kbId);
+
+            const timeRange = state.timeRange;
+            if (timeRange) {
+                const now = new Date();
+                const days = { '7d': 7, '30d': 30, '90d': 90 }[timeRange] || 0;
+                if (days > 0) {
+                    const from = new Date(now.getTime() - days * 86400000);
+                    params.set('from', from.toISOString().slice(0, 10));
+                }
+            }
+
+            return `/api/search?${params.toString()}`;
+        }
+
+        /**
+         * 执行搜索
+         */
+        async function doSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) return;
+
+            const typeRadio = document.querySelector('input[name="searchType"]:checked');
+            const type = typeRadio ? typeRadio.value : 'fulltext';
+            const kbId = document.getElementById('kbFilter').value;
+            const timeRange = document.getElementById('timeFilter').value;
+
+            state = { ...state, query, type, kbId, timeRange, page: 1, loading: true };
+            writeUrlParams();
+            showLoading(true);
+            hideElement('initialState');
+            hideElement('emptyState');
+
+            try {
+                const url = buildSearchUrl();
+                const startTime = performance.now();
+                const data = await API.get(url);
+                const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+
+                const results = data.results || [];
+                const total = data.total || results.length;
+                state = { ...state, results, total, loading: false };
+
+                renderResults(results, total, elapsed);
+            } catch (e) {
+                state = { ...state, loading: false };
+                document.getElementById('resultsList').innerHTML =
+                    `<div class="text-center text-red-500 py-8">搜索失败: ${escapeHtml(e.message)}</div>`;
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        /**
+         * 渲染搜索结果
+         */
+        function renderResults(results, total, elapsed) {
+            const listEl = document.getElementById('resultsList');
+            const statsEl = document.getElementById('resultStats');
+            const timeEl = document.getElementById('searchTime');
+
+            if (results.length === 0) {
+                listEl.innerHTML = '';
+                hideElement('pagination');
+                showElement('emptyState');
+                statsEl.textContent = '';
+                timeEl.textContent = '';
+                return;
+            }
+
+            hideElement('emptyState');
+            statsEl.textContent = `找到 ${total} 条结果`;
+            timeEl.textContent = `耗时 ${elapsed}s`;
+
+            listEl.innerHTML = results.map(r => renderResultCard(r)).join('');
+            renderPagination(total);
+        }
+
+        /**
+         * 渲染单个结果卡片
+         */
+        function renderResultCard(result) {
+            const title = escapeHtml(result.title || result.id || '未命名');
+            const kbName = escapeHtml(result.kb_name || result.kb || '');
+            const atomType = result.type || 'reference';
+            const score = result.score != null ? result.score.toFixed(3) : '-';
+            const time = result.created || result.updated || '';
+            const timeDisplay = time ? time.slice(0, 10) : '';
+            const atomId = encodeURIComponent(result.id || '');
+
+            const snippet = renderSnippet(result.highlight || result.content || '');
+
+            return `
+                <div class="result-card">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1 min-w-0">
+                            <a href="/data/browse.html?atom=${atomId}"
+                                class="text-lg font-semibold text-blue-600 hover:text-blue-800 hover:underline block mb-1">
+                                ${title}
+                            </a>
+                            <div class="text-sm text-gray-600 mb-2 line-clamp-3">${snippet}</div>
+                            <div class="flex items-center gap-3 flex-wrap">
+                                <span class="badge type-${atomType}">${atomType}</span>
+                                ${kbName ? `<span class="text-xs text-gray-500">📚 ${kbName}</span>` : ''}
+                                ${timeDisplay ? `<span class="text-xs text-gray-400">🕐 ${timeDisplay}</span>` : ''}
+                                <span class="text-xs text-gray-400">得分: ${score}</span>
+                            </div>
+                        </div>
+                        <button onclick="showSummary('${atomId}')"
+                            class="btn btn-secondary btn-sm flex-shrink-0">摘要</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * 渲染高亮片段
+         */
+        function renderSnippet(text) {
+            if (!text) return '';
+            const safe = escapeHtml(text);
+            return safe.replace(/&lt;mark&gt;(.*?)&lt;\/mark&gt;/g, '<span class="highlight">$1</span>');
+        }
+
+        /**
+         * 渲染分页
+         */
+        function renderPagination(total) {
+            const totalPages = Math.ceil(total / PAGE_SIZE);
+            if (totalPages <= 1) {
+                hideElement('pagination');
+                return;
+            }
+
+            showElement('pagination');
+            const container = document.getElementById('pagination');
+            const currentPage = state.page;
+            const pages = buildPageNumbers(currentPage, totalPages);
+
+            let html = `<button class="page-btn" onclick="goToPage(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>&laquo;</button>`;
+
+            for (const p of pages) {
+                if (p === '...') {
+                    html += `<span class="px-2 text-gray-400">...</span>`;
+                } else {
+                    const active = p === currentPage ? 'active' : '';
+                    html += `<button class="page-btn ${active}" onclick="goToPage(${p})">${p}</button>`;
+                }
+            }
+
+            html += `<button class="page-btn" onclick="goToPage(${currentPage + 1})" ${currentPage >= totalPages ? 'disabled' : ''}>&raquo;</button>`;
+            container.innerHTML = html;
+        }
+
+        /**
+         * 构建页码数组
+         */
+        function buildPageNumbers(current, total) {
+            if (total <= 7) {
+                return Array.from({ length: total }, (_, i) => i + 1);
+            }
+            const pages = [];
+            pages.push(1);
+            if (current > 3) pages.push('...');
+            const start = Math.max(2, current - 1);
+            const end = Math.min(total - 1, current + 1);
+            for (let i = start; i <= end; i++) pages.push(i);
+            if (current < total - 2) pages.push('...');
+            pages.push(total);
+            return pages;
+        }
+
+        /**
+         * 跳转到指定页
+         */
+        async function goToPage(page) {
+            const totalPages = Math.ceil(state.total / PAGE_SIZE);
+            if (page < 1 || page > totalPages) return;
+
+            state = { ...state, page };
+            writeUrlParams();
+            showLoading(true);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            try {
+                const url = buildSearchUrl();
+                const data = await API.get(url);
+                const results = data.results || [];
+                const total = data.total || results.length;
+                state = { ...state, results, total };
+
+                renderResults(results, total, '-');
+            } catch (e) {
+                document.getElementById('resultsList').innerHTML =
+                    `<div class="text-center text-red-500 py-8">加载失败: ${escapeHtml(e.message)}</div>`;
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        /**
+         * 显示 AI 摘要
+         */
+        async function showSummary(atomIdEncoded) {
+            const modal = document.getElementById('summaryModal');
+            const loading = document.getElementById('summaryLoading');
+            const content = document.getElementById('summaryContent');
+
+            modal.style.display = 'flex';
+            loading.classList.remove('hidden');
+            content.innerHTML = '';
+
+            try {
+                const decodedId = decodeURIComponent(atomIdEncoded);
+                const url = `/api/search/summary?atom_ids=${encodeURIComponent(decodedId)}`;
+                const data = await API.get(url);
+
+                loading.classList.add('hidden');
+                const summary = data.summary || data.content || '暂无摘要';
+                content.innerHTML = `<div class="prose max-w-none">${escapeHtml(summary).replace(/\n/g, '<br>')}</div>`;
+            } catch (e) {
+                loading.classList.add('hidden');
+                content.innerHTML = `<p class="text-red-500">摘要生成失败: ${escapeHtml(e.message)}</p>`;
+            }
+        }
+
+        /**
+         * 关闭摘要弹窗
+         */
+        function closeSummaryModal() {
+            document.getElementById('summaryModal').style.display = 'none';
+        }
+
+        /**
+         * 显示/隐藏加载状态
+         */
+        function showLoading(visible) {
+            const el = document.getElementById('loadingIndicator');
+            if (visible) {
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+            }
+        }
+
+        /**
+         * 显示元素
+         */
+        function showElement(id) {
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        /**
+         * 隐藏元素
+         */
+        function hideElement(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        /**
+         * HTML 转义
+         */
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        /**
+         * 绑定筛选器变更事件
+         */
+        function bindFilterEvents() {
+            document.querySelectorAll('input[name="searchType"]').forEach(radio => {
+                radio.addEventListener('change', () => {
+                    if (state.query) doSearch();
+                });
+            });
+
+            document.getElementById('kbFilter').addEventListener('change', () => {
+                if (state.query) doSearch();
+            });
+
+            document.getElementById('timeFilter').addEventListener('change', () => {
+                if (state.query) doSearch();
+            });
+        }
+
+        /**
+         * 初始化页面
+         */
+        async function init() {
+            const ok = await API.init();
+            if (!ok) return;
+
+            readUrlParams();
+            bindFilterEvents();
+            await loadKBList();
+
+            if (state.query) {
+                await doSearch();
+            }
+        }
+
+        // 启动
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# PDF.js 本地文件目录
+
+此目录用于存放 PDF.js 的本地副本，作为 CDN 的备选方案。
+
+## 安装
+
+```bash
+# 下载 PDF.js 最新版本
+curl -L https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs -o pdf.min.mjs
+curl -L https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs -o pdf.worker.min.mjs
+```
+
+## 文件说明
+
+- `pdf.min.mjs` - PDF.js 主库（ES Module）
+- `pdf.worker.min.mjs` - PDF.js Worker 脚本
+
+## CDN 回退
+
+如果本地文件不可用，查看器组件会自动回退到 CDN：
+
+```
+https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs
+https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs
+```

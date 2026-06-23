@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SearchBox Component - LLM Wiki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* SearchBox 组件样式 - 使用项目主题变量 */
+        .search-box-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .search-box-input-group {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-box-icon {
+            position: absolute;
+            left: 12px;
+            width: 18px;
+            height: 18px;
+            color: var(--color-text-tertiary, #9ca3af);
+            pointer-events: none;
+            transition: color 0.2s;
+        }
+
+        .search-box-input {
+            width: 100%;
+            padding: 10px 40px 10px 40px;
+            border: 2px solid var(--color-border, #e5e7eb);
+            border-radius: 8px;
+            font-size: 14px;
+            background: var(--color-bg-surface, #ffffff);
+            color: var(--color-text-primary, #111827);
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+
+        .search-box-input:focus {
+            outline: none;
+            border-color: var(--color-accent-primary, #667eea);
+            box-shadow: 0 0 0 3px var(--color-accent-soft, #eef2ff);
+        }
+
+        .search-box-input:focus ~ .search-box-icon {
+            color: var(--color-accent-primary, #667eea);
+        }
+
+        .search-box-input::placeholder {
+            color: var(--color-text-tertiary, #9ca3af);
+        }
+
+        .search-box-shortcut {
+            position: absolute;
+            right: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            color: var(--color-text-tertiary, #9ca3af);
+            background: var(--color-bg-surface-alt, #f9fafb);
+            border: 1px solid var(--color-border, #e5e7eb);
+            pointer-events: none;
+            line-height: 1.4;
+        }
+
+        .search-box-dropdown {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            background: var(--color-bg-surface, #ffffff);
+            border: 1px solid var(--color-border, #e5e7eb);
+            border-radius: 8px;
+            box-shadow: 0 10px 30px var(--color-shadow, rgba(0, 0, 0, 0.1));
+            z-index: 1000;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .search-box-dropdown.visible {
+            display: block;
+        }
+
+        .search-box-section-title {
+            padding: 8px 12px 4px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--color-text-tertiary, #9ca3af);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            user-select: none;
+        }
+
+        .search-box-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: background 0.15s;
+            gap: 10px;
+        }
+
+        .search-box-item:hover,
+        .search-box-item.active {
+            background: var(--color-bg-hover, #f3f4f6);
+        }
+
+        .search-box-item-text {
+            flex: 1;
+            font-size: 14px;
+            color: var(--color-text-primary, #111827);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .search-box-item-text mark {
+            background: var(--color-accent-soft, #eef2ff);
+            color: var(--color-accent-primary, #667eea);
+            font-weight: 600;
+            padding: 0 1px;
+            border-radius: 2px;
+        }
+
+        .search-box-type-badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            flex-shrink: 0;
+        }
+
+        .search-box-type-prefix {
+            background: var(--color-accent-soft, #eef2ff);
+            color: var(--color-accent-primary, #667eea);
+        }
+
+        .search-box-type-fuzzy {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .search-box-type-popular {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .search-box-history-icon {
+            width: 14px;
+            height: 14px;
+            color: var(--color-text-tertiary, #9ca3af);
+            flex-shrink: 0;
+        }
+
+        .search-box-clear-history {
+            padding: 6px 12px;
+            font-size: 12px;
+            color: var(--color-text-tertiary, #9ca3af);
+            cursor: pointer;
+            text-align: center;
+            border-top: 1px solid var(--color-border, #e5e7eb);
+            transition: color 0.15s;
+        }
+
+        .search-box-clear-history:hover {
+            color: var(--color-text-secondary, #4b5563);
+        }
+
+        .search-box-loading {
+            padding: 16px;
+            text-align: center;
+            color: var(--color-text-tertiary, #9ca3af);
+            font-size: 13px;
+        }
+
+        .search-box-empty {
+            padding: 16px;
+            text-align: center;
+            color: var(--color-text-tertiary, #9ca3af);
+            font-size: 13px;
+        }
+
+        .search-box-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--color-border, #e5e7eb);
+            border-top-color: var(--color-accent-primary, #667eea);
+            border-radius: 50%;
+            animation: search-box-spin 0.6s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+
+        @keyframes search-box-spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- 演示容器 -->
+    <div id="demo-container" style="max-width: 600px; margin: 40px auto; padding: 0 16px;"></div>
+
+    <script>
+    (function () {
+        'use strict';
+
+        var STORAGE_KEY = 'llm-wiki-search-history';
+        var MAX_HISTORY = 5;
+        var DEBOUNCE_MS = 300;
+        var SUGGEST_LIMIT = 8;
+
+        var state = {
+            container: null,
+            input: null,
+            dropdown: null,
+            activeIndex: -1,
+            items: [],
+            debounceTimer: null,
+            isLoading: false
+        };
+
+        // --- 工具函数 ---
+
+        function escapeHtml(text) {
+            var div = document.createElement('div');
+            div.appendChild(document.createTextNode(text));
+            return div.innerHTML;
+        }
+
+        function highlightMatch(text, query) {
+            if (!query) { return escapeHtml(text); }
+            var escaped = escapeHtml(text);
+            var escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            var regex = new RegExp('(' + escapedQuery + ')', 'gi');
+            return escaped.replace(regex, '<mark>$1</mark>');
+        }
+
+        function debounce(fn, delay) {
+            var timer = null;
+            return function () {
+                var args = Array.prototype.slice.call(arguments);
+                if (timer) { clearTimeout(timer); }
+                timer = setTimeout(function () {
+                    fn.apply(null, args);
+                }, delay);
+            };
+        }
+
+        // --- 搜索历史 ---
+
+        function getHistory() {
+            try {
+                var raw = localStorage.getItem(STORAGE_KEY);
+                return raw ? JSON.parse(raw) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveHistory(query) {
+            if (!query || !query.trim()) { return; }
+            var trimmed = query.trim();
+            var existing = getHistory().filter(function (h) {
+                return h !== trimmed;
+            });
+            var updated = [trimmed].concat(existing).slice(0, MAX_HISTORY);
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            } catch (e) { /* ignore */ }
+        }
+
+        function clearHistory() {
+            try {
+                localStorage.removeItem(STORAGE_KEY);
+            } catch (e) { /* ignore */ }
+        }
+
+        // --- API 调用 ---
+
+        function fetchSuggestions(query) {
+            var url = '/api/search/suggest?q=' +
+                encodeURIComponent(query) +
+                '&limit=' + SUGGEST_LIMIT;
+
+            return fetch(url)
+                .then(function (res) {
+                    if (!res.ok) { throw new Error('Network error'); }
+                    return res.json();
+                })
+                .then(function (data) {
+                    return Array.isArray(data) ? data : (data.suggestions || []);
+                })
+                .catch(function () {
+                    return [];
+                });
+        }
+
+        // --- 渲染 ---
+
+        function createTypeBadge(type) {
+            var typeMap = {
+                prefix: { label: '前缀', cls: 'search-box-type-prefix' },
+                fuzzy: { label: '模糊', cls: 'search-box-type-fuzzy' },
+                popular: { label: '热门', cls: 'search-box-type-popular' }
+            };
+            var info = typeMap[type] || { label: type, cls: 'search-box-type-prefix' };
+            var span = document.createElement('span');
+            span.className = 'search-box-type-badge ' + info.cls;
+            span.textContent = info.label;
+            return span;
+        }
+
+        function renderSuggestionItem(suggestion, query, index) {
+            var item = document.createElement('div');
+            item.className = 'search-box-item';
+            item.setAttribute('data-index', index);
+
+            var textSpan = document.createElement('span');
+            textSpan.className = 'search-box-item-text';
+            textSpan.innerHTML = highlightMatch(suggestion.text || suggestion, query);
+
+            item.appendChild(textSpan);
+
+            if (suggestion.type) {
+                item.appendChild(createTypeBadge(suggestion.type));
+            }
+
+            item.addEventListener('mouseenter', function () {
+                setActiveIndex(index);
+            });
+            item.addEventListener('click', function () {
+                selectItem(suggestion.text || suggestion);
+            });
+
+            return item;
+        }
+
+        function renderHistoryItem(query, index) {
+            var item = document.createElement('div');
+            item.className = 'search-box-item';
+            item.setAttribute('data-index', index);
+
+            var icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            icon.setAttribute('class', 'search-box-history-icon');
+            icon.setAttribute('viewBox', '0 0 24 24');
+            icon.setAttribute('fill', 'none');
+            icon.setAttribute('stroke', 'currentColor');
+            icon.setAttribute('stroke-width', '2');
+            icon.setAttribute('stroke-linecap', 'round');
+            icon.setAttribute('stroke-linejoin', 'round');
+            var path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path1.setAttribute('d', 'M12 8v4l3 3');
+            icon.appendChild(path1);
+            var circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', '12');
+            circle.setAttribute('cy', '12');
+            circle.setAttribute('r', '10');
+            icon.appendChild(circle);
+
+            var textSpan = document.createElement('span');
+            textSpan.className = 'search-box-item-text';
+            textSpan.textContent = query;
+
+            item.appendChild(icon);
+            item.appendChild(textSpan);
+
+            item.addEventListener('mouseenter', function () {
+                setActiveIndex(index);
+            });
+            item.addEventListener('click', function () {
+                selectItem(query);
+            });
+
+            return item;
+        }
+
+        function renderDropdown() {
+            var dropdown = state.dropdown;
+            dropdown.innerHTML = '';
+            state.activeIndex = -1;
+
+            var query = state.input.value.trim();
+            var history = getHistory();
+
+            if (!query && history.length > 0) {
+                renderHistorySection(history);
+                showDropdown();
+                return;
+            }
+
+            if (!query) {
+                hideDropdown();
+                return;
+            }
+
+            if (state.isLoading) {
+                renderLoading();
+                showDropdown();
+                return;
+            }
+
+            if (state.items.length === 0) {
+                renderEmpty();
+                showDropdown();
+                return;
+            }
+
+            renderSuggestionSection(state.items, query);
+            showDropdown();
+        }
+
+        function renderHistorySection(history) {
+            var dropdown = state.dropdown;
+            var title = document.createElement('div');
+            title.className = 'search-box-section-title';
+            title.textContent = '搜索历史';
+            dropdown.appendChild(title);
+
+            var fragment = document.createDocumentFragment();
+            history.forEach(function (h, i) {
+                fragment.appendChild(renderHistoryItem(h, i));
+            });
+            dropdown.appendChild(fragment);
+
+            var clearBtn = document.createElement('div');
+            clearBtn.className = 'search-box-clear-history';
+            clearBtn.textContent = '清除搜索历史';
+            clearBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                clearHistory();
+                hideDropdown();
+            });
+            dropdown.appendChild(clearBtn);
+
+            state.items = history.map(function (h) {
+                return { text: h, type: 'history' };
+            });
+        }
+
+        function renderSuggestionSection(suggestions, query) {
+            var dropdown = state.dropdown;
+            var title = document.createElement('div');
+            title.className = 'search-box-section-title';
+            title.textContent = '搜索建议';
+            dropdown.appendChild(title);
+
+            var fragment = document.createDocumentFragment();
+            suggestions.forEach(function (s, i) {
+                fragment.appendChild(renderSuggestionItem(s, query, i));
+            });
+            dropdown.appendChild(fragment);
+        }
+
+        function renderLoading() {
+            var dropdown = state.dropdown;
+            var div = document.createElement('div');
+            div.className = 'search-box-loading';
+            div.innerHTML = '<span class="search-box-spinner"></span>搜索中...';
+            dropdown.appendChild(div);
+        }
+
+        function renderEmpty() {
+            var dropdown = state.dropdown;
+            var div = document.createElement('div');
+            div.className = 'search-box-empty';
+            div.textContent = '没有找到相关建议';
+            dropdown.appendChild(div);
+        }
+
+        // --- 下拉控制 ---
+
+        function showDropdown() {
+            state.dropdown.classList.add('visible');
+        }
+
+        function hideDropdown() {
+            state.dropdown.classList.remove('visible');
+            state.activeIndex = -1;
+        }
+
+        function setActiveIndex(index) {
+            var items = state.dropdown.querySelectorAll('.search-box-item');
+            items.forEach(function (el) { el.classList.remove('active'); });
+            state.activeIndex = index;
+            if (index >= 0 && index < items.length) {
+                items[index].classList.add('active');
+                items[index].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        // --- 选择与搜索 ---
+
+        function selectItem(text) {
+            state.input.value = text;
+            hideDropdown();
+            performSearch(text);
+        }
+
+        function performSearch(query) {
+            if (!query || !query.trim()) { return; }
+            saveHistory(query);
+
+            if (typeof SearchBox.onSearch === 'function') {
+                SearchBox.onSearch(query.trim());
+                return;
+            }
+            window.location.href = '/search/results.html?q=' +
+                encodeURIComponent(query.trim());
+        }
+
+        // --- 防抖搜索 ---
+
+        var debouncedSearch = debounce(function (query) {
+            if (!query) {
+                state.items = [];
+                state.isLoading = false;
+                renderDropdown();
+                return;
+            }
+
+            state.isLoading = true;
+            renderDropdown();
+
+            fetchSuggestions(query).then(function (suggestions) {
+                state.isLoading = false;
+                state.items = suggestions;
+                if (state.input.value.trim() === query) {
+                    renderDropdown();
+                }
+            });
+        }, DEBOUNCE_MS);
+
+        // --- 事件处理 ---
+
+        function handleInput() {
+            var query = state.input.value.trim();
+            if (state.debounceTimer) {
+                clearTimeout(state.debounceTimer);
+            }
+            debouncedSearch(query);
+        }
+
+        function handleFocus() {
+            renderDropdown();
+        }
+
+        function handleKeydown(e) {
+            var items = state.dropdown.querySelectorAll('.search-box-item');
+            var total = items.length;
+            var isDropdownVisible = state.dropdown.classList.contains('visible');
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (!isDropdownVisible) { renderDropdown(); return; }
+                var next = (state.activeIndex + 1) % total;
+                setActiveIndex(next);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!isDropdownVisible) { return; }
+                var prev = (state.activeIndex - 1 + total) % total;
+                setActiveIndex(prev);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (isDropdownVisible && state.activeIndex >= 0 && state.activeIndex < total) {
+                    var text = state.items[state.activeIndex];
+                    selectItem(typeof text === 'string' ? text : text.text);
+                } else {
+                    performSearch(state.input.value);
+                }
+            } else if (e.key === 'Escape') {
+                hideDropdown();
+                state.input.blur();
+            }
+        }
+
+        function handleDocumentClick(e) {
+            if (!state.container.contains(e.target)) {
+                hideDropdown();
+            }
+        }
+
+        function handleGlobalKeydown(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                SearchBox.focus();
+            }
+        }
+
+        // --- 构建 DOM ---
+
+        function buildSearchBox(container) {
+            container.innerHTML = '';
+
+            var wrapper = document.createElement('div');
+            wrapper.className = 'search-box-wrapper';
+
+            var inputGroup = document.createElement('div');
+            inputGroup.className = 'search-box-input-group';
+
+            var icon = createSearchIcon();
+            var input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'search-box-input';
+            input.placeholder = '搜索知识库... (Ctrl+K)';
+            input.setAttribute('autocomplete', 'off');
+            input.setAttribute('role', 'combobox');
+            input.setAttribute('aria-expanded', 'false');
+            input.setAttribute('aria-haspopup', 'listbox');
+
+            var shortcut = document.createElement('span');
+            shortcut.className = 'search-box-shortcut';
+            shortcut.textContent = 'Ctrl+K';
+
+            var dropdown = document.createElement('div');
+            dropdown.className = 'search-box-dropdown';
+            dropdown.setAttribute('role', 'listbox');
+
+            inputGroup.appendChild(icon);
+            inputGroup.appendChild(input);
+            inputGroup.appendChild(shortcut);
+            wrapper.appendChild(inputGroup);
+            wrapper.appendChild(dropdown);
+            container.appendChild(wrapper);
+
+            state.container = wrapper;
+            state.input = input;
+            state.dropdown = dropdown;
+
+            input.addEventListener('input', handleInput);
+            input.addEventListener('focus', handleFocus);
+            input.addEventListener('keydown', handleKeydown);
+            document.addEventListener('click', handleDocumentClick);
+            document.addEventListener('keydown', handleGlobalKeydown);
+        }
+
+        function createSearchIcon() {
+            var icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            icon.setAttribute('class', 'search-box-icon');
+            icon.setAttribute('viewBox', '0 0 24 24');
+            icon.setAttribute('fill', 'none');
+            icon.setAttribute('stroke', 'currentColor');
+            icon.setAttribute('stroke-width', '2');
+            icon.setAttribute('stroke-linecap', 'round');
+            icon.setAttribute('stroke-linejoin', 'round');
+
+            var circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', '11');
+            circle.setAttribute('cy', '11');
+            circle.setAttribute('r', '8');
+            icon.appendChild(circle);
+
+            var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', '21');
+            line.setAttribute('y1', '21');
+            line.setAttribute('x2', '16.65');
+            line.setAttribute('y2', '16.65');
+            icon.appendChild(line);
+
+            return icon;
+        }
+
+        // --- 公开 API ---
+
+        window.SearchBox = {
+            init: function (containerId) {
+                var container = document.getElementById(containerId);
+                if (!container) {
+                    throw new Error('SearchBox: container not found: ' + containerId);
+                }
+                buildSearchBox(container);
+            },
+
+            focus: function () {
+                if (state.input) {
+                    state.input.focus();
+                    state.input.select();
+                }
+            },
+
+            onSearch: null
+        };
+    })();
+
+    // 演示初始化
+    SearchBox.init('demo-container');
+    SearchBox.onSearch = function (query) {
+        window.location.href = '/search/results.html?q=' + encodeURIComponent(query);
+    };
+    </script>
+</body>
+</html>
