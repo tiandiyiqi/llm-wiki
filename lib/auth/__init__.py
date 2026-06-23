@@ -33,6 +33,9 @@ from .auth_middleware import (
 )
 from .session_manager import Session, SessionManager
 from .casdoor_config import CasdoorConfig
+from .casdoor_client import CasdoorClient, CasdoorError, CasdoorTokenResponse, CasdoorUserInfo
+from .sso_provider import SSOAuthProvider, SSOAuthResult
+from .user_sync import UserSyncService, SyncResult, RedisSessionManager, create_session_manager
 from .cache_manager import (
     CacheManager,
     get_permission_cache,
@@ -67,6 +70,19 @@ __all__ = [
     'SessionManager',
     # SSO 配置
     'CasdoorConfig',
+    # SSO 认证
+    'CasdoorClient',
+    'CasdoorError',
+    'CasdoorTokenResponse',
+    'CasdoorUserInfo',
+    'SSOAuthProvider',
+    'SSOAuthResult',
+    # 用户同步
+    'UserSyncService',
+    'SyncResult',
+    # Redis 会话
+    'RedisSessionManager',
+    'create_session_manager',
     # 缓存
     'CacheManager',
     'get_permission_cache',
