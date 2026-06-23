@@ -195,3 +195,17 @@ def main():
 if __name__ == '__main__':
     import sys
     sys.exit(main())
+
+# Merged from test_sql_validator_standalone.py
+def test_safe_identifier_function():
+    """测试 safe_identifier 函数."""
+    from lib.utils.sql_validator import safe_identifier
+    print("\n=== 测试 safe_identifier 函数 ===")
+
+    result = safe_identifier('atoms', 'table')
+    assert result == '"atoms"', f"期望 '\"atoms\"'，得到 '{result}'"
+    print(f"✅ 表标识符验证通过: {result}")
+
+    result = safe_identifier('id', 'column')
+    assert result == '"id"', f"期望 '\"id\"'，得到 '{result}'"
+    print(f"✅ 列标识符验证通过: {result}")

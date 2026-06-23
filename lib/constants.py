@@ -41,5 +41,5 @@ except ImportError:
 try:
     from sentence_transformers import SentenceTransformer
     EMBEDDINGS_AVAILABLE = True
-except ImportError:
+except (ImportError, AttributeError, Exception):
     EMBEDDINGS_AVAILABLE = False

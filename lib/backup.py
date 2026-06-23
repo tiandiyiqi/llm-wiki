@@ -7,7 +7,7 @@ import subprocess
 import tarfile
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from .constants import RESERVED_FILES
 
