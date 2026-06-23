@@ -433,4 +433,4 @@ parent: PLAN-005-casdoor-sso-integration
 ---
 
 **创建时间**：2026-06-23
-**状态**：active — 等待执行
+**状态**：completed — 全部 7 任务组/35 子任务已实现
