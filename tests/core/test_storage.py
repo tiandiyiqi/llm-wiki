@@ -731,6 +731,19 @@ def mock_db_manager():
     manager.set_rls_context = Mock()
     manager.fetch_one = AsyncMock()
     manager.fetch_all = AsyncMock()
+    # 委托方法：DatabaseStorage 直接调用这些方法
+    manager.create_kb = AsyncMock()
+    manager.get_kb = AsyncMock()
+    manager.list_kbs = AsyncMock()
+    manager.update_kb = AsyncMock()
+    manager.delete_kb = AsyncMock()
+    manager.create_atom = AsyncMock()
+    manager.get_atom = AsyncMock()
+    manager.update_atom = AsyncMock()
+    manager.delete_atom = AsyncMock()
+    manager.list_atoms = AsyncMock()
+    manager.search_atoms = AsyncMock()
+    manager.get_kb_stats = AsyncMock()
     return manager
 
 
@@ -792,14 +805,20 @@ class TestDatabaseStorageInitialization:
 
         mock_db_manager.close.assert_called_once()
 
-    def test_set_current_user_sets_context(self, storage_config, mock_db_manager):
+    @pytest.mark.asyncio
+    async def test_set_current_user_sets_context(self, storage_config, mock_db_manager):
         """验证设置当前用户设置上下文"""
+        mock_db_manager.set_rls_context = AsyncMock()
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
         storage.set_current_user('user123', ['admin', 'editor'])
 
         assert storage._current_user_id == 'user123'
         assert storage._current_user_roles == ['admin', 'editor']
+        # set_rls_context 通过 create_task 调度，在异步上下文中会被调用
+        # 给事件循环一个机会执行 create_task
+        import asyncio
+        await asyncio.sleep(0)
         mock_db_manager.set_rls_context.assert_called_once_with('user123', ['admin', 'editor'])
 
 
@@ -809,7 +828,7 @@ class TestDatabaseStorageKnowledgeBase:
     @pytest.mark.asyncio
     async def test_create_kb_returns_id(self, storage_config, mock_db_manager):
         """验证创建知识库返回 ID"""
-        mock_db_manager.fetch_one.return_value = {'id': 1}
+        mock_db_manager.create_kb.return_value = 1
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
@@ -819,21 +838,51 @@ class TestDatabaseStorageKnowledgeBase:
     @pytest.mark.asyncio
     async def test_create_kb_uses_current_user_as_owner(self, storage_config, mock_db_manager):
         """验证创建知识库使用当前用户作为 owner"""
-        mock_db_manager.fetch_one.return_value = {'id': 1}
+        mock_db_manager.create_kb.return_value = 1
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
         storage._current_user_id = 'user123'
 
         await storage.create_kb({'name': 'Test KB'})
-        call_args = mock_db_manager.fetch_one.call_args
+        call_args = mock_db_manager.create_kb.call_args
 
-        # 验证 owner_id 参数
-        assert call_args[0][5] == 'user123'
+        # 验证 adapted 数据中 owner_id 为当前用户
+        adapted_data = call_args[0][0]
+        assert adapted_data['owner_id'] == 'user123'
+
+    @pytest.mark.asyncio
+    async def test_create_kb_adapts_scope_to_type(self, storage_config, mock_db_manager):
+        """验证创建知识库将 scope 适配为 type"""
+        mock_db_manager.create_kb.return_value = 1
+        storage = DatabaseStorage(storage_config)
+        storage.db_manager = mock_db_manager
+
+        await storage.create_kb({'name': 'Test KB', 'scope': 'company'})
+        call_args = mock_db_manager.create_kb.call_args
+
+        adapted_data = call_args[0][0]
+        assert adapted_data['type'] == 'company'
+
+    @pytest.mark.asyncio
+    async def test_create_kb_adds_new_fields(self, storage_config, mock_db_manager):
+        """验证创建知识库添加新字段 slug/visibility/storage_mode/settings"""
+        mock_db_manager.create_kb.return_value = 1
+        storage = DatabaseStorage(storage_config)
+        storage.db_manager = mock_db_manager
+
+        await storage.create_kb({'name': 'Test KB'})
+        call_args = mock_db_manager.create_kb.call_args
+
+        adapted_data = call_args[0][0]
+        assert 'slug' in adapted_data
+        assert 'visibility' in adapted_data
+        assert 'storage_mode' in adapted_data
+        assert 'settings' in adapted_data
 
     @pytest.mark.asyncio
     async def test_get_kb_returns_data(self, storage_config, mock_db_manager):
         """验证获取知识库返回数据"""
-        mock_db_manager.fetch_one.return_value = {
+        mock_db_manager.get_kb.return_value = {
             'id': 1,
             'name': 'Test KB',
             'description': 'Test description'
@@ -843,11 +892,12 @@ class TestDatabaseStorageKnowledgeBase:
 
         kb = await storage.get_kb(1)
         assert kb['name'] == 'Test KB'
+        mock_db_manager.get_kb.assert_called_once_with(1)
 
     @pytest.mark.asyncio
     async def test_get_kb_returns_none_if_not_found(self, storage_config, mock_db_manager):
         """验证获取不存在知识库返回 None"""
-        mock_db_manager.fetch_one.return_value = None
+        mock_db_manager.get_kb.return_value = None
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
@@ -857,7 +907,7 @@ class TestDatabaseStorageKnowledgeBase:
     @pytest.mark.asyncio
     async def test_list_kbs_returns_all(self, storage_config, mock_db_manager):
         """验证列出知识库返回所有"""
-        mock_db_manager.fetch_all.return_value = [
+        mock_db_manager.list_kbs.return_value = [
             {'id': 1, 'name': 'KB 1'},
             {'id': 2, 'name': 'KB 2'}
         ]
@@ -870,35 +920,33 @@ class TestDatabaseStorageKnowledgeBase:
     @pytest.mark.asyncio
     async def test_list_kbs_filters_by_user(self, storage_config, mock_db_manager):
         """验证列出知识库按用户过滤"""
-        mock_db_manager.fetch_all.return_value = [{'id': 1, 'name': 'KB 1'}]
+        mock_db_manager.list_kbs.return_value = [{'id': 1, 'name': 'KB 1'}]
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
         kbs = await storage.list_kbs(user_id='user123')
         assert len(kbs) == 1
 
-        # 验证 SQL 包含 user_id 条件
-        call_args = mock_db_manager.fetch_all.call_args
-        assert 'user123' in call_args[0]
+        # 验证 list_kbs 被正确调用
+        mock_db_manager.list_kbs.assert_called_once_with(user_id='user123', scope='all')
 
     @pytest.mark.asyncio
     async def test_list_kbs_filters_by_scope(self, storage_config, mock_db_manager):
         """验证列出知识库按 scope 过滤"""
-        mock_db_manager.fetch_all.return_value = [{'id': 1, 'name': 'KB 1'}]
+        mock_db_manager.list_kbs.return_value = [{'id': 1, 'name': 'KB 1'}]
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
         kbs = await storage.list_kbs(scope='personal')
         assert len(kbs) == 1
 
-        # 验证 SQL 包含 scope 条件
-        call_args = mock_db_manager.fetch_all.call_args
-        assert 'personal' in call_args[0]
+        # 验证 list_kbs 被正确调用，scope 参数传递
+        mock_db_manager.list_kbs.assert_called_once_with(user_id=None, scope='personal')
 
     @pytest.mark.asyncio
     async def test_update_kb_returns_true(self, storage_config, mock_db_manager):
         """验证更新知识库返回 True"""
-        mock_db_manager.fetch_one.return_value = {'id': 1}
+        mock_db_manager.update_kb.return_value = True
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
@@ -908,6 +956,7 @@ class TestDatabaseStorageKnowledgeBase:
     @pytest.mark.asyncio
     async def test_update_kb_returns_false_if_no_data(self, storage_config, mock_db_manager):
         """验证更新知识库无数据返回 False"""
+        mock_db_manager.update_kb.return_value = False
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
@@ -917,7 +966,7 @@ class TestDatabaseStorageKnowledgeBase:
     @pytest.mark.asyncio
     async def test_update_kb_returns_false_if_not_found(self, storage_config, mock_db_manager):
         """验证更新不存在知识库返回 False"""
-        mock_db_manager.fetch_one.return_value = None
+        mock_db_manager.update_kb.return_value = False
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
@@ -927,7 +976,7 @@ class TestDatabaseStorageKnowledgeBase:
     @pytest.mark.asyncio
     async def test_delete_kb_returns_true(self, storage_config, mock_db_manager):
         """验证删除知识库返回 True"""
-        mock_db_manager.fetch_one.return_value = {'id': 1}
+        mock_db_manager.delete_kb.return_value = True
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
@@ -937,7 +986,7 @@ class TestDatabaseStorageKnowledgeBase:
     @pytest.mark.asyncio
     async def test_delete_kb_returns_false_if_not_found(self, storage_config, mock_db_manager):
         """验证删除不存在知识库返回 False"""
-        mock_db_manager.fetch_one.return_value = None
+        mock_db_manager.delete_kb.return_value = False
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
@@ -951,7 +1000,7 @@ class TestDatabaseStorageAtom:
     @pytest.mark.asyncio
     async def test_create_atom_returns_id(self, storage_config, mock_db_manager):
         """验证创建原子返回 ID"""
-        mock_db_manager.fetch_one.return_value = {'id': 1}
+        mock_db_manager.create_atom.return_value = 1
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
@@ -963,9 +1012,30 @@ class TestDatabaseStorageAtom:
         assert atom_id == 1
 
     @pytest.mark.asyncio
-    async def test_create_atom_stores_tags_and_links(self, storage_config, mock_db_manager):
-        """验证创建原子存储 tags 和 links"""
-        mock_db_manager.fetch_one.return_value = {'id': 1}
+    async def test_create_atom_adapts_fields(self, storage_config, mock_db_manager):
+        """验证创建原子适配字段 body→content, frontmatter→metadata, path→slug"""
+        mock_db_manager.create_atom.return_value = 1
+        storage = DatabaseStorage(storage_config)
+        storage.db_manager = mock_db_manager
+
+        await storage.create_atom({
+            'kb_id': 1,
+            'title': 'Test Atom',
+            'body': 'Test body',
+            'frontmatter': {'key': 'value'},
+            'path': 'some/path',
+        })
+
+        call_args = mock_db_manager.create_atom.call_args
+        adapted_data = call_args[0][0]
+        assert adapted_data['content'] == 'Test body'
+        assert adapted_data['metadata'] == {'key': 'value'}
+        assert adapted_data['slug'] == 'some/path'
+
+    @pytest.mark.asyncio
+    async def test_create_atom_stores_tags_in_metadata(self, storage_config, mock_db_manager):
+        """验证创建原子将 tags 存储到 metadata 中"""
+        mock_db_manager.create_atom.return_value = 1
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
@@ -973,17 +1043,33 @@ class TestDatabaseStorageAtom:
             'kb_id': 1,
             'title': 'Test Atom',
             'tags': ['tag1', 'tag2'],
-            'links': ['link1', 'link2']
         })
 
-        call_args = mock_db_manager.fetch_one.call_args
-        assert ['tag1', 'tag2'] in call_args[0]
-        assert ['link1', 'link2'] in call_args[0]
+        call_args = mock_db_manager.create_atom.call_args
+        adapted_data = call_args[0][0]
+        assert adapted_data['metadata']['tags'] == ['tag1', 'tag2']
+
+    @pytest.mark.asyncio
+    async def test_create_atom_adds_new_fields(self, storage_config, mock_db_manager):
+        """验证创建原子添加新字段 status/is_locked/author_id"""
+        mock_db_manager.create_atom.return_value = 1
+        storage = DatabaseStorage(storage_config)
+        storage.db_manager = mock_db_manager
+
+        await storage.create_atom({
+            'kb_id': 1,
+            'title': 'Test Atom',
+        })
+
+        call_args = mock_db_manager.create_atom.call_args
+        adapted_data = call_args[0][0]
+        assert 'status' in adapted_data
+        assert 'author_id' in adapted_data
 
     @pytest.mark.asyncio
     async def test_get_atom_returns_data(self, storage_config, mock_db_manager):
         """验证获取原子返回数据"""
-        mock_db_manager.fetch_one.return_value = {
+        mock_db_manager.get_atom.return_value = {
             'id': 1,
             'title': 'Test Atom',
             'content': 'Test content'
@@ -993,11 +1079,12 @@ class TestDatabaseStorageAtom:
 
         atom = await storage.get_atom(1)
         assert atom['title'] == 'Test Atom'
+        mock_db_manager.get_atom.assert_called_once_with(1)
 
     @pytest.mark.asyncio
     async def test_get_atom_returns_none_if_not_found(self, storage_config, mock_db_manager):
         """验证获取不存在原子返回 None"""
-        mock_db_manager.fetch_one.return_value = None
+        mock_db_manager.get_atom.return_value = None
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
@@ -1007,7 +1094,7 @@ class TestDatabaseStorageAtom:
     @pytest.mark.asyncio
     async def test_list_atoms_returns_all(self, storage_config, mock_db_manager):
         """验证列出原子返回所有"""
-        mock_db_manager.fetch_all.return_value = [
+        mock_db_manager.list_atoms.return_value = [
             {'id': 1, 'title': 'Atom 1'},
             {'id': 2, 'title': 'Atom 2'}
         ]
@@ -1020,7 +1107,7 @@ class TestDatabaseStorageAtom:
     @pytest.mark.asyncio
     async def test_update_atom_returns_true(self, storage_config, mock_db_manager):
         """验证更新原子返回 True"""
-        mock_db_manager.fetch_one.return_value = {'id': 1}
+        mock_db_manager.update_atom.return_value = True
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
@@ -1030,6 +1117,7 @@ class TestDatabaseStorageAtom:
     @pytest.mark.asyncio
     async def test_update_atom_returns_false_if_no_data(self, storage_config, mock_db_manager):
         """验证更新原子无数据返回 False"""
+        mock_db_manager.update_atom.return_value = False
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
@@ -1037,9 +1125,23 @@ class TestDatabaseStorageAtom:
         assert result is False
 
     @pytest.mark.asyncio
+    async def test_update_atom_adapts_body_to_content(self, storage_config, mock_db_manager):
+        """验证更新原子适配 body→content, frontmatter→metadata"""
+        mock_db_manager.update_atom.return_value = True
+        storage = DatabaseStorage(storage_config)
+        storage.db_manager = mock_db_manager
+
+        await storage.update_atom(1, {'body': 'new content', 'frontmatter': {'k': 'v'}})
+
+        call_args = mock_db_manager.update_atom.call_args
+        adapted_data = call_args[0][1]
+        assert adapted_data['content'] == 'new content'
+        assert adapted_data['metadata'] == {'k': 'v'}
+
+    @pytest.mark.asyncio
     async def test_delete_atom_returns_true(self, storage_config, mock_db_manager):
         """验证删除原子返回 True"""
-        mock_db_manager.fetch_one.return_value = {'id': 1}
+        mock_db_manager.delete_atom.return_value = True
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
@@ -1049,7 +1151,7 @@ class TestDatabaseStorageAtom:
     @pytest.mark.asyncio
     async def test_delete_atom_returns_false_if_not_found(self, storage_config, mock_db_manager):
         """验证删除不存在原子返回 False"""
-        mock_db_manager.fetch_one.return_value = None
+        mock_db_manager.delete_atom.return_value = False
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
@@ -1063,7 +1165,7 @@ class TestDatabaseStorageSearch:
     @pytest.mark.asyncio
     async def test_search_atoms_returns_results(self, storage_config, mock_db_manager):
         """验证搜索原子返回结果"""
-        mock_db_manager.fetch_all.return_value = [
+        mock_db_manager.search_atoms.return_value = [
             {'id': 1, 'title': 'Python Tutorial'},
             {'id': 2, 'title': 'Python Guide'}
         ]
@@ -1074,21 +1176,20 @@ class TestDatabaseStorageSearch:
         assert len(results) == 2
 
     @pytest.mark.asyncio
-    async def test_search_atoms_uses_full_text_search(self, storage_config, mock_db_manager):
-        """验证搜索使用全文检索"""
+    async def test_search_atoms_delegates_to_manager(self, storage_config, mock_db_manager):
+        """验证搜索委托给 db_manager.search_atoms"""
+        mock_db_manager.search_atoms.return_value = []
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
-        await storage.search_atoms('test query')
+        await storage.search_atoms('test query', kb_id=1)
 
-        call_args = mock_db_manager.fetch_all.call_args
-        # 验证使用全文检索函数
-        assert 'tsvector' in call_args[0][0] or 'plainto_tsquery' in call_args[0][0]
+        mock_db_manager.search_atoms.assert_called_once_with('test query', kb_id=1)
 
     @pytest.mark.asyncio
     async def test_search_atoms_returns_empty_if_no_match(self, storage_config, mock_db_manager):
         """验证搜索无匹配返回空列表"""
-        mock_db_manager.fetch_all.return_value = []
+        mock_db_manager.search_atoms.return_value = []
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
@@ -1138,13 +1239,17 @@ class TestDatabaseStorageStats:
     @pytest.mark.asyncio
     async def test_get_stats_for_kb(self, storage_config, mock_db_manager):
         """验证获取知识库统计"""
-        mock_db_manager.fetch_one.return_value = {'count': 5}
+        mock_db_manager.get_kb_stats.return_value = {
+            'kb_id': 1,
+            'atom_count': 5
+        }
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
         stats = await storage.get_stats(1)
         assert stats['kb_id'] == 1
         assert stats['atom_count'] == 5
+        mock_db_manager.get_kb_stats.assert_called_once_with(1)
 
     @pytest.mark.asyncio
     async def test_get_global_stats(self, storage_config, mock_db_manager):
@@ -1302,7 +1407,7 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_db_storage_handles_empty_tags_and_links(self, storage_config, mock_db_manager):
         """验证数据库存储处理空 tags 和 links"""
-        mock_db_manager.fetch_one.return_value = {'id': 1}
+        mock_db_manager.create_atom.return_value = 1
         storage = DatabaseStorage(storage_config)
         storage.db_manager = mock_db_manager
 
@@ -1310,8 +1415,9 @@ class TestEdgeCases:
             'kb_id': 1,
             'title': 'Test Atom',
             'tags': [],
-            'links': []
         })
 
-        call_args = mock_db_manager.fetch_one.call_args
-        assert [] in call_args[0]  # 验证空数组被正确传递
+        call_args = mock_db_manager.create_atom.call_args
+        adapted_data = call_args[0][0]
+        # tags 被适配到 metadata.tags 中
+        assert adapted_data['metadata']['tags'] == []

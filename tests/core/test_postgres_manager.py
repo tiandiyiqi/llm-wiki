@@ -128,13 +128,12 @@ def sample_atom_data() -> Dict[str, Any]:
     """
     return {
         'kb_id': 1,
-        'path': 'atoms/test-note.md',
-        'type': 'note',
+        'slug': 'test-note',
+        'type': 'fact',
         'title': 'Test Note',
         'description': 'A test note for testing',
-        'tags': ['test', 'note'],
-        'body': '# Test Note\n\nThis is test content.',
-        'frontmatter': {'author': 'tester', 'date': '2024-01-01'}
+        'content': '# Test Note\n\nThis is test content.',
+        'metadata': {'author': 'tester', 'date': '2024-01-01', 'tags': ['test', 'note']},
     }
 
 
@@ -238,7 +237,7 @@ class TestPostgreSQLManagerKnowledgeBaseCRUD:
     async def test_create_kb_with_missing_required_fields_raises(self, postgres_manager: PostgreSQLManager):
         """验证缺少必需字段时抛出异常"""
         with pytest.raises(ValueError, match="Invalid kb_data"):
-            await postgres_manager.create_kb({'name': 'incomplete'})
+            await postgres_manager.create_kb({})  # 缺少 name
 
     @pytest.mark.asyncio
     async def test_get_kb_returns_kb(self, postgres_manager: PostgreSQLManager, mock_connection, sample_kb_data: Dict[str, Any]):
@@ -246,15 +245,20 @@ class TestPostgreSQLManagerKnowledgeBaseCRUD:
         mock_row = {
             'id': 1,
             'name': 'test-kb',
-            'path': '/path/to/test-kb',
+            'slug': 'test-kb',
+            'type': 'personal',
             'description': 'Test knowledge base',
-            'tags': ['test', 'example'],
-            'kb_type': 'standalone',
-            'parent_id': None,
+            'organization_id': None,
+            'owner_id': None,
+            'department_id': None,
+            'project_id': None,
+            'visibility': 'private',
+            'is_aggregated': False,
+            'storage_mode': 'db',
+            'settings': {},
+            'created_by': None,
             'created_at': datetime.now(),
             'updated_at': datetime.now(),
-            'last_accessed_at': None,
-            'scope': 'global'
         }
         mock_connection.fetchrow = AsyncMock(return_value=mock_row)
 
@@ -278,15 +282,20 @@ class TestPostgreSQLManagerKnowledgeBaseCRUD:
         mock_row = {
             'id': 1,
             'name': 'test-kb',
-            'path': '/path/to/test-kb',
+            'slug': 'test-kb',
+            'type': 'personal',
             'description': 'Test knowledge base',
-            'tags': ['test'],
-            'kb_type': 'standalone',
-            'parent_id': None,
+            'organization_id': None,
+            'owner_id': None,
+            'department_id': None,
+            'project_id': None,
+            'visibility': 'private',
+            'is_aggregated': False,
+            'storage_mode': 'db',
+            'settings': {},
+            'created_by': None,
             'created_at': datetime.now(),
             'updated_at': datetime.now(),
-            'last_accessed_at': None,
-            'scope': 'global'
         }
         mock_connection.fetchrow = AsyncMock(return_value=mock_row)
 
@@ -307,9 +316,10 @@ class TestPostgreSQLManagerKnowledgeBaseCRUD:
     @pytest.mark.asyncio
     async def test_list_kbs_returns_all(self, postgres_manager: PostgreSQLManager, mock_connection):
         """验证列出所有知识库"""
+        now = datetime.now()
         mock_rows = [
-            {'id': 1, 'name': 'kb1', 'path': '/kb1', 'description': '', 'tags': [], 'kb_type': 'standalone', 'parent_id': None, 'created_at': datetime.now(), 'updated_at': datetime.now(), 'last_accessed_at': None, 'scope': 'global'},
-            {'id': 2, 'name': 'kb2', 'path': '/kb2', 'description': '', 'tags': [], 'kb_type': 'standalone', 'parent_id': None, 'created_at': datetime.now(), 'updated_at': datetime.now(), 'last_accessed_at': None, 'scope': 'global'}
+            {'id': 1, 'name': 'kb1', 'slug': 'kb1', 'type': 'personal', 'description': '', 'organization_id': None, 'owner_id': None, 'department_id': None, 'project_id': None, 'visibility': 'private', 'is_aggregated': False, 'storage_mode': 'db', 'settings': {}, 'created_by': None, 'created_at': now, 'updated_at': now},
+            {'id': 2, 'name': 'kb2', 'slug': 'kb2', 'type': 'personal', 'description': '', 'organization_id': None, 'owner_id': None, 'department_id': None, 'project_id': None, 'visibility': 'private', 'is_aggregated': False, 'storage_mode': 'db', 'settings': {}, 'created_by': None, 'created_at': now, 'updated_at': now}
         ]
         mock_connection.fetch = AsyncMock(return_value=mock_rows)
 
@@ -320,15 +330,16 @@ class TestPostgreSQLManagerKnowledgeBaseCRUD:
     @pytest.mark.asyncio
     async def test_list_kbs_filters_by_scope(self, postgres_manager: PostgreSQLManager, mock_connection):
         """验证按范围过滤知识库"""
+        now = datetime.now()
         mock_rows = [
-            {'id': 1, 'name': 'global-kb', 'path': '/global', 'description': '', 'tags': [], 'kb_type': 'standalone', 'parent_id': None, 'created_at': datetime.now(), 'updated_at': datetime.now(), 'last_accessed_at': None, 'scope': 'global'}
+            {'id': 1, 'name': 'personal-kb', 'slug': 'personal-kb', 'type': 'personal', 'description': '', 'organization_id': None, 'owner_id': None, 'department_id': None, 'project_id': None, 'visibility': 'private', 'is_aggregated': False, 'storage_mode': 'db', 'settings': {}, 'created_by': None, 'created_at': now, 'updated_at': now}
         ]
         mock_connection.fetch = AsyncMock(return_value=mock_rows)
 
-        kbs = await postgres_manager.list_kbs(scope='global')
+        kbs = await postgres_manager.list_kbs(scope='personal')
 
         assert len(kbs) == 1
-        assert kbs[0]['name'] == 'global-kb'
+        assert kbs[0]['name'] == 'personal-kb'
 
     @pytest.mark.asyncio
     async def test_update_kb_returns_true(self, postgres_manager: PostgreSQLManager, mock_connection):
@@ -429,19 +440,22 @@ class TestPostgreSQLManagerAtomCRUD:
             'type': 'note',
             'title': 'Test Note',
             'description': 'A test note',
-            'tags': ['test'],
-            'body': 'content',
-            'frontmatter': {'author': 'tester'},
+            'content': 'content',
+            'metadata': {'author': 'tester', 'tags': ['test']},
+            'slug': 'test',
+            'type': 'fact',
+            'status': 'active',
+            'is_locked': False,
+            'author_id': None,
             'created_at': datetime.now(),
             'updated_at': datetime.now(),
-            'file_mtime': 0.0
         }
         mock_connection.fetchrow = AsyncMock(return_value=mock_row)
 
-        atom = await postgres_manager.get_atom_by_path(1, 'atoms/test.md')
+        atom = await postgres_manager.get_atom_by_path(1, 'test')
 
         assert atom is not None
-        assert atom['path'] == 'atoms/test.md'
+        assert atom['slug'] == 'test'
 
     @pytest.mark.asyncio
     async def test_get_atom_by_path_returns_none_for_nonexistent(self, postgres_manager: PostgreSQLManager, mock_connection):
@@ -455,6 +469,8 @@ class TestPostgreSQLManagerAtomCRUD:
     @pytest.mark.asyncio
     async def test_update_atom_returns_true(self, postgres_manager: PostgreSQLManager, mock_connection):
         """验证更新原子返回 True"""
+        # update_atom 先检查 is_locked 状态
+        mock_connection.fetchrow = AsyncMock(return_value={'is_locked': False})
         mock_connection.execute = AsyncMock(return_value='UPDATE 1')
 
         success = await postgres_manager.update_atom(1, {'title': 'updated'})
@@ -464,6 +480,8 @@ class TestPostgreSQLManagerAtomCRUD:
     @pytest.mark.asyncio
     async def test_update_atom_returns_false_for_nonexistent(self, postgres_manager: PostgreSQLManager, mock_connection):
         """验证更新不存在的原子返回 False"""
+        # fetchrow 返回 None 表示原子不存在
+        mock_connection.fetchrow = AsyncMock(return_value=None)
         mock_connection.execute = AsyncMock(return_value='UPDATE 0')
 
         success = await postgres_manager.update_atom(99999, {'title': 'test'})
@@ -479,8 +497,9 @@ class TestPostgreSQLManagerAtomCRUD:
 
     @pytest.mark.asyncio
     async def test_delete_atom_returns_true(self, postgres_manager: PostgreSQLManager, mock_connection):
-        """验证删除原子返回 True"""
-        mock_connection.execute = AsyncMock(return_value='DELETE 1')
+        """验证软删除原子返回 True"""
+        # 默认是软删除（UPDATE status = 'archived'）
+        mock_connection.execute = AsyncMock(return_value='UPDATE 1')
 
         success = await postgres_manager.delete_atom(1)
 
@@ -489,7 +508,7 @@ class TestPostgreSQLManagerAtomCRUD:
     @pytest.mark.asyncio
     async def test_delete_atom_returns_false_for_nonexistent(self, postgres_manager: PostgreSQLManager, mock_connection):
         """验证删除不存在的原子返回 False"""
-        mock_connection.execute = AsyncMock(return_value='DELETE 0')
+        mock_connection.execute = AsyncMock(return_value='UPDATE 0')
 
         success = await postgres_manager.delete_atom(99999)
 
@@ -720,39 +739,37 @@ class TestPostgreSQLManagerStats:
     @pytest.mark.asyncio
     async def test_get_kb_stats_returns_correct_counts(self, postgres_manager: PostgreSQLManager, mock_connection):
         """验证获取知识库统计信息"""
-        # 模拟总数查询
-        mock_total_row = {'count': 5}
-        # 模拟类型统计查询
-        mock_type_rows = [
-            {'type': 'note', 'count': 3},
-            {'type': 'concept', 'count': 2}
-        ]
+        # 新 schema: 单条 SQL 返回所有统计
+        mock_stats_row = {
+            'total_atoms': 5,
+            'active_atoms': 3,
+            'archived_atoms': 2,
+            'draft_atoms': 0,
+        }
 
-        def fetchrow_side_effect(*args, **kwargs):
-            return mock_total_row
-
-        def fetch_side_effect(*args, **kwargs):
-            return mock_type_rows
-
-        mock_connection.fetchrow = AsyncMock(side_effect=fetchrow_side_effect)
-        mock_connection.fetch = AsyncMock(side_effect=fetch_side_effect)
+        mock_connection.fetchrow = AsyncMock(return_value=mock_stats_row)
 
         stats = await postgres_manager.get_kb_stats(1)
 
         assert stats['total_atoms'] == 5
-        assert stats['types_count']['note'] == 3
-        assert stats['types_count']['concept'] == 2
+        assert stats['active_atoms'] == 3
+        assert stats['archived_atoms'] == 2
 
     @pytest.mark.asyncio
     async def test_get_kb_stats_returns_zero_for_empty(self, postgres_manager: PostgreSQLManager, mock_connection):
         """验证空知识库统计为零"""
-        mock_connection.fetchrow = AsyncMock(return_value={'count': 0})
-        mock_connection.fetch = AsyncMock(return_value=[])
+        mock_stats_row = {
+            'total_atoms': 0,
+            'active_atoms': 0,
+            'archived_atoms': 0,
+            'draft_atoms': 0,
+        }
+        mock_connection.fetchrow = AsyncMock(return_value=mock_stats_row)
 
         stats = await postgres_manager.get_kb_stats(1)
 
         assert stats['total_atoms'] == 0
-        assert stats['types_count'] == {}
+        assert stats['active_atoms'] == 0
 
     @pytest.mark.asyncio
     async def test_get_atom_count_returns_total(self, postgres_manager: PostgreSQLManager, mock_connection):
@@ -893,216 +910,175 @@ class TestPostgreSQLManagerUtilityMethods:
 
     def test_row_to_kb_dict_converts_correctly(self, postgres_manager: PostgreSQLManager):
         """验证行转换为知识库字典"""
-        class MockRow:
-            def __getitem__(self, key):
-                data = {
-                    'id': 1,
-                    'name': 'test',
-                    'path': '/test',
-                    'description': 'desc',
-                    'tags': ['tag1'],
-                    'kb_type': 'standalone',
-                    'parent_id': None,
-                    'created_at': datetime.now(),
-                    'updated_at': datetime.now(),
-                    'last_accessed_at': None,
-                    'scope': 'global'
-                }
-                return data[key]
+        now = datetime.now()
+        row = {
+            'id': 1,
+            'name': 'test',
+            'slug': 'test',
+            'type': 'personal',
+            'description': 'desc',
+            'organization_id': None,
+            'owner_id': None,
+            'department_id': None,
+            'project_id': None,
+            'visibility': 'private',
+            'is_aggregated': False,
+            'storage_mode': 'db',
+            'settings': {},
+            'created_by': None,
+            'created_at': now,
+            'updated_at': now,
+        }
 
-            def keys(self):
-                return ['id', 'name', 'path', 'description', 'tags', 'kb_type',
-                        'parent_id', 'created_at', 'updated_at', 'last_accessed_at', 'scope']
-
-        row = MockRow()
         result = postgres_manager._row_to_kb_dict(row)
 
         assert result['id'] == 1
         assert result['name'] == 'test'
-        assert result['tags'] == ['tag1']
         assert 'T' in result['created_at']  # ISO 格式
 
     def test_row_to_kb_dict_handles_json_tags(self, postgres_manager: PostgreSQLManager):
-        """验证处理 JSON 格式的标签"""
-        class MockRow:
-            def __getitem__(self, key):
-                data = {
-                    'id': 1,
-                    'name': 'test',
-                    'path': '/test',
-                    'description': 'desc',
-                    'tags': '["tag1", "tag2"]',  # JSON 字符串
-                    'kb_type': 'standalone',
-                    'parent_id': None,
-                    'created_at': datetime.now(),
-                    'updated_at': datetime.now(),
-                    'last_accessed_at': None,
-                    'scope': 'global'
-                }
-                return data[key]
+        """验证处理 JSON 格式的 settings"""
+        now = datetime.now()
+        row = {
+            'id': 1,
+            'name': 'test',
+            'slug': 'test',
+            'type': 'personal',
+            'description': 'desc',
+            'organization_id': None,
+            'owner_id': None,
+            'department_id': None,
+            'project_id': None,
+            'visibility': 'private',
+            'is_aggregated': False,
+            'storage_mode': 'db',
+            'settings': {'theme': 'dark'},
+            'created_by': None,
+            'created_at': now,
+            'updated_at': now,
+        }
 
-            def keys(self):
-                return ['id', 'name', 'path', 'description', 'tags', 'kb_type',
-                        'parent_id', 'created_at', 'updated_at', 'last_accessed_at', 'scope']
-
-        row = MockRow()
         result = postgres_manager._row_to_kb_dict(row)
 
-        assert result['tags'] == ['tag1', 'tag2']
+        assert result['settings'] == {'theme': 'dark'}
 
     def test_row_to_atom_dict_converts_correctly(self, postgres_manager: PostgreSQLManager):
         """验证行转换为原子字典"""
-        class MockRow:
-            def __getitem__(self, key):
-                data = {
-                    'id': 1,
-                    'kb_id': 1,
-                    'path': 'test.md',
-                    'type': 'note',
-                    'title': 'Test',
-                    'description': 'desc',
-                    'tags': ['tag1'],
-                    'body': 'content',
-                    'frontmatter': {'author': 'test'},
-                    'created_at': datetime.now(),
-                    'updated_at': datetime.now(),
-                    'file_mtime': 0.0
-                }
-                return data[key]
+        now = datetime.now()
+        row = {
+            'id': 1,
+            'kb_id': 1,
+            'slug': 'test',
+            'type': 'fact',
+            'title': 'Test',
+            'description': 'desc',
+            'content': 'body content',
+            'metadata': {'author': 'test', 'tags': ['tag1']},
+            'author_id': None,
+            'status': 'active',
+            'is_locked': False,
+            'created_at': now,
+            'updated_at': now,
+        }
 
-            def keys(self):
-                return ['id', 'kb_id', 'path', 'type', 'title', 'description',
-                        'tags', 'body', 'frontmatter', 'created_at', 'updated_at', 'file_mtime']
-
-        row = MockRow()
         result = postgres_manager._row_to_atom_dict(row)
 
         assert result['id'] == 1
-        assert result['tags'] == ['tag1']
-        assert result['frontmatter'] == {'author': 'test'}
+        assert result['content'] == 'body content'
+        assert result['metadata'] == {'author': 'test', 'tags': ['tag1']}
+        assert result['tags'] == ['tag1']  # 兼容字段
 
     def test_row_to_atom_dict_includes_kb_name(self, postgres_manager: PostgreSQLManager):
         """验证原子字典包含知识库名称"""
-        class MockRow:
-            def __getitem__(self, key):
-                data = {
-                    'id': 1,
-                    'kb_id': 1,
-                    'path': 'test.md',
-                    'type': 'note',
-                    'title': 'Test',
-                    'description': 'desc',
-                    'tags': ['tag1'],
-                    'body': 'content',
-                    'frontmatter': {'author': 'test'},
-                    'created_at': datetime.now(),
-                    'updated_at': datetime.now(),
-                    'file_mtime': 0.0,
-                    'kb_name': 'test-kb'
-                }
-                return data[key]
+        now = datetime.now()
+        row = {
+            'id': 1,
+            'kb_id': 1,
+            'slug': 'test',
+            'type': 'fact',
+            'title': 'Test',
+            'description': 'desc',
+            'content': 'body content',
+            'metadata': {},
+            'author_id': None,
+            'status': 'active',
+            'is_locked': False,
+            'created_at': now,
+            'updated_at': now,
+            'kb_name': 'test-kb'
+        }
 
-            def keys(self):
-                return ['id', 'kb_id', 'path', 'type', 'title', 'description',
-                        'tags', 'body', 'frontmatter', 'created_at', 'updated_at',
-                        'file_mtime', 'kb_name']
-
-        row = MockRow()
         result = postgres_manager._row_to_atom_dict(row)
 
         assert result['kb_name'] == 'test-kb'
 
     def test_row_to_atom_dict_includes_rank(self, postgres_manager: PostgreSQLManager):
         """验证原子字典包含搜索排名"""
-        class MockRow:
-            def __getitem__(self, key):
-                data = {
-                    'id': 1,
-                    'kb_id': 1,
-                    'path': 'test.md',
-                    'type': 'note',
-                    'title': 'Test',
-                    'description': 'desc',
-                    'tags': ['tag1'],
-                    'body': 'content',
-                    'frontmatter': {'author': 'test'},
-                    'created_at': datetime.now(),
-                    'updated_at': datetime.now(),
-                    'file_mtime': 0.0,
-                    'rank': 0.95
-                }
-                return data[key]
+        now = datetime.now()
+        row = {
+            'id': 1,
+            'kb_id': 1,
+            'slug': 'test',
+            'type': 'fact',
+            'title': 'Test',
+            'description': 'desc',
+            'content': 'body content',
+            'metadata': {},
+            'author_id': None,
+            'status': 'active',
+            'is_locked': False,
+            'created_at': now,
+            'updated_at': now,
+            'rank': 0.95
+        }
 
-            def keys(self):
-                return ['id', 'kb_id', 'path', 'type', 'title', 'description',
-                        'tags', 'body', 'frontmatter', 'created_at', 'updated_at',
-                        'file_mtime', 'rank']
-
-        row = MockRow()
         result = postgres_manager._row_to_atom_dict(row)
 
         assert result['rank'] == 0.95
 
     def test_row_to_atom_dict_handles_json_frontmatter(self, postgres_manager: PostgreSQLManager):
-        """验证处理 JSON 格式的 frontmatter"""
-        class MockRow:
-            def __getitem__(self, key):
-                data = {
-                    'id': 1,
-                    'kb_id': 1,
-                    'path': 'test.md',
-                    'type': 'note',
-                    'title': 'Test',
-                    'description': 'desc',
-                    'tags': [],
-                    'body': 'content',
-                    'frontmatter': '{"author": "test", "date": "2024-01-01"}',  # JSON 字符串
-                    'created_at': datetime.now(),
-                    'updated_at': datetime.now(),
-                    'file_mtime': 0.0
-                }
-                return data[key]
+        """验证处理 JSON 格式的 metadata"""
+        now = datetime.now()
+        row = {
+            'id': 1,
+            'kb_id': 1,
+            'slug': 'test',
+            'type': 'fact',
+            'title': 'Test',
+            'description': 'desc',
+            'content': 'body content',
+            'metadata': '{"author": "test", "date": "2024-01-01"}',  # JSON 字符串
+            'author_id': None,
+            'status': 'active',
+            'is_locked': False,
+            'created_at': now,
+            'updated_at': now,
+        }
 
-            def keys(self):
-                return ['id', 'kb_id', 'path', 'type', 'title', 'description',
-                        'tags', 'body', 'frontmatter', 'created_at', 'updated_at', 'file_mtime']
-
-        row = MockRow()
         result = postgres_manager._row_to_atom_dict(row)
 
-        assert result['frontmatter'] == {'author': 'test', 'date': '2024-01-01'}
+        assert result['metadata'] == {'author': 'test', 'date': '2024-01-01'}
 
     def test_row_to_atom_dict_handles_null_values(self, postgres_manager: PostgreSQLManager):
         """验证处理 NULL 值"""
-        class MockRow:
-            def __getitem__(self, key):
-                data = {
-                    'id': 1,
-                    'kb_id': 1,
-                    'path': 'test.md',
-                    'type': 'note',
-                    'title': 'Test',
-                    'description': None,
-                    'tags': None,
-                    'body': None,
-                    'frontmatter': None,
-                    'created_at': None,
-                    'updated_at': None,
-                    'file_mtime': 0.0
-                }
-                return data[key]
+        row = {
+            'id': 1,
+            'kb_id': 1,
+            'slug': None,
+            'type': 'fact',
+            'title': 'Test',
+            'description': None,
+            'content': '',
+            'metadata': None,
+            'author_id': None,
+            'status': 'active',
+            'is_locked': False,
+            'created_at': None,
+            'updated_at': None,
+        }
 
-            def keys(self):
-                return ['id', 'kb_id', 'path', 'type', 'title', 'description',
-                        'tags', 'body', 'frontmatter', 'created_at', 'updated_at', 'file_mtime']
-
-        row = MockRow()
         result = postgres_manager._row_to_atom_dict(row)
 
-        # PostgreSQLManager 的 _row_to_atom_dict 方法不转换 NULL 为空值
-        # 它保留 None 值，只有 tags 和 frontmatter 有特殊处理
-        assert result['description'] is None
-        assert result['tags'] == []  # tags 有特殊处理
-        assert result['body'] is None
-        assert result['frontmatter'] == {}  # frontmatter 有特殊处理
-        assert result['frontmatter'] == {}
+        assert result['description'] is None  # NULL 值保留为 None
+        assert result['metadata'] == {}  # None metadata defaults to {}
+

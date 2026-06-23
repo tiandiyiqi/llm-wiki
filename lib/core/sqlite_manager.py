@@ -63,6 +63,32 @@ class SQLiteManager(DatabaseManager):
         self._init_tables()
         self._connected = True
 
+    def _validate_kb_data(self, kb_data: Dict[str, Any]) -> bool:
+        """验证知识库数据（SQLite 使用旧字段名）
+
+        Args:
+            kb_data: 知识库数据
+
+        Returns:
+            是否有效
+        """
+        return 'name' in kb_data
+
+    def _validate_atom_data(self, atom_data: Dict[str, Any]) -> bool:
+        """验证知识原子数据（SQLite 使用旧字段名）
+
+        Args:
+            atom_data: 知识原子数据
+
+        Returns:
+            是否有效
+        """
+        # SQLite 用旧字段: kb_id, path, type, title
+        # 或新字段: kb_id, title, content, type
+        has_required = 'kb_id' in atom_data and 'title' in atom_data and 'type' in atom_data
+        has_content = 'body' in atom_data or 'content' in atom_data or 'path' in atom_data
+        return has_required and has_content
+
     def _init_tables(self) -> None:
         """初始化表结构"""
         # 知识库表
@@ -167,7 +193,7 @@ class SQLiteManager(DatabaseManager):
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             kb_data['name'],
-            kb_data['path'],
+            kb_data.get('path', kb_data.get('name', '').lower().replace(' ', '-')),
             kb_data.get('description', ''),
             tags_json,
             kb_data.get('kb_type', 'standalone'),

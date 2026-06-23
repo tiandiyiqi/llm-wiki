@@ -739,3 +739,22 @@ ON CONFLICT (slug) DO NOTHING;
 INSERT INTO users (id, name, global_role, status)
 VALUES ('system', 'System', 'admin', 'active')
 ON CONFLICT (id) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Schema 版本管理表
+-- ----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version INTEGER PRIMARY KEY,
+    name VARCHAR(256) NOT NULL,
+    applied_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    checksum VARCHAR(64),                    -- SQL 文件 SHA256 校验和
+    execution_time_ms INTEGER                -- 执行耗时（毫秒）
+);
+
+COMMENT ON TABLE schema_migrations IS 'Schema 版本管理表';
+
+-- 初始版本记录
+INSERT INTO schema_migrations (version, name, checksum)
+VALUES (1, 'initial_schema', NULL)
+ON CONFLICT (version) DO NOTHING;

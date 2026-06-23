@@ -365,8 +365,8 @@ class DatabaseManager(ABC):
         Returns:
             是否有效
         """
-        required_fields = ['name', 'path']
-        return all(field in kb_data for field in required_fields)
+        # name 是唯一必填字段（slug 可自动生成）
+        return 'name' in kb_data
 
     def _validate_atom_data(self, atom_data: Dict[str, Any]) -> bool:
         """验证知识原子数据
@@ -377,5 +377,6 @@ class DatabaseManager(ABC):
         Returns:
             是否有效
         """
-        required_fields = ['kb_id', 'path', 'type', 'title']
+        # kb_id, title, content, type 是必填字段
+        required_fields = ['kb_id', 'title', 'content', 'type']
         return all(field in atom_data for field in required_fields)

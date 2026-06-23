@@ -324,8 +324,8 @@ class TestDatabaseManagerUtilityMethods:
 
         manager = MinimalManager()
 
-        # 缺少 path
-        assert manager._validate_kb_data({'name': 'test'}) is False
+        # name 是唯一必填字段（slug 可自动生成，不再需要 path）
+        assert manager._validate_kb_data({'name': 'test'}) is True
 
     def test_validate_kb_data_with_empty_dict(self):
         """验证空字典被拒绝"""
@@ -396,9 +396,9 @@ class TestDatabaseManagerUtilityMethods:
 
         manager = MinimalManager()
 
-        # 有效数据
-        assert manager._validate_atom_data({'kb_id': 1, 'path': '/test', 'type': 'note', 'title': 'Test'}) is True
-        assert manager._validate_atom_data({'kb_id': 1, 'path': '/test', 'type': 'note', 'title': 'Test', 'body': 'content'}) is True
+        # 有效数据（新 schema: kb_id, title, content, type 必填）
+        assert manager._validate_atom_data({'kb_id': 1, 'title': 'Test', 'content': 'body', 'type': 'fact'}) is True
+        assert manager._validate_atom_data({'kb_id': 1, 'title': 'Test', 'content': 'body', 'type': 'fact', 'slug': 'test'}) is True
 
     def test_validate_atom_data_with_missing_fields(self):
         """验证缺少必需字段的原子数据被拒绝"""

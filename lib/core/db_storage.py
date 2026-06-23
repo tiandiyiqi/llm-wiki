@@ -67,178 +67,135 @@ class DatabaseStorage(StorageInterface):
         self._current_user_id = user_id
         self._current_user_roles = roles
         if hasattr(self.db_manager, 'set_rls_context'):
-            self.db_manager.set_rls_context(user_id, roles)
-        logger.debug(f"RLS context set: user={user_id}, roles={roles}")
+            # set_rls_context 是 async 方法，需要事件循环
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.db_manager.set_rls_context(user_id, roles))
+            except RuntimeError:
+                # 没有运行中的事件循环，稍后设置
+                logger.debug("No running event loop, RLS context will be set on next operation")
+        logger.debug("RLS context set: user=%s, roles=%s", user_id, roles)
 
     # ==================== 知识库操作 ====================
 
     async def create_kb(self, kb_data: Dict) -> int:
         """创建知识库"""
-        query = """
-            INSERT INTO knowledge_bases (name, description, scope, parent_id, owner_id, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-            RETURNING id
-        """
-        params = [
-            kb_data.get('name', 'Untitled'),
-            kb_data.get('description', ''),
-            kb_data.get('scope', 'personal'),
-            kb_data.get('parent_id'),
-            kb_data.get('owner_id', self._current_user_id),
-        ]
-        result = await self.db_manager.fetch_one(query, *params)
-        return result['id'] if result else -1
+        # 适配完整 schema 字段
+        adapted = {
+            'name': kb_data.get('name', 'Untitled'),
+            'slug': kb_data.get('slug', kb_data.get('name', 'untitled').lower().replace(' ', '-')),
+            'type': kb_data.get('type', kb_data.get('scope', 'personal')),
+            'description': kb_data.get('description', ''),
+            'owner_id': kb_data.get('owner_id', self._current_user_id),
+            'organization_id': kb_data.get('organization_id'),
+            'department_id': kb_data.get('department_id'),
+            'project_id': kb_data.get('project_id'),
+            'visibility': kb_data.get('visibility', 'private'),
+            'storage_mode': kb_data.get('storage_mode', 'db'),
+            'settings': kb_data.get('settings', {}),
+            'created_by': kb_data.get('created_by', self._current_user_id),
+        }
+        return await self.db_manager.create_kb(adapted)
 
     async def get_kb(self, kb_id: int) -> Optional[Dict]:
         """获取知识库"""
-        query = "SELECT * FROM knowledge_bases WHERE id = $1"
-        return await self.db_manager.fetch_one(query, kb_id)
+        return await self.db_manager.get_kb(kb_id)
 
     async def list_kbs(self, user_id: Optional[str] = None, scope: Optional[str] = None) -> List[Dict]:
         """列出知识库"""
-        conditions = []
-        params = []
-
-        if user_id:
-            # 使用参数化查询（安全）
-            conditions.append(f"owner_id = ${len(params) + 1}")
-            params.append(user_id)
-
-        if scope:
-            # 验证 scope 值（白名单检查）
-            allowed_scopes = ['personal', 'team', 'public', 'enterprise']
-            if scope not in allowed_scopes:
-                logger.warning(f"Invalid scope value: {scope}, using default")
-                scope = 'personal'
-            conditions.append(f"scope = ${len(params) + 1}")
-            params.append(scope)
-
-        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-        # ORDER BY 使用白名单验证（安全）
-        order_by = SQLValidator.build_safe_order_by('updated_at', 'DESC')
-        query = f"SELECT * FROM knowledge_bases {where_clause} ORDER BY {order_by}"
-
-        return await self.db_manager.fetch_all(query, *params)
+        return await self.db_manager.list_kbs(user_id=user_id, scope=scope or 'all')
 
     async def update_kb(self, kb_id: int, kb_data: Dict) -> bool:
         """更新知识库"""
-        set_clauses = []
-        params = []
-
-        # 允许更新的字段白名单
-        allowed_fields = ['name', 'description', 'scope', 'parent_id']
-
-        for key in allowed_fields:
-            if key in kb_data:
-                # 验证字段名（白名单检查）
-                if SQLValidator.validate_column_name(key):
-                    set_clauses.append(f"{key} = ${len(params) + 1}")
-                    params.append(kb_data[key])
-                else:
-                    logger.warning(f"Invalid field name: {key}, skipping")
-
-        if not set_clauses:
-            return False
-
-        set_clauses.append("updated_at = NOW()")
-        params.append(kb_id)
-
-        query = f"""
-            UPDATE knowledge_bases
-            SET {', '.join(set_clauses)}
-            WHERE id = ${len(params)}
-            RETURNING id
-        """
-        result = await self.db_manager.fetch_one(query, *params)
-        return result is not None
+        return await self.db_manager.update_kb(kb_id, kb_data)
 
     async def delete_kb(self, kb_id: int) -> bool:
         """删除知识库"""
-        query = "DELETE FROM knowledge_bases WHERE id = $1 RETURNING id"
-        result = await self.db_manager.fetch_one(query, kb_id)
-        return result is not None
+        return await self.db_manager.delete_kb(kb_id)
 
     # ==================== 知识原子操作 ====================
 
     async def create_atom(self, atom_data: Dict) -> int:
         """创建知识原子"""
-        query = """
-            INSERT INTO atoms (kb_id, title, content, format, tags, links, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-            RETURNING id
-        """
-        params = [
-            atom_data.get('kb_id'),
-            atom_data.get('title', 'Untitled'),
-            atom_data.get('content', ''),
-            atom_data.get('format', 'markdown'),
-            atom_data.get('tags', []),
-            atom_data.get('links', []),
-        ]
-        result = await self.db_manager.fetch_one(query, *params)
-        return result['id'] if result else -1
+        # 适配完整 schema 字段
+        # 旧字段: body/frontmatter/path/file_mtime → 新字段: content/metadata/slug
+        adapted = {
+            'kb_id': atom_data.get('kb_id'),
+            'title': atom_data.get('title', 'Untitled'),
+            'slug': atom_data.get('slug', atom_data.get('path')),
+            'type': atom_data.get('type', 'fact'),
+            'description': atom_data.get('description', ''),
+            'content': atom_data.get('content', atom_data.get('body', '')),
+            'metadata': atom_data.get('metadata', atom_data.get('frontmatter', {})),
+            'author_id': atom_data.get('author_id', self._current_user_id),
+            'status': atom_data.get('status', 'active'),
+        }
+
+        # 保留 tags 在 metadata 中
+        if 'tags' in atom_data:
+            metadata = adapted.get('metadata', {})
+            if isinstance(metadata, dict):
+                metadata = {**metadata, 'tags': atom_data['tags']}
+            else:
+                metadata = {'tags': atom_data['tags']}
+            adapted['metadata'] = metadata
+
+        # 保留 path 在 metadata 中（兼容旧系统）
+        if 'path' in atom_data and not adapted.get('slug'):
+            adapted['slug'] = atom_data['path']
+            metadata = adapted.get('metadata', {})
+            if isinstance(metadata, dict):
+                metadata = {**metadata, 'path': atom_data['path']}
+            adapted['metadata'] = metadata
+
+        return await self.db_manager.create_atom(adapted)
 
     async def get_atom(self, atom_id: int) -> Optional[Dict]:
         """获取知识原子"""
-        query = "SELECT * FROM atoms WHERE id = $1"
-        return await self.db_manager.fetch_one(query, atom_id)
+        return await self.db_manager.get_atom(atom_id)
 
     async def update_atom(self, atom_id: int, atom_data: Dict) -> bool:
         """更新知识原子"""
-        set_clauses = []
-        params = []
+        # 适配字段映射
+        adapted = {}
+        field_map = {
+            'body': 'content',
+            'frontmatter': 'metadata',
+        }
 
-        # 允许更新的字段白名单
-        allowed_fields = ['title', 'content', 'format', 'tags', 'links']
+        for key, value in atom_data.items():
+            mapped_key = field_map.get(key, key)
+            adapted[mapped_key] = value
 
-        for key in allowed_fields:
-            if key in atom_data:
-                # 验证字段名（白名单检查）
-                if SQLValidator.validate_column_name(key):
-                    set_clauses.append(f"{key} = ${len(params) + 1}")
-                    params.append(atom_data[key])
-                else:
-                    logger.warning(f"Invalid field name: {key}, skipping")
+        # 处理 tags → metadata.tags
+        if 'tags' in adapted:
+            # 获取当前 metadata
+            current = await self.db_manager.get_atom(atom_id)
+            if current:
+                metadata = current.get('metadata', {})
+                if isinstance(metadata, dict):
+                    metadata = {**metadata, 'tags': adapted.pop('tags')}
+                    adapted['metadata'] = metadata
 
-        if not set_clauses:
-            return False
-
-        set_clauses.append("updated_at = NOW()")
-        params.append(atom_id)
-
-        query = f"""
-            UPDATE atoms
-            SET {', '.join(set_clauses)}
-            WHERE id = ${len(params)}
-            RETURNING id
-        """
-        result = await self.db_manager.fetch_one(query, *params)
-        return result is not None
+        return await self.db_manager.update_atom(atom_id, adapted)
 
     async def delete_atom(self, atom_id: int) -> bool:
         """删除知识原子"""
-        query = "DELETE FROM atoms WHERE id = $1 RETURNING id"
-        result = await self.db_manager.fetch_one(query, atom_id)
-        return result is not None
+        return await self.db_manager.delete_atom(atom_id)
 
     async def list_atoms(self, kb_id: int, **kwargs) -> List[Dict]:
         """列出知识库中的原子"""
-        # ORDER BY 使用白名单验证（安全）
-        order_by = SQLValidator.build_safe_order_by('updated_at', 'DESC')
-        query = f"SELECT * FROM atoms WHERE kb_id = $1 ORDER BY {order_by}"
-        return await self.db_manager.fetch_all(query, kb_id)
+        by_type = kwargs.get('by_type')
+        limit = kwargs.get('limit', 100)
+        offset = kwargs.get('offset', 0)
+        return await self.db_manager.list_atoms(kb_id, by_type=by_type, limit=limit, offset=offset)
 
     # ==================== 搜索操作 ====================
 
     async def search_atoms(self, query: str, **kwargs) -> List[Dict]:
         """搜索知识原子（全文检索）"""
-        sql = """
-            SELECT * FROM atoms
-            WHERE to_tsvector('simple', title || ' ' || content) @@ plainto_tsquery('simple', $1)
-            ORDER BY ts_rank(to_tsvector('simple', title || ' ' || content), plainto_tsquery('simple', $1)) DESC
-            LIMIT 50
-        """
-        return await self.db_manager.fetch_all(sql, query)
+        return await self.db_manager.search_atoms(query, **kwargs)
 
     # ==================== 事务支持 ====================
 
@@ -285,13 +242,17 @@ class DatabaseStorage(StorageInterface):
     async def get_stats(self, kb_id: Optional[int] = None) -> Dict:
         """获取统计信息"""
         if kb_id:
-            query = "SELECT COUNT(*) as count FROM atoms WHERE kb_id = $1"
-            result = await self.db_manager.fetch_one(query, kb_id)
-            return {'kb_id': kb_id, 'atom_count': result['count'] if result else 0}
+            return await self.db_manager.get_kb_stats(kb_id)
 
-        query = "SELECT COUNT(*) as count FROM knowledge_bases"
-        result = await self.db_manager.fetch_one(query)
-        return {
-            'kb_count': result['count'] if result else 0,
-            'total_atoms': 0,
-        }
+        # 全局统计
+        try:
+            result = await self.db_manager.fetch_one(
+                "SELECT COUNT(*) as count FROM knowledge_bases"
+            )
+            return {
+                'kb_count': result['count'] if result else 0,
+                'total_atoms': 0,
+            }
+        except AttributeError:
+            # SQLiteManager 可能没有 fetch_one
+            return await self.db_manager.get_kb_stats(kb_id) if kb_id else {'kb_count': 0}

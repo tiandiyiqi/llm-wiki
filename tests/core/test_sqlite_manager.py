@@ -187,7 +187,7 @@ class TestSQLiteManagerKnowledgeBaseCRUD:
     async def test_create_kb_with_missing_required_fields_raises(self, sqlite_manager: SQLiteManager):
         """验证缺少必需字段时抛出异常"""
         with pytest.raises(ValueError, match="Invalid kb_data"):
-            await sqlite_manager.create_kb({'name': 'incomplete'})
+            await sqlite_manager.create_kb({})  # 缺少 name
 
     @pytest.mark.asyncio
     async def test_create_kb_with_duplicate_name_fails(self, sqlite_manager: SQLiteManager, sample_kb_data: Dict[str, Any]):
