@@ -2,7 +2,7 @@
 name: PLAN-005-casdoor-sso-integration
 description: 阶段 2.1 — Casdoor SSO 单点登录集成实施计划
 priority: P1
-status: draft
+status: segments-generated
 created: 2026-06-23
 updated: 2026-06-23
 ---
@@ -547,4 +547,4 @@ Phase 1（基础设施）
 ---
 
 **计划创建时间**：2026-06-23
-**计划状态**：draft — 等待审批
+**计划状态**：segments-generated — 任务已拆分，等待执行

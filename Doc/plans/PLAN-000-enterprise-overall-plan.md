@@ -216,6 +216,7 @@ Doc/plans/
   ├─ PLAN-002-execution-report-2026-06-22.md（执行报告）
   ├─ PLAN-003-phase3-ux-enhancement.md（阶段3 详细计划，草稿）
   ├─ PLAN-005-casdoor-sso-integration.md（阶段2.1 SSO 集成详细计划）
+  ├─ PLAN-005-casdoor-sso-integration-segments.md（阶段2.1 任务拆分）
   ├─ PLAN-006-mobile-optimization.md（阶段3.5 移动端优化详细计划）
   └─ ...（其他报告和计划）
 ```
