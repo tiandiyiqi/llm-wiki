@@ -1270,16 +1270,16 @@ class TestStorageFactory:
             assert isinstance(storage, FileSystemStorage)
 
     def test_create_database_storage_with_db_mode(self):
-        """验证 db 模式创建 DatabaseManager"""
+        """验证 db 模式创建 DatabaseStorage"""
         config = StorageConfig(
             type=StorageType.POSTGRES,
             postgres_url='postgresql://test:test@localhost/test'
         )
-        with patch('lib.core.factory.PostgreSQLManager') as mock_postgres:
-            mock_postgres.return_value = Mock()
+        with patch('lib.core.db_storage.DatabaseStorage') as mock_db_storage:
+            mock_db_storage.return_value = Mock()
             storage = StorageFactory.create(config=config, mode='db')
 
-            mock_postgres.assert_called_once_with(config)
+            mock_db_storage.assert_called_once_with(config)
 
     def test_create_infers_mode_from_env(self):
         """验证从环境变量推断模式"""
@@ -1302,7 +1302,7 @@ class TestStorageFactory:
             type=StorageType.POSTGRES,
             postgres_url='postgresql://test:test@localhost/test'
         )
-        with patch('lib.core.factory.PostgreSQLManager') as mock_postgres:
+        with patch('lib.core.postgres_manager.PostgreSQLManager') as mock_postgres:
             mock_postgres.return_value = Mock()
             manager = StorageFactory.create_database_manager(config)
 
