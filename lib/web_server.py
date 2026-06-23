@@ -14,13 +14,16 @@
     - 35+ REST API 端点
     - 静态文件服务（HTML/JS/CSS/图片）
     - CORS 支持
+    - 双模式存储（file_mode / db_mode）通过 StorageInterface 切换
 """
 
 import json
+import logging
 import os
 import re
 import time
 import threading
+import asyncio
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -30,6 +33,36 @@ from .querier import KnowledgeQuerier
 from .ingestor import KnowledgeIngestor
 from .constants import RESERVED_FILES
 from .yaml_parser import SimpleYAMLParser
+from .core.storage_interface import StorageInterface
+
+logger = logging.getLogger(__name__)
+
+
+def _run_async(coro):
+    """在同步上下文中安全运行异步协程
+
+    在 ThreadingHTTPServer 的多线程环境中使用。
+    每次调用创建新的事件循环（线程安全但非高性能）。
+
+    Args:
+        coro: 异步协程对象
+
+    Returns:
+        协程的返回值
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        # 已在异步上下文中（不应出现在 ThreadingHTTPServer）
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result()
+    else:
+        return asyncio.run(coro)
 
 
 # 不需要认证的公开端点
@@ -60,24 +93,48 @@ READONLY_ACTIONS = {
 
 
 class UnifiedWebServer:
-    """统一 Web 服务器，提供前端静态文件和 REST API."""
+    """统一 Web 服务器，提供前端静态文件和 REST API.
 
-    def __init__(self, kb_dir: Path, host: str = '127.0.0.1', port: int = 8000):
+    支持双模式存储：
+    - file_mode: 文件系统存储（默认，保留 Skill 特性）
+    - db_mode: PostgreSQL 数据库存储（企业模式）
+
+    通过 StorageInterface 实现透明切换。
+    """
+
+    def __init__(self, kb_dir: Path, host: str = '127.0.0.1', port: int = 8000,
+                 storage: Optional[StorageInterface] = None):
         """初始化统一 Web 服务器.
 
         Args:
             kb_dir: 知识库目录路径
             host: 监听地址
             port: 监听端口
+            storage: 存储接口实例（可选，默认自动创建 FileSystemStorage）
         """
         self.kb_dir = kb_dir
         self.host = host
         self.port = port
+        # 存储接口：支持双模式切换
+        self._storage = storage
         # 静态文件目录：知识库 views/ 和项目根 views/ 都可用
         self.kb_views_dir = kb_dir / 'views'
         self.project_views_dir = Path(__file__).parent.parent / 'views'
         # 主静态文件目录（优先项目根，确保有 index.html 等模板）
         self.static_dir = self.project_views_dir
+
+    @property
+    def storage(self) -> StorageInterface:
+        """获取存储接口（懒初始化）"""
+        if self._storage is None:
+            from .core.file_storage import FileSystemStorage
+            self._storage = FileSystemStorage(kb_dir=self.kb_dir)
+        return self._storage
+
+    @property
+    def storage_mode(self) -> str:
+        """获取当前存储模式（'file' 或 'db'）"""
+        return self.storage.mode
 
     def run(self) -> None:
         """启动统一 Web 服务器."""
@@ -90,6 +147,7 @@ class UnifiedWebServer:
         print(f"🚀 LLM Wiki 统一 Web 服务")
         print(f"{'='*60}")
         print(f"   知识库: {self.kb_dir}")
+        print(f"   存储模式: {self.storage_mode}")
         print(f"   静态文件: {self.static_dir}")
         print(f"   访问地址: http://{self.host}:{self.port}")
         print(f"\n📡 API 端点（35+）:")
@@ -123,6 +181,7 @@ class UnifiedWebServer:
         kb_dir = self.kb_dir
         static_dir = self.static_dir
         kb_views_dir = self.kb_views_dir
+        storage = self.storage
 
         class Handler(UnifiedRequestHandler):
             pass
@@ -130,6 +189,7 @@ class UnifiedWebServer:
         Handler.kb_dir = kb_dir
         Handler.static_dir = static_dir
         Handler.kb_views_dir = kb_views_dir
+        Handler.storage = storage
         return Handler
 
 
@@ -139,6 +199,8 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
     kb_dir: Path = Path('.')
     static_dir: Path = Path('.')
     kb_views_dir: Path = Path('.')
+    # StorageInterface 实例（支持双模式切换）
+    storage: StorageInterface = None  # 由 _create_handler 设置
     # 线程锁，保护写操作
     _write_lock = threading.Lock()
 
@@ -432,6 +494,30 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
             elif route_key == 'POST:/api/webhooks/test':
                 self._api_webhook_test()
 
+            # ============ OCR API（PLAN-004 Phase 3） ============
+            elif route_key == 'POST:/api/ocr/submit':
+                self._api_ocr_submit()
+            elif re.match(r'GET:/api/ocr/tasks/.+$', route_key):
+                task_id = path.split('/')[-1]
+                self._api_ocr_get_task(task_id)
+            elif re.match(r'GET:/api/ocr/assets/.+$', route_key):
+                asset_id = path.split('/')[-1]
+                self._api_ocr_get_by_asset(asset_id)
+
+            # ============ Preview API（PLAN-004 Phase 3） ============
+            elif re.match(r'GET:/api/preview/.+/cache$', route_key):
+                atom_id = path[len('/api/preview/'):-len('/cache')]
+                self._api_preview_cache(atom_id)
+            elif re.match(r'GET:/api/preview/.+$', route_key):
+                atom_id = path[len('/api/preview/'):]
+                self._api_preview_get(atom_id)
+
+            # ============ 配置 API（PLAN-004 Phase 3） ============
+            elif route_key == 'GET:/api/config/mode':
+                self._api_config_mode()
+            elif route_key == 'GET:/api/config/status':
+                self._api_config_status()
+
             else:
                 self._json_response({'error': f'未知的 API 端点: {method} {path}'}, 404)
         except Exception as e:
@@ -670,14 +756,62 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
     # ========================================================================
 
     def _api_atom_list(self, params: Dict) -> None:
-        """原子列表."""
+        """原子列表（支持双模式）."""
         atom_type = params.get('type', [None])[0]
         limit = int(params.get('limit', ['100'])[0])
+
+        if self.storage and self.storage.mode == 'db':
+            # db_mode: 通过 StorageInterface 查询
+            try:
+                atoms = _run_async(self.storage.list_atoms(kb_id=1, by_type=atom_type, limit=limit, offset=0))
+                # 统一响应格式
+                result = []
+                for a in atoms:
+                    result.append({
+                        'id': str(a.get('id', '')),
+                        'path': a.get('slug', ''),
+                        'type': a.get('type', 'Unknown'),
+                        'title': a.get('title', ''),
+                        'description': a.get('description', ''),
+                        'tags': a.get('tags', []),
+                        'status': a.get('status', 'active'),
+                        'author': a.get('author_id', ''),
+                        'created': a.get('created_at', ''),
+                        'updated': a.get('updated_at', ''),
+                    })
+                self._json_response({'atoms': result, 'count': len(result)})
+                return
+            except Exception as e:
+                logger.error("db_mode atom list failed, falling back to file scan: %s", e)
+
+        # file_mode（或 db_mode 降级）：文件扫描
         atoms = self._load_atoms(by_type=atom_type, limit=limit)
         self._json_response({'atoms': atoms, 'count': len(atoms)})
 
     def _api_atom_get(self, atom_id: str) -> None:
-        """获取原子详情."""
+        """获取原子详情（支持双模式）."""
+        if self.storage and self.storage.mode == 'db':
+            # db_mode: 尝试数字 ID 解析
+            try:
+                numeric_id = int(atom_id)
+                atom = _run_async(self.storage.get_atom(numeric_id))
+                if atom:
+                    # 统一响应格式（兼容前端期望的字段名）
+                    self._json_response({
+                        'id': atom_id,
+                        'path': atom.get('slug', ''),
+                        'frontmatter': atom.get('metadata', {}),
+                        'content': atom.get('content', ''),
+                        'body': atom.get('content', ''),
+                        'tags': atom.get('tags', []),
+                        'comments': [],
+                    })
+                    return
+            except (ValueError, Exception) as e:
+                if not isinstance(e, ValueError):
+                    logger.error("db_mode atom get failed: %s", e)
+
+        # file_mode（或 db_mode 降级）：文件读取
         atom_path = self._resolve_atom_path(atom_id)
         if not atom_path or not atom_path.exists():
             self._json_response({'error': 'Atom not found'}, 404)
@@ -742,7 +876,7 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
         self._json_response({'summary': summary, 'word_count': word_count, 'line_count': line_count})
 
     def _api_atom_create(self) -> None:
-        """创建新原子."""
+        """创建新原子（支持双模式）."""
         data = self._read_json_body()
         atom_type = data.get('type', 'fact')
         title = data.get('title', '')
@@ -751,7 +885,29 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
         if not title:
             self._json_response({'error': '标题不能为空'}, 400)
             return
-        # 生成文件名
+
+        if self.storage and self.storage.mode == 'db':
+            # db_mode: 通过 StorageInterface 创建
+            try:
+                atom_data = {
+                    'kb_id': 1,  # 默认知识库
+                    'title': title,
+                    'content': body,
+                    'type': atom_type,
+                    'tags': tags,
+                    'status': 'draft',
+                }
+                atom_id = _run_async(self.storage.create_atom(atom_data))
+                self._json_response({
+                    'status': 'ok',
+                    'id': str(atom_id),
+                    'path': f"atoms/{atom_type}s/{title.lower().replace(' ', '-')}",
+                })
+                return
+            except Exception as e:
+                logger.error("db_mode atom create failed, falling back to file: %s", e)
+
+        # file_mode（或 db_mode 降级）：写 Markdown 文件
         slug = re.sub(r'[^\w\-]', '-', title.lower()).strip('-')[:50]
         atom_path = self.kb_dir / 'atoms' / f"{atom_type}s" / f"{slug}.md"
         atom_path.parent.mkdir(parents=True, exist_ok=True)
@@ -781,9 +937,27 @@ tags: [{tags_str}]
         })
 
     def _api_atom_update(self, atom_id: str) -> None:
-        """更新原子内容."""
+        """更新原子内容（支持双模式）."""
         data = self._read_json_body()
         body = data.get('body', '')
+
+        if self.storage and self.storage.mode == 'db':
+            # db_mode: 通过 StorageInterface 更新
+            try:
+                numeric_id = int(atom_id)
+                update_data = {'content': body}
+                success = _run_async(self.storage.update_atom(numeric_id, update_data))
+                if success:
+                    self._json_response({'status': 'ok', 'message': '原子已更新'})
+                    return
+                else:
+                    self._json_response({'error': 'Atom not found'}, 404)
+                    return
+            except (ValueError, Exception) as e:
+                if not isinstance(e, ValueError):
+                    logger.error("db_mode atom update failed: %s", e)
+
+        # file_mode（或 db_mode 降级）：读-改-写 Markdown 文件
         atom_path = self._resolve_atom_path(atom_id)
         if not atom_path or not atom_path.exists():
             self._json_response({'error': 'Atom not found'}, 404)
@@ -986,10 +1160,24 @@ tags: [{tags_str}]
     # ========================================================================
 
     def _api_audit(self, params: Dict) -> None:
-        """查询审计日志."""
+        """查询审计日志（支持双模式）."""
+        if self.storage and self.storage.mode == 'db':
+            # db_mode: 通过 StorageInterface 查询
+            try:
+                entries = _run_async(self.storage.query_audit(
+                    event_type=params.get('action', [None])[0],
+                    start_time=params.get('since', [None])[0],
+                    limit=int(params.get('limit', ['50'])[0]),
+                ))
+                self._json_response({'entries': entries, 'count': len(entries)})
+                return
+            except Exception as e:
+                logger.error("db_mode audit query failed, falling back to file: %s", e)
+
+        # file_mode（或降级）：文件审计日志
         from .audit import AuditLogger
-        logger = AuditLogger(self.kb_dir)
-        entries = logger.query(
+        audit_logger = AuditLogger(self.kb_dir)
+        entries = audit_logger.query(
             since=params.get('since', [None])[0],
             action=params.get('action', [None])[0],
             limit=int(params.get('limit', ['50'])[0]),
@@ -1001,7 +1189,17 @@ tags: [{tags_str}]
     # ========================================================================
 
     def _api_stats(self) -> None:
-        """统计数据."""
+        """统计数据（支持双模式）."""
+        if self.storage and self.storage.mode == 'db':
+            # db_mode: 通过 StorageInterface 获取统计
+            try:
+                stats = _run_async(self.storage.get_stats())
+                self._json_response(stats)
+                return
+            except Exception as e:
+                logger.error("db_mode stats failed, falling back to file: %s", e)
+
+        # file_mode（或降级）：文件系统统计
         from .analytics import AnalyticsEngine
         engine = AnalyticsEngine(self.kb_dir)
         stats = engine.get_stats()
@@ -1064,10 +1262,29 @@ tags: [{tags_str}]
     # ========================================================================
 
     def _api_batch_tag(self) -> None:
-        """批量打标签."""
+        """批量打标签（支持双模式）."""
         data = self._read_json_body()
         atom_ids = data.get('atoms', [])
         tags = data.get('tags', [])
+
+        if self.storage and self.storage.mode == 'db':
+            # db_mode: 通过 StorageInterface 操作标签
+            try:
+                results = {'success': 0, 'failed': 0}
+                for atom_id_str in atom_ids:
+                    try:
+                        numeric_id = int(atom_id_str)
+                        for tag_name in tags:
+                            _run_async(self.storage.add_atom_tag(numeric_id, tag_name))
+                        results['success'] += 1
+                    except Exception:
+                        results['failed'] += 1
+                self._json_response({'status': 'ok', 'result': results})
+                return
+            except Exception as e:
+                logger.error("db_mode batch_tag failed, falling back to file: %s", e)
+
+        # file_mode（或降级）：批量文件操作
         from .batch_ops import BatchOperations
         ops = BatchOperations(self.kb_dir)
         result = ops.batch_tag(atom_ids, tags)
@@ -1163,7 +1380,7 @@ tags: [{tags_str}]
     # ========================================================================
 
     def _api_search(self, params: Dict) -> None:
-        """搜索."""
+        """搜索（支持双模式）."""
         q = params.get('q', [''])[0]
         if not q:
             self._json_response({'error': '缺少查询参数 q'}, 400)
@@ -1172,6 +1389,31 @@ tags: [{tags_str}]
         limit = int(params.get('limit', ['20'])[0])
         by_type = params.get('type', [None])[0]
         sort_by = params.get('sort', ['relevance'])[0]
+
+        if self.storage and self.storage.mode == 'db':
+            # db_mode: 通过 StorageInterface 全文搜索
+            try:
+                results = _run_async(self.storage.search_atoms(
+                    q, kb_id=None, by_type=by_type, limit=limit, offset=0
+                ))
+                # 统一响应格式
+                formatted = []
+                for r in results:
+                    formatted.append({
+                        'id': str(r.get('id', '')),
+                        'path': r.get('slug', ''),
+                        'type': r.get('type', ''),
+                        'title': r.get('title', ''),
+                        'description': r.get('description', ''),
+                        'tags': r.get('tags', []),
+                        'score': r.get('rank', 0),
+                    })
+                self._json_response({'query': q, 'results': formatted, 'count': len(formatted)})
+                return
+            except Exception as e:
+                logger.error("db_mode search failed, falling back to file search: %s", e)
+
+        # file_mode（或 db_mode 降级）：使用 KnowledgeQuerier
         querier = KnowledgeQuerier(self.kb_dir)
         results = querier.query(q, limit=limit, by_type=by_type, semantic=semantic, sort_by=sort_by)
         for r in results:
@@ -1644,6 +1886,104 @@ tags: [{tags_str}]
             '.map': 'application/json',
         }
         return types.get(suffix.lower(), 'application/octet-stream')
+
+    # ========================================================================
+    # OCR API（PLAN-004 Phase 3）
+    # ========================================================================
+
+    def _api_ocr_submit(self) -> None:
+        """提交 OCR 任务."""
+        from .api.ocr_api import OCRAPIHandler
+        data = self._read_json_body()
+        username = self._get_current_username()
+        handler = OCRAPIHandler(self.storage)
+        result, status = handler.submit(data, user_id=username)
+        self._json_response(result, status)
+
+    def _api_ocr_get_task(self, task_id: str) -> None:
+        """查询 OCR 任务状态."""
+        from .api.ocr_api import OCRAPIHandler
+        handler = OCRAPIHandler(self.storage)
+        try:
+            numeric_id = int(task_id)
+            result, status = handler.get_task(numeric_id)
+        except ValueError:
+            result, status = {'error': '无效的 task_id'}, 400
+        self._json_response(result, status)
+
+    def _api_ocr_get_by_asset(self, asset_id: str) -> None:
+        """查询资产的 OCR 结果."""
+        from .api.ocr_api import OCRAPIHandler
+        handler = OCRAPIHandler(self.storage)
+        try:
+            numeric_id = int(asset_id)
+            result, status = handler.get_by_asset(numeric_id)
+        except ValueError:
+            result, status = {'error': '无效的 asset_id'}, 400
+        self._json_response(result, status)
+
+    # ========================================================================
+    # Preview API（PLAN-004 Phase 3）
+    # ========================================================================
+
+    def _api_preview_get(self, atom_id: str) -> None:
+        """获取原子预览 URL."""
+        from .api.preview_api import PreviewAPIHandler
+        handler = PreviewAPIHandler(self.storage)
+        params = parse_qs(urlparse(self.path).query)
+        fmt = params.get('format', ['html'])[0]
+        mime_type = params.get('mime_type', [None])[0]
+        result, status = handler.get_preview(atom_id, format=fmt, source_mime_type=mime_type)
+        self._json_response(result, status)
+
+    def _api_preview_cache(self, atom_id: str) -> None:
+        """获取预览缓存状态."""
+        from .api.preview_api import PreviewAPIHandler
+        handler = PreviewAPIHandler(self.storage)
+        params = parse_qs(urlparse(self.path).query)
+        fmt = params.get('format', ['html'])[0]
+        result, status = handler.get_cache(atom_id, format=fmt)
+        self._json_response(result, status)
+
+    # ========================================================================
+    # 配置 API（PLAN-004 Phase 3）
+    # ========================================================================
+
+    def _api_config_mode(self) -> None:
+        """获取当前存储模式."""
+        mode = self.storage.mode if self.storage else 'file'
+        self._json_response({
+            'mode': mode,
+            'supports_rls': self.storage.supports_rls if self.storage else False,
+            'description': '数据库模式 (PostgreSQL)' if mode == 'db' else '文件模式 (Markdown)',
+        })
+
+    def _api_config_status(self) -> None:
+        """获取数据库连接状态."""
+        if not self.storage or self.storage.mode != 'db':
+            self._json_response({
+                'mode': 'file',
+                'connected': False,
+                'message': '当前为文件模式，无数据库连接',
+            })
+            return
+        # db_mode: 检查连接状态
+        try:
+            if hasattr(self.storage, 'db_manager') and hasattr(self.storage.db_manager, 'is_connected'):
+                connected = _run_async(self.storage.db_manager.is_connected())
+            else:
+                connected = False
+            self._json_response({
+                'mode': 'db',
+                'connected': connected,
+                'type': 'postgresql',
+            })
+        except Exception as e:
+            self._json_response({
+                'mode': 'db',
+                'connected': False,
+                'error': str(e),
+            })
 
     # ========================================================================
     # 辅助方法
