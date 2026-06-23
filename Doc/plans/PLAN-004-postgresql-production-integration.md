@@ -1,7 +1,7 @@
 ---
 name: PLAN-004-postgresql-production-integration
 description: PostgreSQL 生产集成 — 统一 Schema、双模式架构接入、API 层改造
-status: draft
+status: completed
 created: 2026-06-23
 phase: 1.1
 priority: P0
