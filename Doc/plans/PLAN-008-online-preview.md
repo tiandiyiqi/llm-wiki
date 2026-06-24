@@ -30,7 +30,15 @@ updated: 2026-06-24
 | 组件 | 角色 | 部署方式 | 本期状态 |
 |------|------|----------|:--------:|
 | **Open File Viewer** | 主力预览 SDK | 前端 npm 包 | ✅ 本期集成 |
-| **KKFileView** | 后端转换服务（复杂格式备用） | Docker 容器 | ⏸️ 接口预留，暂不部署 |
+| **BaseMetas FileView** | 后端转换服务（复杂格式备用） | Docker 容器 | ⏸️ 接口预留，暂不部署 |
+
+**BaseMetas FileView** 是新一代通用型在线文件预览引擎，相比 KKFileView：
+- **更轻量**：零依赖本地 Office 环境
+- **格式更全**：支持 200+ 格式，包括 OFD、CAD、3D 模型、流程图、思维导图
+- **国产信创友好**：支持 OFD（中国版式文件）
+- **部署简单**：Docker 一键启动 `docker run -p 9000:80 basemetas/fileview`
+- **开源协议**：Apache 2.0
+- **国产开源**：更适合国内企业场景
 
 ### 1.3 覆盖格式
 
@@ -53,10 +61,10 @@ updated: 2026-06-24
 
 | 约束项 | 要求 |
 |--------|------|
-| 本期不部署 KKFileView | 仅预留接口，返回提示信息 |
+| 本期不部署 BaseMetas FileView | 仅预留接口，返回提示信息 |
 | 前端零服务器依赖 | Open File Viewer 纯浏览器渲染 |
-| 渐进增强 | 后期可按需启用 KKFileView |
-| 保持现有代码 | 保留 `lib/preview/office_viewer.py`，不删除 |
+| 渐进增强 | 后期可按需启用 BaseMetas FileView |
+| 保持现有代码 | 保留 `lib/preview/office_viewer.py`，可改造对接 BaseMetas FileView |
 
 ---
 
@@ -269,24 +277,30 @@ npm install @open-file-viewer/core pdfjs-dist
 
 ---
 
-### Phase 4（后期）：部署 KKFileView（可选）
+### Phase 4（后期）：部署 BaseMetas FileView（可选）
 
 **触发条件**：用户反馈复杂 Office 无法预览，且有强烈需求
+
+**BaseMetas FileView 优势**：
+- 支持 200+ 格式（Office、PDF、OFD、CAD、3D、流程图、思维导图）
+- 零依赖本地 Office 环境
+- 国产信创友好，支持 OFD（中国版式文件）
+- Docker 一键部署
 
 #### 步骤 4.1：添加 Docker 配置
 
 ```yaml
 # docker-compose.yml
 services:
-  kkfileview:
-    image: keking/kkfileview:latest
+  fileview:
+    image: basemetas/fileview:latest
     ports:
-      - "8012:8012"
+      - "9000:80"
     environment:
-      - KK_TRUST_HOST=*
-      - KK_OFFICE_PREVIEW_TYPE=pdf
+      - TZ=Asia/Shanghai
     volumes:
-      - ./files:/opt/kkFileView-5.0.0/file
+      - ./files:/data
+    restart: always
 ```
 
 #### 步骤 4.2：修改转换接口
@@ -294,12 +308,14 @@ services:
 ```python
 @app.route('/api/office/convert-to-pdf', methods=['POST'])
 def convert_to_pdf():
-    """调用 KKFileView 转换 Office 为 PDF"""
+    """调用 BaseMetas FileView 转换 Office 为 PDF"""
     file = request.files['file']
 
-    # 调用 KKFileView API
-    kkfileview_url = os.getenv('KKFILEVIEW_URL', 'http://kkfileview:8012')
-    # ... 现有 office_viewer.py 逻辑
+    # 调用 BaseMetas FileView API
+    fileview_url = os.getenv('FILEVIEW_URL', 'http://fileview:9000')
+
+    # 方案 1：上传文件获取预览 URL
+    # 方案 2：传递文件 URL 让 FileView 拉取
 
     return jsonify({
         'success': True,
@@ -314,7 +330,7 @@ def convert_to_pdf():
 ```
 Phase 1（后端接口）→ Phase 2（前端集成）→ Phase 3（测试文档）
                                          ↓
-                              Phase 4（后期 KKFileView）
+                              Phase 4（后期 BaseMetas FileView）
 ```
 
 ---
@@ -352,11 +368,11 @@ Phase 1（后端接口）→ Phase 2（前端集成）→ Phase 3（测试文档
 | `Doc/plans/PLAN-000-enterprise-overall-plan.md` | 更新进度 |
 | `package.json`（如有） | 添加 Open File Viewer 依赖 |
 
-### 保留文件（不删除）
+### 保留文件（可改造）
 
 | 文件路径 | 说明 |
 |----------|------|
-| `lib/preview/office_viewer.py` | KKFileView 集成代码，后期备用 |
+| `lib/preview/office_viewer.py` | 现有预览代码，可改造对接 BaseMetas FileView |
 
 ---
 
@@ -377,11 +393,11 @@ Phase 1（后端接口）→ Phase 2（前端集成）→ Phase 3（测试文档
 
 | 扩展项 | 触发条件 | 工作量 |
 |--------|----------|:------:|
-| 部署 KKFileView | 复杂 Office 预览需求 | 1 天 |
+| 部署 BaseMetas FileView | 复杂 Office/CAD/OFD 预览需求 | 1 天 |
 | 水印支持 | 版权保护需求 | 0.5 天 |
 | 批量预览 | 多文件场景 | 0.5 天 |
 | 预览缓存 | 性能优化 | 1 天 |
-| CAD 高保真预览 | 工程图纸需求 | 2-3 天 |
+| CAD 高保真预览 | 工程图纸需求 | BaseMetas FileView 内置支持 |
 
 ---
 
