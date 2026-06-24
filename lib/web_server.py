@@ -536,6 +536,16 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
                 atom_id = path[len('/api/preview/'):]
                 self._api_preview_get(atom_id)
 
+            # ============ 文件预览 API（PLAN-008） ============
+            elif re.match(r'GET:/api/files/.+/download$', route_key):
+                file_id = path[len('/api/files/'):-len('/download')]
+                self._api_file_download(file_id)
+            elif re.match(r'GET:/api/files/.+/preview-info$', route_key):
+                file_id = path[len('/api/files/'):-len('/preview-info')]
+                self._api_file_preview_info(file_id)
+            elif route_key == 'POST:/api/office/convert-to-pdf':
+                self._api_office_convert_to_pdf()
+
             # ============ 配置 API（PLAN-004 Phase 3） ============
             elif route_key == 'GET:/api/config/mode':
                 self._api_config_mode()
@@ -2167,6 +2177,57 @@ tags: [{tags_str}]
         fmt = params.get('format', ['html'])[0]
         result, status = handler.get_cache(atom_id, format=fmt)
         self._json_response(result, status)
+
+    # ========================================================================
+    # 文件预览 API（PLAN-008）
+    # ========================================================================
+
+    def _api_file_download(self, file_id: str) -> None:
+        """文件下载端点，提供文件下载 URL."""
+        from .api.preview_api import download_file
+        result, status, file_path, mime_type = download_file(file_id)
+        if file_path:
+            # 发送文件
+            self._send_file(file_path, mime_type)
+        else:
+            self._json_response(result, status)
+
+    def _api_file_preview_info(self, file_id: str) -> None:
+        """预览元数据 API."""
+        from .api.preview_api import get_preview_info
+        result, status = get_preview_info(file_id)
+        self._json_response(result, status)
+
+    def _api_office_convert_to_pdf(self) -> None:
+        """Office 转 PDF 接口（预留，暂不支持）."""
+        from .api.preview_api import convert_to_pdf
+        result, status = convert_to_pdf()
+        self._json_response(result, status)
+
+    def _send_file(self, file_path: str, mime_type: str) -> None:
+        """发送文件响应."""
+        import os
+        from pathlib import Path
+
+        path = Path(file_path)
+        if not path.exists():
+            self._json_response({'success': False, 'error': 'file_not_found'}, 404)
+            return
+
+        file_size = path.stat().st_size
+
+        # 读取文件内容
+        with open(path, 'rb') as f:
+            content = f.read()
+
+        # 构造响应
+        self.send_response(200)
+        self.send_header('Content-Type', mime_type)
+        self.send_header('Content-Length', str(file_size))
+        self.send_header('Content-Disposition', f'inline; filename="{path.name}"')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(content)
 
     # ========================================================================
     # 配置 API（PLAN-004 Phase 3）
