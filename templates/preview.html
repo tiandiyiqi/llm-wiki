@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件预览 - {{ file_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/preview.css') }}">
+</head>
+<body>
+    <div id="preview-container" data-file-url="{{ file_url }}" data-file-name="{{ file_name }}"></div>
+
+    <script src="{{ url_for('static', filename='js/components/FilePreview.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const container = document.getElementById('preview-container');
+            const fileUrl = container.dataset.fileUrl;
+            const fileName = container.dataset.fileName;
+
+            FilePreview.create({
+                container: '#preview-container',
+                file: fileUrl,
+                fileName: fileName,
+                width: '100%',
+                height: '100vh',
+                fit: 'contain',
+                toolbar: true,
+                theme: 'auto'
+            });
+        });
+    </script>
+</body>
+</html>
