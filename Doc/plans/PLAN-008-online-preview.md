@@ -2,7 +2,7 @@
 name: PLAN-008-online-preview
 description: 在线预览功能实现 — Open File Viewer 前端集成 + KKFileView 后端备用
 priority: P0
-status: active
+status: completed
 created: 2026-06-24
 updated: 2026-06-24
 ---
@@ -11,7 +11,7 @@ updated: 2026-06-24
 
 > **所属项目**：PLAN-000 企业化改造
 > **阶段**：阶段 3（用户体验）
-> **当前完成度**：0%
+> **当前完成度**：100%
 > **预估周期**：3-4 天
 > **前置依赖**：无（可独立开发）
 

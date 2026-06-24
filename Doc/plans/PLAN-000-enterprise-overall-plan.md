@@ -159,7 +159,7 @@ updated: 2026-06-24
 | 3.1 图像存储 | 🔄 代码已实现 | 2026-06-22 | - | 70% | atom_assets表 + image_storage + thumbnail；缺 OSS/S3 后端和清理策略 |
 | 3.2 搜索优化 | 🔄 代码已实现 | 2026-06-22 | - | 75% | 7模块 + 高亮/联想/摘要/向量搜索；缺搜索结果排序优化 |
 | 3.3 OCR 扫描件识别 | 🔄 代码已实现 | 2026-06-22 | - | 65% | paddle_ocr + task_queue + result_store；缺 PaddleOCR 实际部署和云服务降级 |
-| 3.4 在线预览 | 🔄 开发规划已确定 | 2026-06-24 | - | 40% | 前端用 Open File Viewer，后端接口预留，KKFileView 作为可选备用（暂不部署） |
+| 3.4 在线预览 | ✅ 已完成 | 2026-06-24 | 2026-06-24 | 100% | PLAN-008 已完成；前端 Open File Viewer + 后端 API + BaseMetas FileView 预留 |
 | 3.5 移动端优化 | 🔄 代码已实现 | 2026-06-23 | - | 85% | responsive.css + mobile-sidebar + PWA(manifest/sw.js/icons) + 触摸优化 + 移动端API精简；待 Lighthouse 审计和跨设备测试 |
 
 ---
@@ -173,7 +173,7 @@ updated: 2026-06-24
 | 版本管理 | Snapshot（PostgreSQL） | 无外部依赖、数据统一 |
 | 容器化 | Docker Compose + GitHub Actions | 起步简单、可扩展 K8s |
 | OCR | 云服务 API → PaddleOCR | 分阶段、信创友好 |
-| 预览 | PDF.js + KKFileView | 信创友好 |
+| 预览 | Open File Viewer + BaseMetas FileView | 前端轻量 + 后端强大 |
 | 加密 | pgcrypto + 应用层 | 分层策略 |
 
 ---
