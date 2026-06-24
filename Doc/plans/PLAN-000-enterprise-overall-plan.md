@@ -259,6 +259,11 @@ Doc/plans/
 ---
 
 **技术决策记录（2026-06-24）**：
+- **数据加密方案**：分层加密策略
+  - 数据库层：pgcrypto 扩展（透明加密，支持索引）
+  - 应用层：cryptography 库（灵活控制，支持密钥轮换）
+  - 加密字段：phone/email（用户隐私）、ip_address（审计日志）
+  - HMAC 索引：支持加密字段的等值查询
 - **文件预览方案**：采用混合模式
   - 主力：Open File Viewer（纯前端 SDK，零服务器依赖）
   - 备用：BaseMetas FileView（后端转换服务，支持 200+ 格式、OFD、CAD）
