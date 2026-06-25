@@ -352,6 +352,10 @@ class TimelineGenerator:
             color: #999;
         }}
         #back-link {{
+            display: none;  /* iframe 模式下默认隐藏 */
+        }}
+        /* 独立页面模式显示返回链接 */
+        body:not(.iframe-mode) #back-link {{
             position: fixed;
             top: 10px;
             left: 10px;
@@ -364,10 +368,23 @@ class TimelineGenerator:
             color: #666;
             text-decoration: none;
         }}
-        #back-link:hover {{ color: #3498db; }}
+        body:not(.iframe-mode) #back-link:hover {{ color: #3498db; }}
+        /* iframe 模式下隐藏 header 和调整布局 */
+        body.iframe-mode .header {{
+            display: none;
+        }}
+        body.iframe-mode .container {{
+            padding-top: 20px;
+        }}
     </style>
 </head>
 <body>
+    <script>
+        // 检测是否在 iframe 中，调整布局
+        if (window.self !== window.top) {{
+            document.body.classList.add('iframe-mode');
+        }}
+    </script>
     <a href="index.html" id="back-link">← 返回入口</a>
     <div class="container">
         <div class="header">

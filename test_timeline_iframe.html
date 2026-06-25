@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>时间线 iframe 测试</title>
+    <style>
+        body { margin: 0; padding: 20px; background: #e0e0e0; }
+        h1 { margin-bottom: 20px; }
+        iframe { width: 100%; height: 500px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>测试：时间线 iframe 模式</h1>
+    <p>左侧导航已在 index.html 中显示，右侧 iframe 内的 header 和返回链接应该隐藏</p>
+    <iframe src="views/timeline.html"></iframe>
+    
+    <hr style="margin: 40px 0;">
+    
+    <h2>对比：独立页面模式</h2>
+    <p>直接打开 timeline.html 时，header 和返回链接应该显示</p>
+    <a href="views/timeline.html" target="_blank">打开独立的时间线页面</a>
+</body>
+</html>

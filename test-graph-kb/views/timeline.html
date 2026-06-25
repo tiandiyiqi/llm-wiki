@@ -142,22 +142,44 @@
             color: #999;
         }
         #back-link {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            z-index: 1000;
-            background: #fff;
-            padding: 6px 12px;
-            border-radius: 4px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            font-size: 13px;
-            color: #666;
-            text-decoration: none;
+            display: none;  /* iframe 模式下隐藏返回链接 */
         }
-        #back-link:hover { color: #3498db; }
+        /* 当作为独立页面访问时显示返回链接 */
+        @media all {
+            body:not(.iframe-mode) #back-link {
+                display: block;
+                position: fixed;
+                top: 10px;
+                left: 10px;
+                z-index: 1000;
+                background: #fff;
+                padding: 6px 12px;
+                border-radius: 4px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                font-size: 13px;
+                color: #666;
+                text-decoration: none;
+            }
+            body:not(.iframe-mode) #back-link:hover { color: #3498db; }
+        }
     </style>
 </head>
 <body>
+    <script>
+        // 检测是否在 iframe 中，调整布局
+        if (window.self !== window.top) {
+            document.body.classList.add('iframe-mode');
+        }
+    </script>
+    <style>
+        /* iframe 模式下隐藏 header */
+        body.iframe-mode .header {
+            display: none;
+        }
+        body.iframe-mode .container {
+            padding-top: 20px;
+        }
+    </style>
     <a href="index.html" id="back-link">← 返回入口</a>
     <div class="container">
         <div class="header">

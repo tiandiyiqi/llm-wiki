@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识时间线</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        .stats {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        .stats h2 {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        .total-count {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+        .type-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .type-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #fff;
+        }
+        .timeline {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        .month-separator {
+            display: flex;
+            align-items: center;
+            margin: 30px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+        .month-separator:first-child {
+            margin-top: 0;
+        }
+        .month-label {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .month-count {
+            margin-left: auto;
+            font-size: 12px;
+            color: #999;
+        }
+        .event-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 15px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .event-item:last-child {
+            border-bottom: none;
+        }
+        .event-date {
+            width: 100px;
+            flex-shrink: 0;
+            font-size: 13px;
+            color: #999;
+            font-family: monospace;
+        }
+        .event-marker {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin: 5px 15px 0 15px;
+            flex-shrink: 0;
+        }
+        .event-content {
+            flex: 1;
+        }
+        .event-title {
+            font-size: 15px;
+            font-weight: 500;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        .event-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .event-type {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            color: #fff;
+            text-transform: uppercase;
+        }
+        .event-path {
+            font-size: 12px;
+            color: #999;
+            font-family: monospace;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        #back-link {
+            display: none;  /* iframe 模式下默认隐藏 */
+        }
+        /* 独立页面模式显示返回链接 */
+        body:not(.iframe-mode) #back-link {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: #fff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            font-size: 13px;
+            color: #666;
+            text-decoration: none;
+        }
+        body:not(.iframe-mode) #back-link:hover { color: #3498db; }
+        /* iframe 模式下隐藏 header 和调整布局 */
+        body.iframe-mode .header {
+            display: none;
+        }
+        body.iframe-mode .container {
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // 检测是否在 iframe 中，调整布局
+        if (window.self !== window.top) {
+            document.body.classList.add('iframe-mode');
+        }
+    </script>
+    <a href="index.html" id="back-link">← 返回入口</a>
+    <div class="container">
+        <div class="header">
+            <h1>知识时间线</h1>
+            <p>按时间排序的知识原子视图</p>
+        </div>
+
+        <div class="stats">
+            <h2>统计信息</h2>
+            <div class="total-count">总计 96 个知识原子</div>
+            <div class="type-badges">
+                <span class="type-badge" style="background-color: #3b82f6">
+                    method: 36
+                </span>
+                <span class="type-badge" style="background-color: #22c55e">
+                    fact: 24
+                </span>
+                <span class="type-badge" style="background-color: #95a5a6">
+                    unknown: 21
+                </span>
+                <span class="type-badge" style="background-color: #a855f7">
+                    definition: 8
+                </span>
+                <span class="type-badge" style="background-color: #14b8a6">
+                    question: 3
+                </span>
+                <span class="type-badge" style="background-color: #6b7280">
+                    reference: 2
+                </span>
+                <span class="type-badge" style="background-color: #f97316">
+                    data: 2
+                </span></div>
+        </div>
+
+        <div class="timeline">
+
+        <div class="month-separator">
+            <span class="month-label">2026年 六月</span>
+            <span class="month-count">96 items</span>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-25</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">SKILL</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">.venv/lib/python3.12/site-packages/playwright/driver/package/lib/tools/trace/SKILL.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-25</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">SKILL</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">.venv/lib/python3.12/site-packages/playwright/driver/package/lib/tools/cli-client/skill/SKILL.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">Bug修复验证原子</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">knowledge-bases/atoms/测试分类/Bug修复验证.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">图谱刷新测试原子</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">knowledge-bases/atoms/测试分类/图谱刷新测试原子.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">七、品牌避坑与风控说明（商用必备）</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/methods/明冥之间-lumterra品牌标准化正式方案-七品牌避坑与风控说明商用必备-202606241528.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">2\.2 英文主品牌名：Lumterra</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/methods/明冥之间-lumterra品牌标准化正式方案-22-英文主品牌名lumterra-202606241528.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">3\.2 文艺意境级（品牌画册、海报、官网首页、展厅展示）</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/methods/明冥之间-lumterra品牌标准化正式方案-32-文艺意境级品牌画册海报官网首页展厅展示-202606241528.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">三、品牌分级标语矩阵（全场景适配）</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/methods/明冥之间-lumterra品牌标准化正式方案-三品牌分级标语矩阵全场景适配-202606241528.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">4\.1 中文品牌故事</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/methods/明冥之间-lumterra品牌标准化正式方案-41-中文品牌故事-202606241528.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">6\.2 场景专属文案规范</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/methods/明冥之间-lumterra品牌标准化正式方案-62-场景专属文案规范-202606241528.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">《明冥之间 LUMTERRA》品牌标准化正式方案</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/methods/明冥之间-lumterra品牌标准化正式方案-明冥之间-lumterra品牌标准化正式方案-202606241528.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">3\.3 价值理念级（招商宣讲、品牌PPT、品牌简介、商务推广）</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/methods/明冥之间-lumterra品牌标准化正式方案-33-价值理念级招商宣讲品牌ppt品牌简介商务推广-202606241528.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">2\.3 品牌核心Slogan（官方主标语·定稿）</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/methods/明冥之间-lumterra品牌标准化正式方案-23-品牌核心slogan官方主标语定稿-202606241528.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">五、品牌核心价值体系</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/methods/明冥之间-lumterra品牌标准化正式方案-五品牌核心价值体系-202606241528.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">2\.1 中文品牌名：明冥之间</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/methods/明冥之间-lumterra品牌标准化正式方案-21-中文品牌名明冥之间-202606241528.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">4\.2 英文品牌故事（Brand Story）</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/methods/明冥之间-lumterra品牌标准化正式方案-42-英文品牌故事brand-story-202606241528.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">OAuth 2.0 授权流程</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">knowledge-bases/atoms/技术标准/oauth-2.0-授权流程.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">消息队列设计模式</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">knowledge-bases/atoms/技术标准/消息队列设计模式.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">JWT 令牌详解</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">knowledge-bases/atoms/技术标准/jwt-令牌详解.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">SSL/TLS 加密原理</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">knowledge-bases/atoms/技术标准/ssl-tls-加密原理.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">HTTP 缓存策略</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">knowledge-bases/atoms/技术标准/http-缓存策略.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">慢查询优化方法</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/故障排查/慢查询优化方法.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">内存泄漏排查方法</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/故障排查/内存泄漏排查方法.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">CPU 使用率高排查</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/故障排查/cpu-使用率高排查.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">Git 分支管理策略</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">knowledge-bases/atoms/技术概念/git-分支管理策略.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">Docker 容器化最佳实践</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">knowledge-bases/atoms/技术概念/docker-容器化最佳实践.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">Python 装饰器详解</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">knowledge-bases/atoms/技术概念/python-装饰器详解.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">RESTful API 设计原则</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">knowledge-bases/atoms/技术概念/restful-api-设计原则.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">MySQL 索引优化策略</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">knowledge-bases/atoms/技术概念/mysql-索引优化策略.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">设计模式概述</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">knowledge-bases/atoms/技术概念/设计模式概述.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">illustrator 版本</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">knowledge-bases/atoms/facts/illustrator-版本.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">PDF文件的标准</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">knowledge-bases/atoms/facts/pdf文件的标准.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">性能测试实施流程</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/实施方法/性能测试实施流程.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">代码审查规范</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/实施方法/代码审查规范.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">微服务拆分策略</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/实施方法/微服务拆分策略.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">数据库迁移最佳实践</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/实施方法/数据库迁移最佳实践.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">敏捷开发实践指南</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/实施方法/敏捷开发实践指南.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">CI/CD 流水线搭建指南</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">knowledge-bases/atoms/实施方法/ci-cd-流水线搭建指南.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">PLAN-008-online-preview</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">Doc/plans/PLAN-008-online-preview.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">PLAN-000-enterprise-overall-plan</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">Doc/plans/PLAN-000-enterprise-overall-plan.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">PLAN-007-test-coverage</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">Doc/plans/PLAN-007-test-coverage.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">PLAN-003-phase3-ux-enhancement</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">Doc/plans/PLAN-003-phase3-ux-enhancement.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-24</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">PLAN-009-data-encryption</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">Doc/plans/PLAN-009-data-encryption.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-23</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">enterprise-overall-plan</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">.claude/plans/enterprise-overall-plan.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-23</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">PLAN-003-phase3-ux-enhancement-segments</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">Doc/plans/PLAN-003-phase3-ux-enhancement-segments.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-23</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">PLAN-005-casdoor-sso-integration-segments</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">Doc/plans/PLAN-005-casdoor-sso-integration-segments.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-23</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">PLAN-004-postgresql-production-integration</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">Doc/plans/PLAN-004-postgresql-production-integration.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-23</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">PLAN-006-mobile-optimization</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">Doc/plans/PLAN-006-mobile-optimization.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-23</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">PLAN-005-casdoor-sso-integration</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">Doc/plans/PLAN-005-casdoor-sso-integration.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-23</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">PLAN-004-phase3-api-layer-refactor</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">Doc/plans/PLAN-004-phase3-api-layer-refactor.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-22</div>
+            <div class="event-marker" style="background-color: #6b7280"></div>
+            <div class="event-content">
+                <div class="event-title">feishu-ai-knowledge-base-insights</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #6b7280">reference</span>
+                    <span class="event-path">Doc/feishu-ai-knowledge-base-insights.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-22</div>
+            <div class="event-marker" style="background-color: #6b7280"></div>
+            <div class="event-content">
+                <div class="event-title">feishu-insights-quick-reference</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #6b7280">reference</span>
+                    <span class="event-path">Doc/feishu-insights-quick-reference.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-22</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">PLAN-003-phase3-ux-enhancement</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">.claude/plans/PLAN-003-phase3-ux-enhancement.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-22</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">SKILL</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">.claude/rules/SKILL.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-22</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">SKILL</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">.venv/lib/python3.12/site-packages/typer/.agents/skills/typer/SKILL.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-22</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">PLAN-002-双模式架构与多级知识库</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">Doc/plans/PLAN-002-双模式架构与多级知识库.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-22</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">PLAN-002-双模式架构与多级知识库-segments</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">Doc/plans/PLAN-002-双模式架构与多级知识库-segments.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-21</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">PLAN-001-postgresql-migration</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">Doc/plans/PLAN-001-postgresql-migration.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">Database Migration Strategy</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">test-graph-kb/atoms/methods/database-migration.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">Nginx Load Balancer Configuration</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">test-graph-kb/atoms/methods/nginx-load-balancer.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">Logging Configuration Guide</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">test-graph-kb/atoms/methods/logging-configuration.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">Kubernetes Cluster Setup</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">test-graph-kb/atoms/methods/kubernetes-cluster-setup.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">Nextcloud Deployment Guide</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">test-graph-kb/atoms/methods/nextcloud-deployment.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">API Design Best Practices</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">test-graph-kb/atoms/methods/api-design-best-practices.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">Kubernetes Deployment YAML</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">test-graph-kb/atoms/methods/kubernetes-deployment-yaml.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">SSL Certificate Setup with Let&#x27;s Encrypt</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">test-graph-kb/atoms/methods/ssl-certificate-setup.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">Docker Compose Configuration</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">test-graph-kb/atoms/methods/docker-compose-configuration.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">CI/CD Pipeline Setup</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">test-graph-kb/atoms/methods/ci-cd-pipeline.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">Docker Container Setup</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">test-graph-kb/atoms/methods/docker-container-setup.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">Nginx Reverse Proxy Setup</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">test-graph-kb/atoms/methods/nginx-reverse-proxy.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">OAuth Integration Guide</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">test-graph-kb/atoms/methods/oauth-integration.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">Application Monitoring Setup</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">test-graph-kb/atoms/methods/monitoring-setup.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">Log Aggregation Benefits</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">test-graph-kb/atoms/facts/log-aggregation.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">HTTPS Security Benefits</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">test-graph-kb/atoms/facts/https-security.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">Docker Networking Modes</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">test-graph-kb/atoms/facts/docker-networking.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">MongoDB Capabilities</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">test-graph-kb/atoms/facts/mongodb-capabilities.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">PostgreSQL Key Features</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">test-graph-kb/atoms/facts/postgresql-features.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">API Rate Limiting Strategies</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">test-graph-kb/atoms/facts/api-rate-limiting.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">JWT Security Considerations</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">test-graph-kb/atoms/facts/jwt-security.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">Prometheus Metric Types</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">test-graph-kb/atoms/facts/prometheus-metrics.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #a855f7"></div>
+            <div class="event-content">
+                <div class="event-title">Authentication Mechanisms</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #a855f7">definition</span>
+                    <span class="event-path">test-graph-kb/atoms/definitions/authentication.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #a855f7"></div>
+            <div class="event-content">
+                <div class="event-title">Kubernetes</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #a855f7">definition</span>
+                    <span class="event-path">test-graph-kb/atoms/definitions/kubernetes.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #a855f7"></div>
+            <div class="event-content">
+                <div class="event-title">Web Application Definition</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #a855f7">definition</span>
+                    <span class="event-path">test-graph-kb/atoms/definitions/web-application.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #a855f7"></div>
+            <div class="event-content">
+                <div class="event-title">Microservices Architecture</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #a855f7">definition</span>
+                    <span class="event-path">test-graph-kb/atoms/definitions/microservices.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #a855f7"></div>
+            <div class="event-content">
+                <div class="event-title">Containerization</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #a855f7">definition</span>
+                    <span class="event-path">test-graph-kb/atoms/definitions/containerization.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #a855f7"></div>
+            <div class="event-content">
+                <div class="event-title">Load Balancing</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #a855f7">definition</span>
+                    <span class="event-path">test-graph-kb/atoms/definitions/load-balancing.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #a855f7"></div>
+            <div class="event-content">
+                <div class="event-title">REST API</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #a855f7">definition</span>
+                    <span class="event-path">test-graph-kb/atoms/definitions/rest-api.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #a855f7"></div>
+            <div class="event-content">
+                <div class="event-title">Database Systems</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #a855f7">definition</span>
+                    <span class="event-path">test-graph-kb/atoms/definitions/database.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #f97316"></div>
+            <div class="event-content">
+                <div class="event-title">Container Adoption Statistics 2026</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #f97316">data</span>
+                    <span class="event-path">test-graph-kb/atoms/data/container-statistics.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #f97316"></div>
+            <div class="event-content">
+                <div class="event-title">API Performance Benchmarks</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #f97316">data</span>
+                    <span class="event-path">test-graph-kb/atoms/data/api-performance-benchmarks.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #14b8a6"></div>
+            <div class="event-content">
+                <div class="event-title">SQL vs NoSQL - Which to Choose?</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #14b8a6">question</span>
+                    <span class="event-path">test-graph-kb/atoms/questions/sql-vs-nosql.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #14b8a6"></div>
+            <div class="event-content">
+                <div class="event-title">OAuth vs JWT - Authentication Choice</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #14b8a6">question</span>
+                    <span class="event-path">test-graph-kb/atoms/questions/oauth-vs-jwt.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-20</div>
+            <div class="event-marker" style="background-color: #14b8a6"></div>
+            <div class="event-content">
+                <div class="event-title">When to use Docker vs Kubernetes?</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #14b8a6">question</span>
+                    <span class="event-path">test-graph-kb/atoms/questions/docker-vs-kubernetes.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-19</div>
+            <div class="event-marker" style="background-color: #95a5a6"></div>
+            <div class="event-content">
+                <div class="event-title">SKILL</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #95a5a6">unknown</span>
+                    <span class="event-path">SKILL.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-18</div>
+            <div class="event-marker" style="background-color: #3b82f6"></div>
+            <div class="event-content">
+                <div class="event-title">Nextcloud Ubuntu Apache Installation</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #3b82f6">method</span>
+                    <span class="event-path">examples/nextcloud-kb/atoms/methods/nextcloud-installation-ubuntu-apache.md</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-item">
+            <div class="event-date">2026-06-18</div>
+            <div class="event-marker" style="background-color: #22c55e"></div>
+            <div class="event-content">
+                <div class="event-title">Nextcloud System Requirements</div>
+                <div class="event-meta">
+                    <span class="event-type" style="background-color: #22c55e">fact</span>
+                    <span class="event-path">examples/nextcloud-kb/atoms/facts/nextcloud-system-requirements.md</span>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+</body>
+</html>

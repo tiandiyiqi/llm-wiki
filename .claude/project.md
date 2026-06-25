@@ -30,7 +30,7 @@
 
 ## 活跃计划
 
-**当前计划**：[PLAN-010-spa-refactoring](../Doc/plans/PLAN-010-spa-refactoring.md)（active）
+**当前计划**：无（PLAN-M-011 已完成）
 
 **计划列表**：
 
@@ -45,7 +45,8 @@
 | PLAN-007 | 测试覆盖 | ✅ completed | 2026-06-24 |
 | PLAN-008 | 在线预览 | ✅ completed | 2026-06-24 |
 | PLAN-009 | 数据加密 | ✅ completed | 2026-06-24 |
-| PLAN-010 | SPA 单页应用重构（方案 B） | 🔄 active | 2026-06-24 |
+| PLAN-010 | SPA 单页应用重构（方案 B） | ✅ completed | 2026-06-24 |
+| PLAN-M-011 | 管理工具区 SPA 迁移（13 个模块功能填充） | ✅ completed | 2026-06-25 |
 
 ## 项目状态
 
