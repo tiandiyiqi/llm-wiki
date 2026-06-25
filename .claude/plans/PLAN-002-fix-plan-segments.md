@@ -614,12 +614,12 @@ def safe_error_response(error: Exception, default_message: str = "Internal error
 
 #### 子任务 7-1：修改 RBAC Manager
 
-- [ ] SUB-TASK-129: 在 `lib/auth/rbac.py` 导入 db_manager
-- [ ] SUB-TASK-130: 修改 `assign_role()` 写入数据库
-- [ ] SUB-TASK-131: 修改 `revoke_role()` 删除数据库记录
-- [ ] SUB-TASK-132: 修改 `get_user_roles()` 从数据库加载
-- [ ] SUB-TASK-133: 实现缓存机制（内存 + 数据库）
-- [ ] SUB-TASK-134: 实现 cache invalidation
+- [x] SUB-TASK-129: 在 `lib/auth/rbac.py` 导入 db_manager
+- [x] SUB-TASK-130: 修改 `assign_role()` 写入数据库
+- [x] SUB-TASK-131: 修改 `revoke_role()` 删除数据库记录
+- [x] SUB-TASK-132: 修改 `get_user_roles()` 从数据库加载
+- [x] SUB-TASK-133: 实现缓存机制（内存 + 数据库）
+- [x] SUB-TASK-134: 实现 cache invalidation
 
 **复杂度**: 高
 **依赖**: 任务组 6 完成
@@ -654,10 +654,10 @@ async def assign_role(self, user_id: str, kb_id: int, role_name: str) -> bool:
 
 #### 子任务 7-2：验证数据库 schema
 
-- [ ] SUB-TASK-135: 检查 `lib/db/schema.sql` kb_members 表定义
-- [ ] SUB-TASK-136: 确保表存在：kb_id, user_id, role, joined_at
-- [ ] SUB-TASK-137: 确保唯一约束：(kb_id, user_id)
-- [ ] SUB-TASK-138: 运行 schema 验证
+- [x] SUB-TASK-135: 检查 `lib/db/schema.sql` kb_members 表定义
+- [x] SUB-TASK-136: 确保表存在：kb_id, user_id, role, joined_at
+- [x] SUB-TASK-137: 确保唯一约束：(kb_id, user_id)
+- [x] SUB-TASK-138: 运行 schema 验证
 
 **复杂度**: 低
 **依赖**: SUB-TASK-129~134
@@ -667,12 +667,12 @@ async def assign_role(self, user_id: str, kb_id: int, role_name: str) -> bool:
 
 #### 子任务 7-3：测试 RBAC 持久化
 
-- [ ] SUB-TASK-139: 创建测试文件 `tests/test_rbac_persistence.py`
-- [ ] SUB-TASK-140: 测试角色分配写入数据库
-- [ ] SUB-TASK-141: 测试角色撤销删除记录
-- [ ] SUB-TASK-142: 测试角色查询从数据库加载
-- [ ] SUB-TASK-143: 测试缓存失效
-- [ ] SUB-TASK-144: 测试重启后角色保留
+- [x] SUB-TASK-139: 创建测试文件 `tests/test_rbac_persistence.py`
+- [x] SUB-TASK-140: 测试角色分配写入数据库
+- [x] SUB-TASK-141: 测试角色撤销删除记录
+- [x] SUB-TASK-142: 测试角色查询从数据库加载
+- [x] SUB-TASK-143: 测试缓存失效
+- [x] SUB-TASK-144: 测试重启后角色保留
 
 **复杂度**: 中
 **依赖**: SUB-TASK-135~138

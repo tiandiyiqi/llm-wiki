@@ -1,165 +1,135 @@
-#!/usr/bin/env python3
-"""独立测试错误处理功能."""
+"""错误处理器测试."""
 
-from typing import Any, Dict, Optional
-from enum import Enum
-
-
-class ErrorCode(Enum):
-    UNKNOWN_ERROR = 1000
-    INVALID_PARAMETER = 1003
-    UNAUTHORIZED = 2000
-    PERMISSION_DENIED = 2003
-    NOT_FOUND = 3000
-    RATE_LIMIT_EXCEEDED = 4000
+import pytest
+from lib.api.error_handler import (
+    ErrorCode,
+    safe_error_response,
+    create_error_response,
+    handle_validation_error,
+    handle_not_found_error,
+    handle_permission_denied,
+    handle_rate_limit_exceeded
+)
 
 
-class APIError(Exception):
-    def __init__(
-        self,
-        message: str,
-        error_code: ErrorCode = ErrorCode.UNKNOWN_ERROR,
-        status_code: int = 500,
-        details: Optional[Dict[str, Any]] = None
-    ):
-        super().__init__(message)
-        self.message = message
-        self.error_code = error_code
-        self.status_code = status_code
-        self.details = details or {}
+class TestErrorCode:
+    """测试错误代码枚举."""
 
-    def to_dict(self) -> Dict[str, Any]:
-        error_dict = {
-            'success': False,
-            'error': {
-                'code': self.error_code.value,
-                'message': self.message,
-                'type': self.error_code.name,
-            }
-        }
-        if self.details:
-            error_dict['error']['details'] = self.details
-        return error_dict
+    def test_error_codes_exist(self):
+        """测试所有错误代码存在."""
+        assert ErrorCode.INTERNAL_ERROR.value == "internal_error"
+        assert ErrorCode.NOT_FOUND.value == "not_found"
+        assert ErrorCode.PERMISSION_DENIED.value == "permission_denied"
+        assert ErrorCode.INVALID_INPUT.value == "invalid_input"
+        assert ErrorCode.UNAUTHORIZED.value == "unauthorized"
+        assert ErrorCode.RATE_LIMIT_EXCEEDED.value == "rate_limit_exceeded"
+        assert ErrorCode.SERVICE_UNAVAILABLE.value == "service_unavailable"
 
 
-class ValidationError(APIError):
-    def __init__(self, message: str, field: Optional[str] = None):
-        details = {'field': field} if field else {}
-        super().__init__(
-            message=message,
-            error_code=ErrorCode.INVALID_PARAMETER,
-            status_code=400,
-            details=details
-        )
+class TestSafeErrorResponse:
+    """测试安全错误响应."""
 
+    def test_basic_error_response(self):
+        """测试基本错误响应."""
+        error = Exception("Test error")
+        response = safe_error_response(error)
+        
+        assert response['success'] is False
+        assert response['error'] == "Internal error"
+        assert response['code'] == 500
+        assert 'error_id' in response
+        assert len(response['error_id']) == 36  # UUID format
 
-class AuthenticationError(APIError):
-    def __init__(self, message: str = "Authentication required"):
-        super().__init__(
-            message=message,
-            error_code=ErrorCode.UNAUTHORIZED,
-            status_code=401
-        )
+    def test_custom_message(self):
+        """测试自定义错误消息."""
+        error = ValueError("Invalid value")
+        response = safe_error_response(error, "Custom error message")
+        
+        assert response['error'] == "Custom error message"
 
-
-class NotFoundError(APIError):
-    def __init__(self, resource_type: str, resource_id: Optional[str] = None):
-        message = f"{resource_type} not found"
-        if resource_id:
-            message = f"{resource_type} with id '{resource_id}' not found"
-        super().__init__(
-            message=message,
+    def test_error_code_included(self):
+        """测试错误代码包含在响应中."""
+        error = Exception("Test error")
+        response = safe_error_response(
+            error,
             error_code=ErrorCode.NOT_FOUND,
-            status_code=404,
-            details={'resource_type': resource_type, 'resource_id': resource_id}
+            status_code=404
         )
+        
+        assert response['code'] == 404
+        assert response['error_code'] == "not_found"
 
 
-def test_api_error():
-    print("\n=== 测试 API 错误基类 ===")
-    error = APIError(
-        message="Something went wrong",
-        error_code=ErrorCode.UNKNOWN_ERROR,
-        status_code=500
-    )
+class TestCreateErrorResponse:
+    """测试创建错误响应."""
 
-    error_dict = error.to_dict()
-    assert error_dict['success'] is False
-    assert error_dict['error']['code'] == 1000
-    assert error_dict['error']['message'] == "Something went wrong"
-    print("✅ API 错误基类测试通过")
+    def test_simple_response(self):
+        """测试简单响应."""
+        response = create_error_response("Bad request", 400)
+        
+        assert response['success'] is False
+        assert response['error'] == "Bad request"
+        assert response['code'] == 400
 
-
-def test_validation_error():
-    print("\n=== 测试验证错误 ===")
-    error = ValidationError(
-        message="Invalid email format",
-        field="email"
-    )
-
-    error_dict = error.to_dict()
-    assert error.status_code == 400
-    assert error_dict['error']['code'] == 1003
-    assert error_dict['error']['details']['field'] == "email"
-    print("✅ 验证错误测试通过")
+    def test_response_with_details(self):
+        """测试带详情的响应."""
+        details = {'field': 'name', 'reason': 'too long'}
+        response = create_error_response(
+            "Validation failed",
+            400,
+            ErrorCode.INVALID_INPUT,
+            details
+        )
+        
+        assert response['error_code'] == "invalid_input"
+        assert response['details'] == details
 
 
-def test_authentication_error():
-    print("\n=== 测试认证错误 ===")
-    error = AuthenticationError()
+class TestHandleNotFoundError:
+    """测试资源未找到处理."""
 
-    error_dict = error.to_dict()
-    assert error.status_code == 401
-    assert error_dict['error']['code'] == 2000
-    print("✅ 认证错误测试通过")
-
-
-def test_not_found_error():
-    print("\n=== 测试资源未找到错误 ===")
-    error = NotFoundError("KnowledgeBase", "kb_123")
-
-    error_dict = error.to_dict()
-    assert error.status_code == 404
-    assert error_dict['error']['code'] == 3000
-    assert "KnowledgeBase" in error.message
-    assert "kb_123" in error.message
-    print(f"✅ 资源未找到错误测试通过: {error.message}")
+    def test_not_found_response(self):
+        """测试未找到响应."""
+        response = handle_not_found_error('knowledge_base', 'kb-123')
+        
+        assert response['success'] is False
+        assert response['code'] == 404
+        assert 'not found' in response['error'].lower()
+        assert response['resource_type'] == 'knowledge_base'
+        assert response['resource_id'] == 'kb-123'
 
 
-def test_error_inheritance():
-    print("\n=== 测试错误继承 ===")
-    error = ValidationError("Test error")
+class TestHandlePermissionDenied:
+    """测试权限拒绝处理."""
 
-    # 应该是 APIError 的实例
-    assert isinstance(error, APIError)
-    assert isinstance(error, Exception)
-    print("✅ 错误继承测试通过")
+    def test_permission_denied_response(self):
+        """测试权限拒绝响应."""
+        response = handle_permission_denied('delete', 'knowledge_base', 'kb-456')
+        
+        assert response['success'] is False
+        assert response['code'] == 403
+        assert 'Permission denied' in response['error']
+        assert response['action'] == 'delete'
+        assert response['resource_type'] == 'knowledge_base'
 
-
-def main():
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    print("错误处理功能测试（独立版本）")
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
-    try:
-        test_api_error()
-        test_validation_error()
-        test_authentication_error()
-        test_not_found_error()
-        test_error_inheritance()
-
-        print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("✅ 所有测试通过！")
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        return 0
-
-    except AssertionError as e:
-        print(f"\n❌ 测试失败: {e}")
-        import traceback
-        traceback.print_exc()
-        return 1
+    def test_permission_denied_simple(self):
+        """测试简单权限拒绝响应."""
+        response = handle_permission_denied('admin_access')
+        
+        assert response['code'] == 403
+        assert 'admin_access' in response['error']
 
 
-if __name__ == '__main__':
-    import sys
-    sys.exit(main())
+class TestHandleRateLimitExceeded:
+    """测试速率限制处理."""
+
+    def test_rate_limit_response(self):
+        """测试速率限制响应."""
+        response = handle_rate_limit_exceeded(60, 100, "minute")
+        
+        assert response['success'] is False
+        assert response['code'] == 429
+        assert response['retry_after'] == 60
+        assert response['limit'] == 100
+        assert response['window'] == "minute"
+        assert 'Rate limit exceeded' in response['error']

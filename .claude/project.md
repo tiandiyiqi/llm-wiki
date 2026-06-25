@@ -30,17 +30,22 @@
 
 ## 活跃计划
 
-**当前计划**：[PLAN-001-postgresql-migration](../Doc/plans/PLAN-001-postgresql-migration.md)（draft）
+**当前计划**：[PLAN-010-spa-refactoring](../Doc/plans/PLAN-010-spa-refactoring.md)（active）
 
 **计划列表**：
 
 | 计划 ID | 描述 | 状态 | 创建时间 |
 |---------|------|:----:|----------|
-| PLAN-001 | PostgreSQL 迁移 | 📝 draft | 2026-06-21 |
-
-**待创建计划**：
-- 阶段 1.2 双模式架构详细计划
-- 阶段 1.3 多级 Wiki 管理详细计划
+| PLAN-001 | PostgreSQL 迁移 | ✅ completed | 2026-06-21 |
+| PLAN-002 | 双模式架构与多级知识库 | ✅ completed | 2026-06-22 |
+| PLAN-003 | 阶段 3 用户体验增强 | ✅ completed | 2026-06-23 |
+| PLAN-004 | PostgreSQL 生产集成 | ✅ completed | 2026-06-23 |
+| PLAN-005 | Casdoor SSO 集成 | ✅ completed | 2026-06-23 |
+| PLAN-006 | 移动端优化 | ✅ completed | 2026-06-23 |
+| PLAN-007 | 测试覆盖 | ✅ completed | 2026-06-24 |
+| PLAN-008 | 在线预览 | ✅ completed | 2026-06-24 |
+| PLAN-009 | 数据加密 | ✅ completed | 2026-06-24 |
+| PLAN-010 | SPA 单页应用重构（方案 B） | 🔄 active | 2026-06-24 |
 
 ## 项目状态
 

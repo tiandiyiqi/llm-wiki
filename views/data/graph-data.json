@@ -1,0 +1,915 @@
+{
+  "nodes": [
+    {
+      "id": "atoms/methods/database-migration",
+      "label": "Database Migration Strategy",
+      "type": "method",
+      "description": "Best practices for database schema migrations",
+      "path": "atoms/methods/database-migration.md",
+      "color": "#3498db",
+      "tags": [
+        "database",
+        "migration",
+        "schema",
+        "sql"
+      ],
+      "in_degree": 2,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/methods/nginx-load-balancer",
+      "label": "Nginx Load Balancer Configurat",
+      "type": "method",
+      "description": "Setting up Nginx as a load balancer for web applications",
+      "path": "atoms/methods/nginx-load-balancer.md",
+      "color": "#3498db",
+      "tags": [
+        "nginx",
+        "load-balancer",
+        "proxy"
+      ],
+      "in_degree": 2,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/methods/logging-configuration",
+      "label": "Logging Configuration Guide",
+      "type": "method",
+      "description": "Setting up structured logging for applications",
+      "path": "atoms/methods/logging-configuration.md",
+      "color": "#3498db",
+      "tags": [
+        "logging",
+        "observability",
+        "debugging"
+      ],
+      "in_degree": 2,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/methods/kubernetes-cluster-setup",
+      "label": "Kubernetes Cluster Setup",
+      "type": "method",
+      "description": "Setting up a local or production Kubernetes cluster",
+      "path": "atoms/methods/kubernetes-cluster-setup.md",
+      "color": "#3498db",
+      "tags": [
+        "kubernetes",
+        "k8s",
+        "cluster",
+        "minikube"
+      ],
+      "in_degree": 2,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/methods/nextcloud-deployment",
+      "label": "Nextcloud Deployment Guide",
+      "type": "method",
+      "description": "Complete guide for deploying Nextcloud self-hosted cloud",
+      "path": "atoms/methods/nextcloud-deployment.md",
+      "color": "#3498db",
+      "tags": [
+        "nextcloud",
+        "cloud",
+        "deployment",
+        "self-hosted"
+      ],
+      "in_degree": 1,
+      "out_degree": 3
+    },
+    {
+      "id": "atoms/methods/api-design-best-practices",
+      "label": "API Design Best Practices",
+      "type": "method",
+      "description": "Guidelines for designing RESTful APIs",
+      "path": "atoms/methods/api-design-best-practices.md",
+      "color": "#3498db",
+      "tags": [
+        "api",
+        "rest",
+        "design",
+        "best-practices"
+      ],
+      "in_degree": 3,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/methods/kubernetes-deployment-yaml",
+      "label": "Kubernetes Deployment YAML",
+      "type": "method",
+      "description": "Creating deployment manifests for Kubernetes",
+      "path": "atoms/methods/kubernetes-deployment-yaml.md",
+      "color": "#3498db",
+      "tags": [
+        "kubernetes",
+        "yaml",
+        "deployment"
+      ],
+      "in_degree": 1,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/methods/ssl-certificate-setup",
+      "label": "SSL Certificate Setup with Let",
+      "type": "method",
+      "description": "Setting up free SSL certificates using Certbot",
+      "path": "atoms/methods/ssl-certificate-setup.md",
+      "color": "#3498db",
+      "tags": [
+        "ssl",
+        "tls",
+        "security",
+        "certbot"
+      ],
+      "in_degree": 3,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/methods/docker-compose-configuration",
+      "label": "Docker Compose Configuration",
+      "type": "method",
+      "description": "Multi-container application configuration with Docker Compose",
+      "path": "atoms/methods/docker-compose-configuration.md",
+      "color": "#3498db",
+      "tags": [
+        "docker",
+        "compose",
+        "orchestration"
+      ],
+      "in_degree": 2,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/methods/ci-cd-pipeline",
+      "label": "CI/CD Pipeline Setup",
+      "type": "method",
+      "description": "Setting up continuous integration and deployment pipelines",
+      "path": "atoms/methods/ci-cd-pipeline.md",
+      "color": "#3498db",
+      "tags": [
+        "ci-cd",
+        "automation",
+        "devops",
+        "github-actions"
+      ],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/methods/docker-container-setup",
+      "label": "Docker Container Setup",
+      "type": "method",
+      "description": "Steps to create and run Docker containers for applications",
+      "path": "atoms/methods/docker-container-setup.md",
+      "color": "#3498db",
+      "tags": [
+        "docker",
+        "container",
+        "deployment"
+      ],
+      "in_degree": 6,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/methods/nginx-reverse-proxy",
+      "label": "Nginx Reverse Proxy Setup",
+      "type": "method",
+      "description": "Configuring Nginx as a reverse proxy server",
+      "path": "atoms/methods/nginx-reverse-proxy.md",
+      "color": "#3498db",
+      "tags": [
+        "nginx",
+        "proxy",
+        "reverse-proxy"
+      ],
+      "in_degree": 3,
+      "out_degree": 3
+    },
+    {
+      "id": "atoms/methods/oauth-integration",
+      "label": "OAuth Integration Guide",
+      "type": "method",
+      "description": "Implementing OAuth 2.0 authentication in applications",
+      "path": "atoms/methods/oauth-integration.md",
+      "color": "#3498db",
+      "tags": [
+        "oauth",
+        "auth",
+        "security",
+        "integration"
+      ],
+      "in_degree": 3,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/methods/monitoring-setup",
+      "label": "Application Monitoring Setup",
+      "type": "method",
+      "description": "Setting up Prometheus and Grafana for application monitoring",
+      "path": "atoms/methods/monitoring-setup.md",
+      "color": "#3498db",
+      "tags": [
+        "monitoring",
+        "prometheus",
+        "grafana",
+        "observability"
+      ],
+      "in_degree": 3,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/facts/log-aggregation",
+      "label": "Log Aggregation Benefits",
+      "type": "fact",
+      "description": "Advantages of centralized log collection",
+      "path": "atoms/facts/log-aggregation.md",
+      "color": "#2ecc71",
+      "tags": [
+        "logging",
+        "aggregation",
+        "observability"
+      ],
+      "in_degree": 1,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/facts/https-security",
+      "label": "HTTPS Security Benefits",
+      "type": "fact",
+      "description": "Security advantages of HTTPS over HTTP",
+      "path": "atoms/facts/https-security.md",
+      "color": "#2ecc71",
+      "tags": [
+        "https",
+        "ssl",
+        "tls",
+        "security"
+      ],
+      "in_degree": 1,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/facts/docker-networking",
+      "label": "Docker Networking Modes",
+      "type": "fact",
+      "description": "Different network configurations available in Docker",
+      "path": "atoms/facts/docker-networking.md",
+      "color": "#2ecc71",
+      "tags": [
+        "docker",
+        "network",
+        "container"
+      ],
+      "in_degree": 1,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/facts/mongodb-capabilities",
+      "label": "MongoDB Capabilities",
+      "type": "fact",
+      "description": "Key capabilities of MongoDB document database",
+      "path": "atoms/facts/mongodb-capabilities.md",
+      "color": "#2ecc71",
+      "tags": [
+        "mongodb",
+        "nosql",
+        "database",
+        "document"
+      ],
+      "in_degree": 2,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/facts/postgresql-features",
+      "label": "PostgreSQL Key Features",
+      "type": "fact",
+      "description": "Important features of PostgreSQL database system",
+      "path": "atoms/facts/postgresql-features.md",
+      "color": "#2ecc71",
+      "tags": [
+        "postgresql",
+        "database",
+        "sql",
+        "features"
+      ],
+      "in_degree": 4,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/facts/api-rate-limiting",
+      "label": "API Rate Limiting Strategies",
+      "type": "fact",
+      "description": "Common rate limiting approaches for APIs",
+      "path": "atoms/facts/api-rate-limiting.md",
+      "color": "#2ecc71",
+      "tags": [
+        "api",
+        "rate-limit",
+        "throttling"
+      ],
+      "in_degree": 2,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/facts/jwt-security",
+      "label": "JWT Security Considerations",
+      "type": "fact",
+      "description": "Security best practices for JWT tokens",
+      "path": "atoms/facts/jwt-security.md",
+      "color": "#2ecc71",
+      "tags": [
+        "jwt",
+        "security",
+        "token",
+        "authentication"
+      ],
+      "in_degree": 2,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/facts/prometheus-metrics",
+      "label": "Prometheus Metric Types",
+      "type": "fact",
+      "description": "Four core metric types in Prometheus",
+      "path": "atoms/facts/prometheus-metrics.md",
+      "color": "#2ecc71",
+      "tags": [
+        "prometheus",
+        "metrics",
+        "monitoring"
+      ],
+      "in_degree": 1,
+      "out_degree": 1
+    },
+    {
+      "id": "atoms/definitions/authentication",
+      "label": "Authentication Mechanisms",
+      "type": "definition",
+      "description": "Processes for verifying user identity",
+      "path": "atoms/definitions/authentication.md",
+      "color": "#9b59b6",
+      "tags": [
+        "security",
+        "auth",
+        "oauth",
+        "jwt"
+      ],
+      "in_degree": 3,
+      "out_degree": 3
+    },
+    {
+      "id": "atoms/definitions/kubernetes",
+      "label": "Kubernetes",
+      "type": "definition",
+      "description": "Open-source container orchestration platform",
+      "path": "atoms/definitions/kubernetes.md",
+      "color": "#9b59b6",
+      "tags": [
+        "kubernetes",
+        "k8s",
+        "orchestration",
+        "devops"
+      ],
+      "in_degree": 5,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/definitions/web-application",
+      "label": "Web Application Definition",
+      "type": "definition",
+      "description": "A software application that runs on a web server and is accessed through a browser",
+      "path": "atoms/definitions/web-application.md",
+      "color": "#9b59b6",
+      "tags": [
+        "web",
+        "application",
+        "software"
+      ],
+      "in_degree": 3,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/definitions/microservices",
+      "label": "Microservices Architecture",
+      "type": "definition",
+      "description": "An architectural style where applications are composed of small, independent services",
+      "path": "atoms/definitions/microservices.md",
+      "color": "#9b59b6",
+      "tags": [
+        "architecture",
+        "microservices",
+        "design"
+      ],
+      "in_degree": 1,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/definitions/containerization",
+      "label": "Containerization",
+      "type": "definition",
+      "description": "Packaging software with its dependencies into standardized units",
+      "path": "atoms/definitions/containerization.md",
+      "color": "#9b59b6",
+      "tags": [
+        "docker",
+        "container",
+        "devops"
+      ],
+      "in_degree": 6,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/definitions/load-balancing",
+      "label": "Load Balancing",
+      "type": "definition",
+      "description": "Distributing network traffic across multiple servers",
+      "path": "atoms/definitions/load-balancing.md",
+      "color": "#9b59b6",
+      "tags": [
+        "networking",
+        "load-balancer",
+        "scalability"
+      ],
+      "in_degree": 1,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/definitions/rest-api",
+      "label": "REST API",
+      "type": "definition",
+      "description": "Representational State Transfer - a standard for web service communication",
+      "path": "atoms/definitions/rest-api.md",
+      "color": "#9b59b6",
+      "tags": [
+        "api",
+        "rest",
+        "http",
+        "web"
+      ],
+      "in_degree": 3,
+      "out_degree": 1
+    },
+    {
+      "id": "atoms/definitions/database",
+      "label": "Database Systems",
+      "type": "definition",
+      "description": "Organized collection of structured information stored electronically",
+      "path": "atoms/definitions/database.md",
+      "color": "#9b59b6",
+      "tags": [
+        "database",
+        "sql",
+        "nosql",
+        "storage"
+      ],
+      "in_degree": 4,
+      "out_degree": 3
+    },
+    {
+      "id": "atoms/data/container-statistics",
+      "label": "Container Adoption Statistics ",
+      "type": "data",
+      "description": "Current industry adoption rates for container technologies",
+      "path": "atoms/data/container-statistics.md",
+      "color": "#f39c12",
+      "tags": [
+        "statistics",
+        "container",
+        "adoption"
+      ],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/data/api-performance-benchmarks",
+      "label": "API Performance Benchmarks",
+      "type": "data",
+      "description": "Typical response time benchmarks for API endpoints",
+      "path": "atoms/data/api-performance-benchmarks.md",
+      "color": "#f39c12",
+      "tags": [
+        "api",
+        "performance",
+        "benchmark",
+        "data"
+      ],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/questions/sql-vs-nosql",
+      "label": "SQL vs NoSQL - Which to Choose",
+      "type": "question",
+      "description": "Decision criteria for choosing database type",
+      "path": "atoms/questions/sql-vs-nosql.md",
+      "color": "#1abc9c",
+      "tags": [
+        "sql",
+        "nosql",
+        "database",
+        "decision"
+      ],
+      "in_degree": 0,
+      "out_degree": 3
+    },
+    {
+      "id": "atoms/questions/oauth-vs-jwt",
+      "label": "OAuth vs JWT - Authentication ",
+      "type": "question",
+      "description": "Choosing between OAuth and JWT for authentication",
+      "path": "atoms/questions/oauth-vs-jwt.md",
+      "color": "#1abc9c",
+      "tags": [
+        "oauth",
+        "jwt",
+        "auth",
+        "decision"
+      ],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "atoms/questions/docker-vs-kubernetes",
+      "label": "When to use Docker vs Kubernet",
+      "type": "question",
+      "description": "Choosing the right containerization tool for different scenarios",
+      "path": "atoms/questions/docker-vs-kubernetes.md",
+      "color": "#1abc9c",
+      "tags": [
+        "docker",
+        "kubernetes",
+        "decision"
+      ],
+      "in_degree": 0,
+      "out_degree": 2
+    }
+  ],
+  "edges": [
+    {
+      "id": "atoms/methods/database-migration->atoms/definitions/database",
+      "source": "atoms/methods/database-migration",
+      "target": "atoms/definitions/database"
+    },
+    {
+      "id": "atoms/methods/database-migration->atoms/facts/postgresql-features",
+      "source": "atoms/methods/database-migration",
+      "target": "atoms/facts/postgresql-features"
+    },
+    {
+      "id": "atoms/methods/nginx-load-balancer->atoms/definitions/load-balancing",
+      "source": "atoms/methods/nginx-load-balancer",
+      "target": "atoms/definitions/load-balancing"
+    },
+    {
+      "id": "atoms/methods/nginx-load-balancer->atoms/methods/nginx-reverse-proxy",
+      "source": "atoms/methods/nginx-load-balancer",
+      "target": "atoms/methods/nginx-reverse-proxy"
+    },
+    {
+      "id": "atoms/methods/logging-configuration->atoms/methods/monitoring-setup",
+      "source": "atoms/methods/logging-configuration",
+      "target": "atoms/methods/monitoring-setup"
+    },
+    {
+      "id": "atoms/methods/logging-configuration->atoms/facts/log-aggregation",
+      "source": "atoms/methods/logging-configuration",
+      "target": "atoms/facts/log-aggregation"
+    },
+    {
+      "id": "atoms/methods/kubernetes-cluster-setup->atoms/definitions/kubernetes",
+      "source": "atoms/methods/kubernetes-cluster-setup",
+      "target": "atoms/definitions/kubernetes"
+    },
+    {
+      "id": "atoms/methods/kubernetes-cluster-setup->atoms/methods/kubernetes-deployment-yaml",
+      "source": "atoms/methods/kubernetes-cluster-setup",
+      "target": "atoms/methods/kubernetes-deployment-yaml"
+    },
+    {
+      "id": "atoms/methods/nextcloud-deployment->atoms/methods/ssl-certificate-setup",
+      "source": "atoms/methods/nextcloud-deployment",
+      "target": "atoms/methods/ssl-certificate-setup"
+    },
+    {
+      "id": "atoms/methods/nextcloud-deployment->atoms/definitions/web-application",
+      "source": "atoms/methods/nextcloud-deployment",
+      "target": "atoms/definitions/web-application"
+    },
+    {
+      "id": "atoms/methods/nextcloud-deployment->atoms/methods/docker-container-setup",
+      "source": "atoms/methods/nextcloud-deployment",
+      "target": "atoms/methods/docker-container-setup"
+    },
+    {
+      "id": "atoms/methods/api-design-best-practices->atoms/definitions/rest-api",
+      "source": "atoms/methods/api-design-best-practices",
+      "target": "atoms/definitions/rest-api"
+    },
+    {
+      "id": "atoms/methods/api-design-best-practices->atoms/facts/api-rate-limiting",
+      "source": "atoms/methods/api-design-best-practices",
+      "target": "atoms/facts/api-rate-limiting"
+    },
+    {
+      "id": "atoms/methods/kubernetes-deployment-yaml->atoms/methods/kubernetes-cluster-setup",
+      "source": "atoms/methods/kubernetes-deployment-yaml",
+      "target": "atoms/methods/kubernetes-cluster-setup"
+    },
+    {
+      "id": "atoms/methods/kubernetes-deployment-yaml->atoms/definitions/kubernetes",
+      "source": "atoms/methods/kubernetes-deployment-yaml",
+      "target": "atoms/definitions/kubernetes"
+    },
+    {
+      "id": "atoms/methods/ssl-certificate-setup->atoms/methods/nginx-reverse-proxy",
+      "source": "atoms/methods/ssl-certificate-setup",
+      "target": "atoms/methods/nginx-reverse-proxy"
+    },
+    {
+      "id": "atoms/methods/ssl-certificate-setup->atoms/facts/https-security",
+      "source": "atoms/methods/ssl-certificate-setup",
+      "target": "atoms/facts/https-security"
+    },
+    {
+      "id": "atoms/methods/docker-compose-configuration->atoms/methods/docker-container-setup",
+      "source": "atoms/methods/docker-compose-configuration",
+      "target": "atoms/methods/docker-container-setup"
+    },
+    {
+      "id": "atoms/methods/docker-compose-configuration->atoms/facts/docker-networking",
+      "source": "atoms/methods/docker-compose-configuration",
+      "target": "atoms/facts/docker-networking"
+    },
+    {
+      "id": "atoms/methods/ci-cd-pipeline->atoms/definitions/containerization",
+      "source": "atoms/methods/ci-cd-pipeline",
+      "target": "atoms/definitions/containerization"
+    },
+    {
+      "id": "atoms/methods/ci-cd-pipeline->atoms/methods/docker-container-setup",
+      "source": "atoms/methods/ci-cd-pipeline",
+      "target": "atoms/methods/docker-container-setup"
+    },
+    {
+      "id": "atoms/methods/docker-container-setup->atoms/definitions/containerization",
+      "source": "atoms/methods/docker-container-setup",
+      "target": "atoms/definitions/containerization"
+    },
+    {
+      "id": "atoms/methods/docker-container-setup->atoms/methods/docker-compose-configuration",
+      "source": "atoms/methods/docker-container-setup",
+      "target": "atoms/methods/docker-compose-configuration"
+    },
+    {
+      "id": "atoms/methods/nginx-reverse-proxy->atoms/methods/nginx-load-balancer",
+      "source": "atoms/methods/nginx-reverse-proxy",
+      "target": "atoms/methods/nginx-load-balancer"
+    },
+    {
+      "id": "atoms/methods/nginx-reverse-proxy->atoms/definitions/web-application",
+      "source": "atoms/methods/nginx-reverse-proxy",
+      "target": "atoms/definitions/web-application"
+    },
+    {
+      "id": "atoms/methods/nginx-reverse-proxy->atoms/methods/ssl-certificate-setup",
+      "source": "atoms/methods/nginx-reverse-proxy",
+      "target": "atoms/methods/ssl-certificate-setup"
+    },
+    {
+      "id": "atoms/methods/oauth-integration->atoms/definitions/authentication",
+      "source": "atoms/methods/oauth-integration",
+      "target": "atoms/definitions/authentication"
+    },
+    {
+      "id": "atoms/methods/oauth-integration->atoms/facts/jwt-security",
+      "source": "atoms/methods/oauth-integration",
+      "target": "atoms/facts/jwt-security"
+    },
+    {
+      "id": "atoms/methods/monitoring-setup->atoms/facts/prometheus-metrics",
+      "source": "atoms/methods/monitoring-setup",
+      "target": "atoms/facts/prometheus-metrics"
+    },
+    {
+      "id": "atoms/methods/monitoring-setup->atoms/methods/logging-configuration",
+      "source": "atoms/methods/monitoring-setup",
+      "target": "atoms/methods/logging-configuration"
+    },
+    {
+      "id": "atoms/facts/log-aggregation->atoms/methods/logging-configuration",
+      "source": "atoms/facts/log-aggregation",
+      "target": "atoms/methods/logging-configuration"
+    },
+    {
+      "id": "atoms/facts/log-aggregation->atoms/methods/monitoring-setup",
+      "source": "atoms/facts/log-aggregation",
+      "target": "atoms/methods/monitoring-setup"
+    },
+    {
+      "id": "atoms/facts/https-security->atoms/methods/ssl-certificate-setup",
+      "source": "atoms/facts/https-security",
+      "target": "atoms/methods/ssl-certificate-setup"
+    },
+    {
+      "id": "atoms/facts/https-security->atoms/methods/nginx-reverse-proxy",
+      "source": "atoms/facts/https-security",
+      "target": "atoms/methods/nginx-reverse-proxy"
+    },
+    {
+      "id": "atoms/facts/docker-networking->atoms/methods/docker-compose-configuration",
+      "source": "atoms/facts/docker-networking",
+      "target": "atoms/methods/docker-compose-configuration"
+    },
+    {
+      "id": "atoms/facts/docker-networking->atoms/methods/docker-container-setup",
+      "source": "atoms/facts/docker-networking",
+      "target": "atoms/methods/docker-container-setup"
+    },
+    {
+      "id": "atoms/facts/mongodb-capabilities->atoms/facts/postgresql-features",
+      "source": "atoms/facts/mongodb-capabilities",
+      "target": "atoms/facts/postgresql-features"
+    },
+    {
+      "id": "atoms/facts/mongodb-capabilities->atoms/definitions/database",
+      "source": "atoms/facts/mongodb-capabilities",
+      "target": "atoms/definitions/database"
+    },
+    {
+      "id": "atoms/facts/postgresql-features->atoms/definitions/database",
+      "source": "atoms/facts/postgresql-features",
+      "target": "atoms/definitions/database"
+    },
+    {
+      "id": "atoms/facts/postgresql-features->atoms/methods/database-migration",
+      "source": "atoms/facts/postgresql-features",
+      "target": "atoms/methods/database-migration"
+    },
+    {
+      "id": "atoms/facts/api-rate-limiting->atoms/methods/api-design-best-practices",
+      "source": "atoms/facts/api-rate-limiting",
+      "target": "atoms/methods/api-design-best-practices"
+    },
+    {
+      "id": "atoms/facts/api-rate-limiting->atoms/definitions/rest-api",
+      "source": "atoms/facts/api-rate-limiting",
+      "target": "atoms/definitions/rest-api"
+    },
+    {
+      "id": "atoms/facts/jwt-security->atoms/definitions/authentication",
+      "source": "atoms/facts/jwt-security",
+      "target": "atoms/definitions/authentication"
+    },
+    {
+      "id": "atoms/facts/jwt-security->atoms/methods/oauth-integration",
+      "source": "atoms/facts/jwt-security",
+      "target": "atoms/methods/oauth-integration"
+    },
+    {
+      "id": "atoms/facts/prometheus-metrics->atoms/methods/monitoring-setup",
+      "source": "atoms/facts/prometheus-metrics",
+      "target": "atoms/methods/monitoring-setup"
+    },
+    {
+      "id": "atoms/definitions/authentication->atoms/methods/oauth-integration",
+      "source": "atoms/definitions/authentication",
+      "target": "atoms/methods/oauth-integration"
+    },
+    {
+      "id": "atoms/definitions/authentication->atoms/facts/jwt-security",
+      "source": "atoms/definitions/authentication",
+      "target": "atoms/facts/jwt-security"
+    },
+    {
+      "id": "atoms/definitions/authentication->atoms/definitions/web-application",
+      "source": "atoms/definitions/authentication",
+      "target": "atoms/definitions/web-application"
+    },
+    {
+      "id": "atoms/definitions/kubernetes->atoms/definitions/containerization",
+      "source": "atoms/definitions/kubernetes",
+      "target": "atoms/definitions/containerization"
+    },
+    {
+      "id": "atoms/definitions/kubernetes->atoms/methods/kubernetes-cluster-setup",
+      "source": "atoms/definitions/kubernetes",
+      "target": "atoms/methods/kubernetes-cluster-setup"
+    },
+    {
+      "id": "atoms/definitions/web-application->atoms/methods/nextcloud-deployment",
+      "source": "atoms/definitions/web-application",
+      "target": "atoms/methods/nextcloud-deployment"
+    },
+    {
+      "id": "atoms/definitions/web-application->atoms/methods/docker-container-setup",
+      "source": "atoms/definitions/web-application",
+      "target": "atoms/methods/docker-container-setup"
+    },
+    {
+      "id": "atoms/definitions/microservices->atoms/definitions/rest-api",
+      "source": "atoms/definitions/microservices",
+      "target": "atoms/definitions/rest-api"
+    },
+    {
+      "id": "atoms/definitions/microservices->atoms/definitions/containerization",
+      "source": "atoms/definitions/microservices",
+      "target": "atoms/definitions/containerization"
+    },
+    {
+      "id": "atoms/definitions/containerization->atoms/methods/docker-container-setup",
+      "source": "atoms/definitions/containerization",
+      "target": "atoms/methods/docker-container-setup"
+    },
+    {
+      "id": "atoms/definitions/containerization->atoms/definitions/kubernetes",
+      "source": "atoms/definitions/containerization",
+      "target": "atoms/definitions/kubernetes"
+    },
+    {
+      "id": "atoms/definitions/load-balancing->atoms/methods/nginx-load-balancer",
+      "source": "atoms/definitions/load-balancing",
+      "target": "atoms/methods/nginx-load-balancer"
+    },
+    {
+      "id": "atoms/definitions/load-balancing->atoms/definitions/microservices",
+      "source": "atoms/definitions/load-balancing",
+      "target": "atoms/definitions/microservices"
+    },
+    {
+      "id": "atoms/definitions/rest-api->atoms/methods/api-design-best-practices",
+      "source": "atoms/definitions/rest-api",
+      "target": "atoms/methods/api-design-best-practices"
+    },
+    {
+      "id": "atoms/definitions/database->atoms/facts/postgresql-features",
+      "source": "atoms/definitions/database",
+      "target": "atoms/facts/postgresql-features"
+    },
+    {
+      "id": "atoms/definitions/database->atoms/facts/mongodb-capabilities",
+      "source": "atoms/definitions/database",
+      "target": "atoms/facts/mongodb-capabilities"
+    },
+    {
+      "id": "atoms/definitions/database->atoms/methods/database-migration",
+      "source": "atoms/definitions/database",
+      "target": "atoms/methods/database-migration"
+    },
+    {
+      "id": "atoms/data/container-statistics->atoms/definitions/containerization",
+      "source": "atoms/data/container-statistics",
+      "target": "atoms/definitions/containerization"
+    },
+    {
+      "id": "atoms/data/container-statistics->atoms/definitions/kubernetes",
+      "source": "atoms/data/container-statistics",
+      "target": "atoms/definitions/kubernetes"
+    },
+    {
+      "id": "atoms/data/api-performance-benchmarks->atoms/methods/api-design-best-practices",
+      "source": "atoms/data/api-performance-benchmarks",
+      "target": "atoms/methods/api-design-best-practices"
+    },
+    {
+      "id": "atoms/data/api-performance-benchmarks->atoms/facts/api-rate-limiting",
+      "source": "atoms/data/api-performance-benchmarks",
+      "target": "atoms/facts/api-rate-limiting"
+    },
+    {
+      "id": "atoms/questions/sql-vs-nosql->atoms/facts/postgresql-features",
+      "source": "atoms/questions/sql-vs-nosql",
+      "target": "atoms/facts/postgresql-features"
+    },
+    {
+      "id": "atoms/questions/sql-vs-nosql->atoms/facts/mongodb-capabilities",
+      "source": "atoms/questions/sql-vs-nosql",
+      "target": "atoms/facts/mongodb-capabilities"
+    },
+    {
+      "id": "atoms/questions/sql-vs-nosql->atoms/definitions/database",
+      "source": "atoms/questions/sql-vs-nosql",
+      "target": "atoms/definitions/database"
+    },
+    {
+      "id": "atoms/questions/oauth-vs-jwt->atoms/definitions/authentication",
+      "source": "atoms/questions/oauth-vs-jwt",
+      "target": "atoms/definitions/authentication"
+    },
+    {
+      "id": "atoms/questions/oauth-vs-jwt->atoms/methods/oauth-integration",
+      "source": "atoms/questions/oauth-vs-jwt",
+      "target": "atoms/methods/oauth-integration"
+    },
+    {
+      "id": "atoms/questions/docker-vs-kubernetes->atoms/definitions/containerization",
+      "source": "atoms/questions/docker-vs-kubernetes",
+      "target": "atoms/definitions/containerization"
+    },
+    {
+      "id": "atoms/questions/docker-vs-kubernetes->atoms/definitions/kubernetes",
+      "source": "atoms/questions/docker-vs-kubernetes",
+      "target": "atoms/definitions/kubernetes"
+    }
+  ]
+}

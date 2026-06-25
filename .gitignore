@@ -57,6 +57,7 @@ Desktop.ini
 .env
 .env.local
 .env.*.local
+.env.postgres       # PostgreSQL environment variables
 
 # Logs
 *.log
@@ -89,7 +90,7 @@ temp/
 *.swp
 
 # Claude Code
-.claude/plans/        # Local planning files
+.claude/plans/        # Local planning files (all)
 .claude/project.md    # Local project config
 
 # Coverage reports
@@ -129,6 +130,27 @@ ehthumbs.db
 Doc/plans/*.segments.md
 Doc/*.tmp
 Doc/*.draft
+
+# Knowledge bases (large files)
+knowledge-bases/
+
+# Migration scripts (generated)
+lib/migration/*.py
+
+# Test scripts and utilities
+scripts/fix_*.sh
+scripts/reset_*.sh
+scripts/setup_*.sh
+scripts/test_*.sh
+scripts/verify_*.py
+scripts/verify_*.sh
+scripts/generate_*.py
+scripts/migrate_*.py
+start_server.py
+
+# Integration tests
+tests/integration/
+tests/utils/
 
 # GStack
 .gstack/

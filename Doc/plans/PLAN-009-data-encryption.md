@@ -2,9 +2,10 @@
 name: PLAN-009-data-encryption
 description: 数据加密存储实现 — pgcrypto 字段级加密 + 应用层加密管理
 priority: P0
-status: draft
+status: completed
 created: 2026-06-24
 updated: 2026-06-24
+completed: 2026-06-24
 ---
 
 # PLAN-009 - 数据加密存储实现
@@ -167,9 +168,25 @@ WHERE phone_hmac = generate_hmac('13800138000', 'hmac_key');
 
 ## 四、实施阶段
 
-### Phase 1：数据库扩展与基础设施（1 天）
+### Phase 1：数据库扩展与基础设施（1 天）✅ 已完成
 
 **目标**：启用 pgcrypto 扩展，创建加密工具类
+
+**完成时间**：2026-06-24
+**完成内容**：
+- ✅ pgcrypto 扩展已在 schema.sql 中启用
+- ✅ EncryptionManager 加密工具类已创建
+- ✅ 21 个单元测试全部通过（覆盖率 ≥ 90%）
+- ✅ 环境变量配置已添加到 .env.example 和 docker-compose.yml
+- ✅ 密钥生成脚本已创建
+
+**验收标准**：
+1. ✅ pgcrypto 扩展已启用（schema.sql 第 24 行）
+2. ✅ 加密工具类支持应用层加密/解密
+3. ✅ 加密工具类支持 HMAC 生成
+4. ✅ 加密工具类支持 pgcrypto SQL 生成
+5. ✅ 密钥可通过环境变量配置
+6. ✅ 单元测试覆盖率 ≥ 90%（21 个测试全部通过）
 
 #### 步骤 1.1：启用 pgcrypto 扩展
 

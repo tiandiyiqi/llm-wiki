@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>侧边栏测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: sans-serif; }
+        .debug { background: #fef3c7; padding: 1rem; margin: 1rem; border-radius: 0.5rem; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="debug">
+        <h2 class="font-bold text-lg mb-2">屏幕宽度检测</h2>
+        <p>当前宽度：<span id="width" class="font-mono text-xl"></span> px</p>
+        <p>Tailwind lg 断点：<span class="font-mono">1024px</span></p>
+        <p id="status" class="mt-2 text-sm"></p>
+    </div>
+
+    <div class="flex">
+        <!-- 桌面端侧边栏（模拟） -->
+        <aside class="w-48 bg-white border-r border-gray-200 fixed left-0 top-0 bottom-0 overflow-y-auto z-10 hidden lg:block">
+            <div class="p-4">
+                <h3 class="font-bold mb-2">桌面端侧边栏</h3>
+                <p class="text-sm text-gray-600">这个侧边栏只在屏幕宽度 ≥ 1024px 时显示</p>
+                <button onclick="alert('桌面端按钮点击')" class="mt-2 px-3 py-2 bg-blue-500 text-white rounded">
+                    测试按钮
+                </button>
+            </div>
+        </aside>
+
+        <!-- 主内容 -->
+        <main class="ml-0 lg:ml-48 flex-1 p-4">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h1 class="text-2xl font-bold mb-4">侧边栏测试页面</h1>
+                <p class="mb-2">如果您看不到左侧侧边栏，说明：</p>
+                <ul class="list-disc list-inside text-sm space-y-1">
+                    <li>浏览器窗口宽度 &lt; 1024px</li>
+                    <li>浏览器处于设备模拟模式</li>
+                    <li>浏览器缩放比例影响宽度计算</li>
+                </ul>
+                
+                <div class="mt-6 p-4 bg-yellow-50 rounded">
+                    <h3 class="font-semibold mb-2">解决方法：</h3>
+                    <ol class="list-decimal list-inside text-sm space-y-1">
+                        <li>全屏浏览器窗口</li>
+                        <li>关闭设备模拟模式（F12 → 关闭设备工具栏）</li>
+                        <li>检查浏览器缩放是否为 100%</li>
+                    </ol>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function updateWidth() {
+            const width = window.innerWidth;
+            document.getElementById('width').textContent = width;
+            
+            const status = document.getElementById('status');
+            if (width >= 1024) {
+                status.innerHTML = '<span class="text-green-600 font-semibold">✓ 桌面端模式（侧边栏可见）</span>';
+            } else {
+                status.innerHTML = '<span class="text-red-600 font-semibold">✗ 移动端模式（侧边栏隐藏）</span> - 请全屏浏览器窗口';
+            }
+        }
+        
+        updateWidth();
+        window.addEventListener('resize', updateWidth);
+    </script>
+</body>
+</html>

@@ -1,0 +1,546 @@
+[
+  {
+    "id": "atoms/methods/database-migration",
+    "path": "atoms/methods/database-migration.md",
+    "type": "method",
+    "title": "Database Migration Strategy",
+    "description": "Best practices for database schema migrations",
+    "tags": [
+      "database",
+      "migration",
+      "schema",
+      "sql"
+    ],
+    "timestamp": "2026-06-20T11:25:00Z",
+    "confidence": 0.85,
+    "content": "## Database Migration Best Practices\n\n### Principles\n1. Always use version-controlled migration scripts\n2. Test migrations on staging first\n3. Include rollback scripts\n4. Never modify existing migrations\n\n### Example (PostgreSQL)\n```sql\n-- Migration: Add user roles\n-- Version: 003\n\nCREATE TABLE user_roles (\n  id SERIAL PRIMARY KEY,\n  user_id INTEGER REFERENCES users(id),\n  role VARCHAR(50) NOT NULL\n);\n\n-- Rollback\nDROP TABLE user_roles;\n```\n\n### Tools\n- Django migrations\n- Rails migrations\n- Fly"
+  },
+  {
+    "id": "atoms/methods/nginx-load-balancer",
+    "path": "atoms/methods/nginx-load-balancer.md",
+    "type": "method",
+    "title": "Nginx Load Balancer Configuration",
+    "description": "Setting up Nginx as a load balancer for web applications",
+    "tags": [
+      "nginx",
+      "load-balancer",
+      "proxy"
+    ],
+    "timestamp": "2026-06-20T11:35:00Z",
+    "confidence": 0.85,
+    "content": "## Nginx Load Balancing\n\n### Configuration\n```nginx\nupstream backend {\n  least_conn;\n  server backend1:3000 weight=5;\n  server backend2:3000;\n  server backend3:3000 backup;\n}\n\nserver {\n  listen 80;\n  \n  location / {\n    proxy_pass http://backend;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n  }\n}\n```\n\n### Strategies\n- round-robin (default)\n- least_conn\n- ip_hash\n- weight-based\n\nRelated: [[atoms/definitions/load-balancing]], [[atoms/methods/nginx-reverse-proxy]]"
+  },
+  {
+    "id": "atoms/methods/logging-configuration",
+    "path": "atoms/methods/logging-configuration.md",
+    "type": "method",
+    "title": "Logging Configuration Guide",
+    "description": "Setting up structured logging for applications",
+    "tags": [
+      "logging",
+      "observability",
+      "debugging"
+    ],
+    "timestamp": "2026-06-20T11:55:00Z",
+    "confidence": 0.85,
+    "content": "## Structured Logging Setup\n\n### JSON Logging Format\n```json\n{\n  \"timestamp\": \"2026-06-20T12:00:00Z\",\n  \"level\": \"INFO\",\n  \"message\": \"User logged in\",\n  \"context\": {\n    \"user_id\": 123,\n    \"ip\": \"192.168.1.1\"\n  }\n}\n```\n\n### Log Levels\n- DEBUG: Detailed debugging\n- INFO: General information\n- WARN: Warning conditions\n- ERROR: Error conditions\n- FATAL: Critical failures\n\n### Aggregation Tools\n- ELK Stack (Elasticsearch, Logstash, Kibana)\n- Loki + Grafana\n- CloudWatch Logs\n\nRelated: [[atoms/metho"
+  },
+  {
+    "id": "atoms/methods/kubernetes-cluster-setup",
+    "path": "atoms/methods/kubernetes-cluster-setup.md",
+    "type": "method",
+    "title": "Kubernetes Cluster Setup",
+    "description": "Setting up a local or production Kubernetes cluster",
+    "tags": [
+      "kubernetes",
+      "k8s",
+      "cluster",
+      "minikube"
+    ],
+    "timestamp": "2026-06-20T11:10:00Z",
+    "confidence": 0.82,
+    "content": "## Kubernetes Setup Guide\n\n### Local Development (Minikube)\n```bash\n# Install minikube\nbrew install minikube\n\n# Start cluster\nminikube start\n\n# Verify\nkubectl cluster-info\n```\n\n### Production Setup\nUse managed services:\n- AWS EKS\n- Google GKE\n- Azure AKS\n\nRelated: [[atoms/definitions/kubernetes]], [[atoms/methods/kubernetes-deployment-yaml]]"
+  },
+  {
+    "id": "atoms/methods/nextcloud-deployment",
+    "path": "atoms/methods/nextcloud-deployment.md",
+    "type": "method",
+    "title": "Nextcloud Deployment Guide",
+    "description": "Complete guide for deploying Nextcloud self-hosted cloud",
+    "tags": [
+      "nextcloud",
+      "cloud",
+      "deployment",
+      "self-hosted"
+    ],
+    "timestamp": "2026-06-20T13:05:00Z",
+    "confidence": 0.85,
+    "content": "## Nextcloud Deployment\n\n### Quick Install (Docker)\n```bash\ndocker run -d \\\n  -p 8080:80 \\\n  -v nextcloud_data:/var/www/html \\\n  nextcloud\n```\n\n### Production Setup\n1. Install prerequisites (PHP, MySQL/MariaDB)\n2. Download Nextcloud archive\n3. Configure web server (Nginx/Apache)\n4. Run installer\n5. Configure SSL ([[atoms/methods/ssl-certificate-setup]])\n\n### Integration\n- LDAP authentication\n- Collabora Online (document editing)\n- Nextcloud Talk (video calls)\n\nRelated: [[atoms/definitions/web-ap"
+  },
+  {
+    "id": "atoms/methods/api-design-best-practices",
+    "path": "atoms/methods/api-design-best-practices.md",
+    "type": "method",
+    "title": "API Design Best Practices",
+    "description": "Guidelines for designing RESTful APIs",
+    "tags": [
+      "api",
+      "rest",
+      "design",
+      "best-practices"
+    ],
+    "timestamp": "2026-06-20T11:20:00Z",
+    "confidence": 0.9,
+    "content": "## REST API Design Guidelines\n\n### URL Structure\n- Use nouns: `/users`, `/orders`\n- Use plural convention\n- Hierarchical: `/users/{id}/orders`\n\n### HTTP Methods\n- GET: Read (no body modification)\n- POST: Create\n- PUT/PATCH: Update\n- DELETE: Remove\n\n### Response Codes\n- 200: Success\n- 201: Created\n- 400: Bad request\n- 404: Not found\n- 500: Server error\n\n### Versioning\n- URL: `/api/v1/users`\n- Header: `Accept: application/vnd.api.v1+json`\n\nRelated: [[atoms/definitions/rest-api]], [[atoms/facts/api"
+  },
+  {
+    "id": "atoms/methods/kubernetes-deployment-yaml",
+    "path": "atoms/methods/kubernetes-deployment-yaml.md",
+    "type": "method",
+    "title": "Kubernetes Deployment YAML",
+    "description": "Creating deployment manifests for Kubernetes",
+    "tags": [
+      "kubernetes",
+      "yaml",
+      "deployment"
+    ],
+    "timestamp": "2026-06-20T11:15:00Z",
+    "confidence": 0.8,
+    "content": "## Kubernetes Deployment Manifest\n\n```yaml\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: myapp-deployment\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: myapp\n  template:\n    metadata:\n      labels:\n        app: myapp\n    spec:\n      containers:\n      - name: myapp\n        image: myapp:v1\n        ports:\n        - containerPort: 3000\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: myapp-service\nspec:\n  type: LoadBalancer\n  ports:\n  - port: 80\n    targetPort: 3000\n  select"
+  },
+  {
+    "id": "atoms/methods/ssl-certificate-setup",
+    "path": "atoms/methods/ssl-certificate-setup.md",
+    "type": "method",
+    "title": "SSL Certificate Setup with Let's Encrypt",
+    "description": "Setting up free SSL certificates using Certbot",
+    "tags": [
+      "ssl",
+      "tls",
+      "security",
+      "certbot"
+    ],
+    "timestamp": "2026-06-20T11:45:00Z",
+    "confidence": 0.9,
+    "content": "## SSL Certificate Setup\n\n### Using Certbot\n```bash\n# Install certbot\nsudo apt install certbot python3-certbot-nginx\n\n# Obtain certificate\nsudo certbot --nginx -d example.com -d www.example.com\n\n# Auto-renewal\nsudo certbot renew --dry-run\n```\n\n### Nginx SSL Config\n```nginx\nserver {\n  listen 443 ssl http2;\n  ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem;\n  ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;\n  \n  ssl_protocols TLSv1.2 TLSv1.3;\n  ssl_ciphers ECDHE-E"
+  },
+  {
+    "id": "atoms/methods/docker-compose-configuration",
+    "path": "atoms/methods/docker-compose-configuration.md",
+    "type": "method",
+    "title": "Docker Compose Configuration",
+    "description": "Multi-container application configuration with Docker Compose",
+    "tags": [
+      "docker",
+      "compose",
+      "orchestration"
+    ],
+    "timestamp": "2026-06-20T11:05:00Z",
+    "confidence": 0.85,
+    "content": "## Docker Compose Setup\n\n### Sample compose.yaml\n```yaml\nversion: '3.8'\nservices:\n  web:\n    build: .\n    ports:\n      - \"3000:3000\"\n    depends_on:\n      - db\n  db:\n    image: postgres:15\n    environment:\n      POSTGRES_PASSWORD: secret\n    volumes:\n      - db_data:/var/lib/postgresql/data\n\nvolumes:\n  db_data:\n```\n\n### Commands\n- `docker compose up -d` - Start services\n- `docker compose down` - Stop services\n- `docker compose logs` - View logs\n\nRelated: [[atoms/methods/docker-container-setup]],"
+  },
+  {
+    "id": "atoms/methods/ci-cd-pipeline",
+    "path": "atoms/methods/ci-cd-pipeline.md",
+    "type": "method",
+    "title": "CI/CD Pipeline Setup",
+    "description": "Setting up continuous integration and deployment pipelines",
+    "tags": [
+      "ci-cd",
+      "automation",
+      "devops",
+      "github-actions"
+    ],
+    "timestamp": "2026-06-20T12:00:00Z",
+    "confidence": 0.88,
+    "content": "## CI/CD Pipeline with GitHub Actions\n\n### Workflow Example\n```yaml\nname: Deploy Pipeline\n\non:\n  push:\n    branches: [main]\n\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v3\n      - run: npm install\n      - run: npm test\n  \n  deploy:\n    needs: test\n    runs-on: ubuntu-latest\n    steps:\n      - run: docker build -t app:v1 .\n      - run: docker push registry/app:v1\n```\n\n### Stages\n1. Build\n2. Test\n3. Security scan\n4. Deploy to staging\n5. Deploy to production\n\n"
+  },
+  {
+    "id": "atoms/methods/docker-container-setup",
+    "path": "atoms/methods/docker-container-setup.md",
+    "type": "method",
+    "title": "Docker Container Setup",
+    "description": "Steps to create and run Docker containers for applications",
+    "tags": [
+      "docker",
+      "container",
+      "deployment"
+    ],
+    "timestamp": "2026-06-20T11:00:00Z",
+    "confidence": 0.88,
+    "content": "## Docker Container Setup Guide\n\n### Prerequisites\n- Install Docker Engine\n- Verify installation: `docker --version`\n\n### Steps\n\n1. **Create Dockerfile**\n   ```dockerfile\n   FROM node:18-alpine\n   WORKDIR /app\n   COPY package*.json ./\n   RUN npm install\n   COPY . .\n   CMD [\"npm\", \"start\"]\n   ```\n\n2. **Build Image**\n   ```bash\n   docker build -t myapp:v1 .\n   ```\n\n3. **Run Container**\n   ```bash\n   docker run -d -p 3000:3000 myapp:v1\n   ```\n\nRelated: [[atoms/definitions/containerization]], [[atom"
+  },
+  {
+    "id": "atoms/methods/nginx-reverse-proxy",
+    "path": "atoms/methods/nginx-reverse-proxy.md",
+    "type": "method",
+    "title": "Nginx Reverse Proxy Setup",
+    "description": "Configuring Nginx as a reverse proxy server",
+    "tags": [
+      "nginx",
+      "proxy",
+      "reverse-proxy"
+    ],
+    "timestamp": "2026-06-20T11:40:00Z",
+    "confidence": 0.87,
+    "content": "## Nginx Reverse Proxy\n\n### Basic Configuration\n```nginx\nserver {\n  listen 80;\n  server_name example.com;\n  \n  location /api/ {\n    proxy_pass http://localhost:3000/;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection 'upgrade';\n    proxy_cache_bypass $http_upgrade;\n  }\n  \n  location /static/ {\n    alias /var/www/static/;\n  }\n}\n```\n\n### Benefits\n- SSL termination\n- Static file serving\n- Caching\n- Load balancing (see [[atoms/methods/nginx-load-"
+  },
+  {
+    "id": "atoms/methods/oauth-integration",
+    "path": "atoms/methods/oauth-integration.md",
+    "type": "method",
+    "title": "OAuth Integration Guide",
+    "description": "Implementing OAuth 2.0 authentication in applications",
+    "tags": [
+      "oauth",
+      "auth",
+      "security",
+      "integration"
+    ],
+    "timestamp": "2026-06-20T11:30:00Z",
+    "confidence": 0.88,
+    "content": "## OAuth 2.0 Integration\n\n### Flow Types\n- Authorization Code (most secure)\n- Implicit (deprecated)\n- Client Credentials (machine-to-machine)\n- Refresh Token (renew access)\n\n### Implementation Steps\n1. Register application with provider\n2. Configure redirect URI\n3. Implement authorization endpoint\n4. Handle token exchange\n5. Validate tokens\n\n### Example: Google OAuth\n```javascript\nconst oauth2Client = new OAuth2Client(\n  CLIENT_ID,\n  CLIENT_SECRET,\n  REDIRECT_URI\n);\n```\n\nRelated: [[atoms/definit"
+  },
+  {
+    "id": "atoms/methods/monitoring-setup",
+    "path": "atoms/methods/monitoring-setup.md",
+    "type": "method",
+    "title": "Application Monitoring Setup",
+    "description": "Setting up Prometheus and Grafana for application monitoring",
+    "tags": [
+      "monitoring",
+      "prometheus",
+      "grafana",
+      "observability"
+    ],
+    "timestamp": "2026-06-20T11:50:00Z",
+    "confidence": 0.83,
+    "content": "## Monitoring Stack Setup\n\n### Prometheus Configuration\n```yaml\n# prometheus.yml\nglobal:\n  scrape_interval: 15s\n\nscrape_configs:\n  - job_name: 'app'\n    static_configs:\n      - targets: ['localhost:9090']\n  \n  - job_name: 'node'\n    static_configs:\n      - targets: ['localhost:9100']\n```\n\n### Grafana Dashboards\n- Import standard dashboards\n- Create custom visualizations\n- Set up alerting rules\n\nKey metrics: CPU, memory, request latency, error rate\n\nRelated: [[atoms/facts/prometheus-metrics]], [["
+  },
+  {
+    "id": "atoms/facts/log-aggregation",
+    "path": "atoms/facts/log-aggregation.md",
+    "type": "fact",
+    "title": "Log Aggregation Benefits",
+    "description": "Advantages of centralized log collection",
+    "tags": [
+      "logging",
+      "aggregation",
+      "observability"
+    ],
+    "timestamp": "2026-06-20T12:35:00Z",
+    "confidence": 0.88,
+    "content": "Log Aggregation Benefits:\n\n- Centralized troubleshooting\n- Correlation across services\n- Historical analysis\n- Compliance requirements\n- Anomaly detection\n- Performance insights\n\nPopular stacks:\n- ELK (Elasticsearch, Logstash, Kibana)\n- EFK (Elasticsearch, Fluentd, Kibana)\n- PLG (Prometheus, Loki, Grafana)\n\nRelated: [[atoms/methods/logging-configuration]], [[atoms/methods/monitoring-setup]]"
+  },
+  {
+    "id": "atoms/facts/https-security",
+    "path": "atoms/facts/https-security.md",
+    "type": "fact",
+    "title": "HTTPS Security Benefits",
+    "description": "Security advantages of HTTPS over HTTP",
+    "tags": [
+      "https",
+      "ssl",
+      "tls",
+      "security"
+    ],
+    "timestamp": "2026-06-20T12:30:00Z",
+    "confidence": 0.95,
+    "content": "HTTPS Security Benefits:\n\n- Data encryption in transit\n- Identity verification (certificate)\n- Prevents MITM attacks\n- Protects against eavesdropping\n- Required for HTTP/2\n- SEO ranking boost\n\nTLS 1.3 improvements:\n- Faster handshake\n- Better cipher suites\n- Forward secrecy default\n\nRelated: [[atoms/methods/ssl-certificate-setup]], [[atoms/methods/nginx-reverse-proxy]]"
+  },
+  {
+    "id": "atoms/facts/docker-networking",
+    "path": "atoms/facts/docker-networking.md",
+    "type": "fact",
+    "title": "Docker Networking Modes",
+    "description": "Different network configurations available in Docker",
+    "tags": [
+      "docker",
+      "network",
+      "container"
+    ],
+    "timestamp": "2026-06-20T12:15:00Z",
+    "confidence": 0.88,
+    "content": "Docker Network Types:\n\n- bridge: Default isolated network\n- host: Container shares host network\n- overlay: Multi-host networking (Swarm)\n- macvlan: Container gets MAC address\n- none: No network access\n\nCommands:\n```bash\ndocker network create mynet\ndocker network connect mynet container1\n```\n\nRelated: [[atoms/methods/docker-compose-configuration]], [[atoms/methods/docker-container-setup]]"
+  },
+  {
+    "id": "atoms/facts/mongodb-capabilities",
+    "path": "atoms/facts/mongodb-capabilities.md",
+    "type": "fact",
+    "title": "MongoDB Capabilities",
+    "description": "Key capabilities of MongoDB document database",
+    "tags": [
+      "mongodb",
+      "nosql",
+      "database",
+      "document"
+    ],
+    "timestamp": "2026-06-20T12:05:00Z",
+    "confidence": 0.9,
+    "content": "MongoDB offers:\n\n- Document-based storage (BSON)\n- Horizontal scaling via sharding\n- Replica sets for high availability\n- Flexible schema\n- Aggregation pipeline\n- Atlas cloud service\n\nComparison: [[atoms/facts/postgresql-features]]\n\nRelated: [[atoms/definitions/database]]"
+  },
+  {
+    "id": "atoms/facts/postgresql-features",
+    "path": "atoms/facts/postgresql-features.md",
+    "type": "fact",
+    "title": "PostgreSQL Key Features",
+    "description": "Important features of PostgreSQL database system",
+    "tags": [
+      "postgresql",
+      "database",
+      "sql",
+      "features"
+    ],
+    "timestamp": "2026-06-20T12:00:00Z",
+    "confidence": 0.95,
+    "content": "PostgreSQL provides:\n\n- ACID compliance\n- Advanced indexing (B-tree, GiST, GIN)\n- Full-text search\n- JSON support (JSONB)\n- Table inheritance\n- Window functions\n- Extensions system\n\nRelated: [[atoms/definitions/database]], [[atoms/methods/database-migration]]"
+  },
+  {
+    "id": "atoms/facts/api-rate-limiting",
+    "path": "atoms/facts/api-rate-limiting.md",
+    "type": "fact",
+    "title": "API Rate Limiting Strategies",
+    "description": "Common rate limiting approaches for APIs",
+    "tags": [
+      "api",
+      "rate-limit",
+      "throttling"
+    ],
+    "timestamp": "2026-06-20T12:20:00Z",
+    "confidence": 0.85,
+    "content": "Rate Limiting Algorithms:\n\n- Token bucket: Fixed tokens refill over time\n- Sliding window: Smooth request distribution\n- Fixed window: Count requests per time window\n- Leaky bucket: Constant outflow rate\n\nImplementation:\n```nginx\nlimit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;\nlimit_req zone=api burst=20 nodelay;\n```\n\nHeaders: `X-RateLimit-Limit`, `X-RateLimit-Remaining`\n\nRelated: [[atoms/methods/api-design-best-practices]], [[atoms/definitions/rest-api]]"
+  },
+  {
+    "id": "atoms/facts/jwt-security",
+    "path": "atoms/facts/jwt-security.md",
+    "type": "fact",
+    "title": "JWT Security Considerations",
+    "description": "Security best practices for JWT tokens",
+    "tags": [
+      "jwt",
+      "security",
+      "token",
+      "authentication"
+    ],
+    "timestamp": "2026-06-20T12:10:00Z",
+    "confidence": 0.92,
+    "content": "JWT Security Best Practices:\n\n- Use short expiration times (15-30 minutes)\n- Store refresh tokens securely\n- Never store JWTs in localStorage (use httpOnly cookies)\n- Always validate signature\n- Use strong signing algorithm (RS256 > HS256)\n- Include only minimal claims\n\nAttack vectors: token theft, replay attacks\n\nRelated: [[atoms/definitions/authentication]], [[atoms/methods/oauth-integration]]"
+  },
+  {
+    "id": "atoms/facts/prometheus-metrics",
+    "path": "atoms/facts/prometheus-metrics.md",
+    "type": "fact",
+    "title": "Prometheus Metric Types",
+    "description": "Four core metric types in Prometheus",
+    "tags": [
+      "prometheus",
+      "metrics",
+      "monitoring"
+    ],
+    "timestamp": "2026-06-20T12:25:00Z",
+    "confidence": 0.9,
+    "content": "Prometheus Metric Types:\n\n- Counter: Cumulative value (requests_total)\n- Gauge: Point-in-time value (memory_usage)\n- Histogram: Distribution (request_duration)\n- Summary: Similar to histogram with quantiles\n\nQuery examples:\n```promql\nrate(http_requests_total[5m])\navg(node_memory_usage_bytes)\nhistogram_quantile(0.95, request_duration)\n```\n\nRelated: [[atoms/methods/monitoring-setup]]"
+  },
+  {
+    "id": "atoms/definitions/authentication",
+    "path": "atoms/definitions/authentication.md",
+    "type": "definition",
+    "title": "Authentication Mechanisms",
+    "description": "Processes for verifying user identity",
+    "tags": [
+      "security",
+      "auth",
+      "oauth",
+      "jwt"
+    ],
+    "timestamp": "2026-06-20T10:30:00Z",
+    "confidence": 0.9,
+    "content": "**Authentication** verifies who a user is.\n\nCommon methods:\n- Password-based\n- OAuth/OIDC (see [[atoms/methods/oauth-integration]])\n- JWT tokens ([[atoms/facts/jwt-security]])\n- Multi-factor authentication\n\nCritical for [[atoms/definitions/web-application]] security."
+  },
+  {
+    "id": "atoms/definitions/kubernetes",
+    "path": "atoms/definitions/kubernetes.md",
+    "type": "definition",
+    "title": "Kubernetes",
+    "description": "Open-source container orchestration platform",
+    "tags": [
+      "kubernetes",
+      "k8s",
+      "orchestration",
+      "devops"
+    ],
+    "timestamp": "2026-06-20T10:20:00Z",
+    "confidence": 0.88,
+    "content": "**Kubernetes (K8s)** automates deployment, scaling, and management of containerized applications.\n\nCore concepts:\n- Pods: Smallest deployable units\n- Services: Network exposure\n- Deployments: Rolling updates\n- Built on [[atoms/definitions/containerization]]\n\nSee [[atoms/methods/kubernetes-cluster-setup]]"
+  },
+  {
+    "id": "atoms/definitions/web-application",
+    "path": "atoms/definitions/web-application.md",
+    "type": "definition",
+    "title": "Web Application Definition",
+    "description": "A software application that runs on a web server and is accessed through a browser",
+    "tags": [
+      "web",
+      "application",
+      "software"
+    ],
+    "timestamp": "2026-06-20T10:00:00Z",
+    "confidence": 0.95,
+    "content": "A **Web Application** is a client-server software application where the client runs in a web browser.\n\nCommon examples include:\n- [[atoms/methods/nextcloud-deployment]]\n- [[atoms/methods/docker-container-setup]]\n- Online banking systems\n- Social media platforms"
+  },
+  {
+    "id": "atoms/definitions/microservices",
+    "path": "atoms/definitions/microservices.md",
+    "type": "definition",
+    "title": "Microservices Architecture",
+    "description": "An architectural style where applications are composed of small, independent services",
+    "tags": [
+      "architecture",
+      "microservices",
+      "design"
+    ],
+    "timestamp": "2026-06-20T10:05:00Z",
+    "confidence": 0.9,
+    "content": "**Microservices Architecture** breaks applications into small, loosely coupled services.\n\nKey characteristics:\n- Each service handles a specific business capability\n- Services communicate via APIs (see [[atoms/definitions/rest-api]])\n- Independent deployment and scaling\n- Often uses [[atoms/definitions/containerization]]"
+  },
+  {
+    "id": "atoms/definitions/containerization",
+    "path": "atoms/definitions/containerization.md",
+    "type": "definition",
+    "title": "Containerization",
+    "description": "Packaging software with its dependencies into standardized units",
+    "tags": [
+      "docker",
+      "container",
+      "devops"
+    ],
+    "timestamp": "2026-06-20T10:15:00Z",
+    "confidence": 0.92,
+    "content": "**Containerization** encapsulates an application with its environment and dependencies.\n\nBenefits:\n- Consistent runtime across environments\n- Lightweight compared to VMs\n- Easy deployment via [[atoms/methods/docker-container-setup]]\n- Foundation for [[atoms/definitions/kubernetes]]"
+  },
+  {
+    "id": "atoms/definitions/load-balancing",
+    "path": "atoms/definitions/load-balancing.md",
+    "type": "definition",
+    "title": "Load Balancing",
+    "description": "Distributing network traffic across multiple servers",
+    "tags": [
+      "networking",
+      "load-balancer",
+      "scalability"
+    ],
+    "timestamp": "2026-06-20T10:35:00Z",
+    "confidence": 0.85,
+    "content": "**Load Balancing** improves availability and performance.\n\nStrategies:\n- Round-robin\n- Least connections\n- IP hash\n\nTools: Nginx, HAProxy (see [[atoms/methods/nginx-load-balancer]])\n\nEssential for [[atoms/definitions/microservices]] scaling."
+  },
+  {
+    "id": "atoms/definitions/rest-api",
+    "path": "atoms/definitions/rest-api.md",
+    "type": "definition",
+    "title": "REST API",
+    "description": "Representational State Transfer - a standard for web service communication",
+    "tags": [
+      "api",
+      "rest",
+      "http",
+      "web"
+    ],
+    "timestamp": "2026-06-20T10:10:00Z",
+    "confidence": 0.95,
+    "content": "**REST API** is an architectural style for designing networked applications.\n\nHTTP methods:\n- GET: Retrieve data\n- POST: Create new resources\n- PUT: Update existing resources\n- DELETE: Remove resources\n\nRelated: [[atoms/methods/api-design-best-practices]]"
+  },
+  {
+    "id": "atoms/definitions/database",
+    "path": "atoms/definitions/database.md",
+    "type": "definition",
+    "title": "Database Systems",
+    "description": "Organized collection of structured information stored electronically",
+    "tags": [
+      "database",
+      "sql",
+      "nosql",
+      "storage"
+    ],
+    "timestamp": "2026-06-20T10:25:00Z",
+    "confidence": 0.95,
+    "content": "A **Database** stores and manages structured data.\n\nTypes:\n- Relational (SQL): [[atoms/facts/postgresql-features]]\n- NoSQL: [[atoms/facts/mongodb-capabilities]]\n- In-memory: Redis\n- Graph: Neo4j\n\nRelated methods: [[atoms/methods/database-migration]]"
+  },
+  {
+    "id": "atoms/data/container-statistics",
+    "path": "atoms/data/container-statistics.md",
+    "type": "data",
+    "title": "Container Adoption Statistics 2026",
+    "description": "Current industry adoption rates for container technologies",
+    "tags": [
+      "statistics",
+      "container",
+      "adoption"
+    ],
+    "timestamp": "2026-06-20T12:55:00Z",
+    "confidence": 0.7,
+    "content": "## Container Adoption Statistics (2026)\n\n| Technology | Adoption Rate |\n|------------|--------------|\n| Docker | 85% |\n| Kubernetes | 60% |\n| Docker Compose | 75% |\n| Helm Charts | 45% |\n\nSource: Industry surveys\n\nRelated: [[atoms/definitions/containerization]], [[atoms/definitions/kubernetes]]"
+  },
+  {
+    "id": "atoms/data/api-performance-benchmarks",
+    "path": "atoms/data/api-performance-benchmarks.md",
+    "type": "data",
+    "title": "API Performance Benchmarks",
+    "description": "Typical response time benchmarks for API endpoints",
+    "tags": [
+      "api",
+      "performance",
+      "benchmark",
+      "data"
+    ],
+    "timestamp": "2026-06-20T13:00:00Z",
+    "confidence": 0.75,
+    "content": "## API Response Time Benchmarks\n\n| Endpoint Type | Target Latency |\n|--------------|---------------|\n| Simple GET | < 50ms |\n| Complex Query | < 200ms |\n| Write Operation | < 100ms |\n| Batch Process | < 500ms |\n\nAcceptable error rate: < 0.1%\n\nRelated: [[atoms/methods/api-design-best-practices]], [[atoms/facts/api-rate-limiting]]"
+  },
+  {
+    "id": "atoms/questions/sql-vs-nosql",
+    "path": "atoms/questions/sql-vs-nosql.md",
+    "type": "question",
+    "title": "SQL vs NoSQL - Which to Choose?",
+    "description": "Decision criteria for choosing database type",
+    "tags": [
+      "sql",
+      "nosql",
+      "database",
+      "decision"
+    ],
+    "timestamp": "2026-06-20T12:45:00Z",
+    "confidence": 0.8,
+    "content": "## Question\n\nWhen should I use SQL vs NoSQL databases?\n\n### Choose SQL When:\n- Data is structured and relational\n- Complex queries needed\n- ACID compliance critical\n- Schema is stable\n\n### Choose NoSQL When:\n- Unstructured data\n- High write throughput\n- Flexible schema needed\n- Horizontal scaling priority\n\nExamples: [[atoms/facts/postgresql-features]] vs [[atoms/facts/mongodb-capabilities]]\n\nRelated: [[atoms/definitions/database]]"
+  },
+  {
+    "id": "atoms/questions/oauth-vs-jwt",
+    "path": "atoms/questions/oauth-vs-jwt.md",
+    "type": "question",
+    "title": "OAuth vs JWT - Authentication Choice",
+    "description": "Choosing between OAuth and JWT for authentication",
+    "tags": [
+      "oauth",
+      "jwt",
+      "auth",
+      "decision"
+    ],
+    "timestamp": "2026-06-20T12:50:00Z",
+    "confidence": 0.78,
+    "content": "## Question\n\nShould I use OAuth or JWT for authentication?\n\n### OAuth Advantages:\n- Delegated authorization\n- Third-party login (Google, GitHub)\n- Token refresh built-in\n- Enterprise-friendly\n\n### JWT Advantages:\n- Self-contained tokens\n- Stateless verification\n- Simple implementation\n- Good for microservices\n\nOften used together: OAuth for login, JWT for API access.\n\nRelated: [[atoms/definitions/authentication]], [[atoms/methods/oauth-integration]]"
+  },
+  {
+    "id": "atoms/questions/docker-vs-kubernetes",
+    "path": "atoms/questions/docker-vs-kubernetes.md",
+    "type": "question",
+    "title": "When to use Docker vs Kubernetes?",
+    "description": "Choosing the right containerization tool for different scenarios",
+    "tags": [
+      "docker",
+      "kubernetes",
+      "decision"
+    ],
+    "timestamp": "2026-06-20T12:40:00Z",
+    "confidence": 0.75,
+    "content": "## Question\n\nWhen should I use Docker alone versus Kubernetes?\n\n### Docker Suitable For:\n- Single server deployments\n- Development environments\n- Simple applications\n- Quick prototyping\n\n### Kubernetes Suitable For:\n- Multi-server clusters\n- Production scaling needs\n- Complex microservices\n- High availability requirements\n\nRelated: [[atoms/definitions/containerization]], [[atoms/definitions/kubernetes]]"
+  }
+]

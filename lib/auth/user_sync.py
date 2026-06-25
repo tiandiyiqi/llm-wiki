@@ -320,6 +320,7 @@ class UserSyncService:
     """Casdoor 用户同步服务.
 
     将 Casdoor 用户信息同步到 PostgreSQL users 表。
+    支持敏感字段加密（phone/email）。
     """
 
     def __init__(self, db_manager: Any) -> None:
@@ -329,6 +330,16 @@ class UserSyncService:
             db_manager: PostgreSQLManager 实例（需提供 asyncpg 连接池）
         """
         self._db = db_manager
+        self._encryption = None
+
+        # 初始化加密管理器（如果配置了密钥）
+        try:
+            from lib.utils.encryption import EncryptionManager
+            self._encryption = EncryptionManager()
+            logger.info("EncryptionManager initialized for UserSyncService")
+        except ValueError as e:
+            logger.warning(f"EncryptionManager not initialized: {e}")
+            logger.warning("Phone and email fields will not be encrypted")
 
     async def sync_user_from_casdoor(
         self,
@@ -369,14 +380,32 @@ class UserSyncService:
         if department and org_id:
             dept_id = await self.get_or_create_department(org_id, department)
 
+        # 加密敏感字段（如果配置了加密）
+        phone_hmac = None
+        email_hmac = None
+
+        if self._encryption:
+            if phone:
+                phone_hmac = self._encryption.generate_hmac(phone)
+            if email:
+                email_hmac = self._encryption.generate_hmac(email)
+
         # 幂等同步：INSERT ON CONFLICT DO UPDATE
+        # 注意：phone/email 明文字段保留用于向后兼容
+        # phone_encrypted/email_encrypted 由数据库触发器或应用层填充
         query = """
-            INSERT INTO users (id, name, email, phone, organization_id, department_id, global_role, status, last_login_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', NOW())
+            INSERT INTO users (
+                id, name, email, phone,
+                phone_hmac, email_hmac,
+                organization_id, department_id, global_role, status, last_login_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', NOW())
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 email = COALESCE(EXCLUDED.email, users.email),
                 phone = COALESCE(EXCLUDED.phone, users.phone),
+                phone_hmac = COALESCE(EXCLUDED.phone_hmac, users.phone_hmac),
+                email_hmac = COALESCE(EXCLUDED.email_hmac, users.email_hmac),
                 organization_id = COALESCE(EXCLUDED.organization_id, users.organization_id),
                 department_id = COALESCE(EXCLUDED.department_id, users.department_id),
                 global_role = EXCLUDED.global_role,
@@ -392,6 +421,8 @@ class UserSyncService:
                 casdoor_user_name,
                 email,
                 phone,
+                phone_hmac,
+                email_hmac,
                 org_id,
                 dept_id,
                 global_role,
@@ -459,3 +490,53 @@ class UserSyncService:
         """
         query = "UPDATE users SET last_login_at = NOW() WHERE id = $1"
         await self._db.execute_query(query, user_id)
+
+    async def find_user_by_phone_hmac(self, phone: str) -> Optional[Dict[str, Any]]:
+        """按手机号 HMAC 查询用户.
+
+        Args:
+            phone: 手机号明文
+
+        Returns:
+            用户信息字典，不存在返回 None
+        """
+        if not self._encryption:
+            logger.warning("Encryption not configured, cannot search by phone_hmac")
+            return None
+
+        phone_hmac = self._encryption.generate_hmac(phone)
+        query = """
+            SELECT id, name, email, phone, phone_hmac, email_hmac,
+                   organization_id, department_id, global_role, status,
+                   created_at, updated_at, last_login_at
+            FROM users
+            WHERE phone_hmac = $1
+        """
+
+        result = await self._db.execute_query(query, phone_hmac)
+        return result[0] if result else None
+
+    async def find_user_by_email_hmac(self, email: str) -> Optional[Dict[str, Any]]:
+        """按邮箱 HMAC 查询用户.
+
+        Args:
+            email: 邮箱明文
+
+        Returns:
+            用户信息字典，不存在返回 None
+        """
+        if not self._encryption:
+            logger.warning("Encryption not configured, cannot search by email_hmac")
+            return None
+
+        email_hmac = self._encryption.generate_hmac(email)
+        query = """
+            SELECT id, name, email, phone, phone_hmac, email_hmac,
+                   organization_id, department_id, global_role, status,
+                   created_at, updated_at, last_login_at
+            FROM users
+            WHERE email_hmac = $1
+        """
+
+        result = await self._db.execute_query(query, email_hmac)
+        return result[0] if result else None

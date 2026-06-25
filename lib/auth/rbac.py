@@ -5,12 +5,17 @@
 - 权限检查（CRUD 操作）
 - 角色继承
 - 动态权限分配
+- 数据库持久化
+- 缓存机制
 """
 
 import logging
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, TYPE_CHECKING
 from dataclasses import dataclass, field
 from enum import Enum
+
+if TYPE_CHECKING:
+    from lib.core.db_manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -103,12 +108,19 @@ class RBACManager:
     """RBAC 权限管理器
 
     管理角色和权限的映射关系。
+    支持数据库持久化和内存缓存。
     """
 
-    def __init__(self):
-        """初始化 RBAC 管理器"""
+    def __init__(self, db_manager: Optional['DatabaseManager'] = None):
+        """初始化 RBAC 管理器
+
+        Args:
+            db_manager: 数据库管理器实例（可选，用于持久化）
+        """
         self._user_roles: Dict[str, Dict[int, Set[str]]] = {}  # user_id -> {kb_id -> roles}
         self._role_cache: Dict[str, Set[Permission]] = {}
+        self._db_manager = db_manager
+        self._cache_valid: Dict[str, bool] = {}  # 缓存有效性标记
 
     async def initialize(self) -> None:
         """初始化 RBAC 系统"""
@@ -116,7 +128,35 @@ class RBACManager:
         for role_name, role_def in ROLE_DEFINITIONS.items():
             self._role_cache[role_name] = role_def.permissions
 
+        # 如果有数据库管理器，从数据库加载角色
+        if self._db_manager:
+            await self._load_roles_from_db()
+
         logger.info("RBACManager initialized")
+
+    async def _load_roles_from_db(self) -> None:
+        """从数据库加载所有角色到内存缓存"""
+        if not self._db_manager:
+            return
+
+        try:
+            query = "SELECT user_id, kb_id, role FROM kb_members"
+            results = await self._db_manager.fetch_all(query)
+
+            for row in results:
+                user_id = row['user_id']
+                kb_id = row['kb_id']
+                role = row['role']
+
+                if user_id not in self._user_roles:
+                    self._user_roles[user_id] = {}
+                if kb_id not in self._user_roles[user_id]:
+                    self._user_roles[user_id][kb_id] = set()
+                self._user_roles[user_id][kb_id].add(role)
+
+            logger.info(f"Loaded {len(results)} role assignments from database")
+        except Exception as e:
+            logger.error(f"Failed to load roles from database: {e}")
 
     def get_role_permissions(self, role_name: str) -> Set[Permission]:
         """获取角色的所有权限（包括继承）
@@ -164,7 +204,7 @@ class RBACManager:
         return permission in permissions or Permission.ADMIN in permissions
 
     async def assign_role(self, user_id: str, kb_id: int, role_name: str) -> bool:
-        """为用户分配角色
+        """为用户分配角色（写入数据库并更新缓存）
 
         Args:
             user_id: 用户 ID
@@ -178,19 +218,37 @@ class RBACManager:
             logger.error(f"Invalid role: {role_name}")
             return False
 
+        # 写入数据库（如果启用持久化）
+        if self._db_manager:
+            try:
+                query = """
+                    INSERT INTO kb_members (kb_id, user_id, role, joined_at)
+                    VALUES ($1, $2, $3, NOW())
+                    ON CONFLICT (kb_id, user_id) DO UPDATE SET role = $3
+                """
+                await self._db_manager.execute(query, kb_id, user_id, role_name)
+                logger.info(f"Assigned role {role_name} to user {user_id} for KB {kb_id} in database")
+            except Exception as e:
+                logger.error(f"Failed to assign role in database: {e}")
+                return False
+
+        # 更新内存缓存
         if user_id not in self._user_roles:
             self._user_roles[user_id] = {}
-
         if kb_id not in self._user_roles[user_id]:
             self._user_roles[user_id][kb_id] = set()
-
         self._user_roles[user_id][kb_id].add(role_name)
+
+        # 标记缓存有效
+        cache_key = f"{user_id}:{kb_id}"
+        self._cache_valid[cache_key] = True
+
         logger.info(f"Assigned role {role_name} to user {user_id} for KB {kb_id}")
 
         return True
 
     async def revoke_role(self, user_id: str, kb_id: int, role_name: str) -> bool:
-        """撤销用户的角色
+        """撤销用户的角色（从数据库删除并更新缓存）
 
         Args:
             user_id: 用户 ID
@@ -200,6 +258,20 @@ class RBACManager:
         Returns:
             是否成功
         """
+        # 从数据库删除（如果启用持久化）
+        if self._db_manager:
+            try:
+                query = """
+                    DELETE FROM kb_members
+                    WHERE kb_id = $1 AND user_id = $2 AND role = $3
+                """
+                result = await self._db_manager.execute(query, kb_id, user_id, role_name)
+                logger.info(f"Revoked role {role_name} from user {user_id} for KB {kb_id} in database")
+            except Exception as e:
+                logger.error(f"Failed to revoke role from database: {e}")
+                return False
+
+        # 更新内存缓存
         if user_id not in self._user_roles:
             return False
 
@@ -208,21 +280,58 @@ class RBACManager:
 
         if role_name in self._user_roles[user_id][kb_id]:
             self._user_roles[user_id][kb_id].remove(role_name)
+
+            # 如果该用户在该 KB 没有角色了，清理缓存
+            if not self._user_roles[user_id][kb_id]:
+                del self._user_roles[user_id][kb_id]
+                cache_key = f"{user_id}:{kb_id}"
+                if cache_key in self._cache_valid:
+                    del self._cache_valid[cache_key]
+
             logger.info(f"Revoked role {role_name} from user {user_id} for KB {kb_id}")
             return True
 
         return False
 
-    async def get_user_roles(self, user_id: str, kb_id: int) -> Set[str]:
-        """获取用户在知识库中的所有角色
+    async def get_user_roles(self, user_id: str, kb_id: int, force_reload: bool = False) -> Set[str]:
+        """获取用户在知识库中的所有角色（从缓存或数据库加载）
 
         Args:
             user_id: 用户 ID
             kb_id: 知识库 ID
+            force_reload: 是否强制从数据库重新加载
 
         Returns:
             角色集合
         """
+        cache_key = f"{user_id}:{kb_id}"
+
+        # 检查缓存是否有效
+        if not force_reload and cache_key in self._cache_valid and self._cache_valid.get(cache_key):
+            if user_id in self._user_roles and kb_id in self._user_roles[user_id]:
+                return self._user_roles[user_id][kb_id].copy()
+
+        # 从数据库加载（如果启用持久化）
+        if self._db_manager:
+            try:
+                query = "SELECT role FROM kb_members WHERE kb_id = $1 AND user_id = $2"
+                results = await self._db_manager.fetch_all(query, kb_id, user_id)
+
+                roles = {row['role'] for row in results}
+
+                # 更新缓存
+                if user_id not in self._user_roles:
+                    self._user_roles[user_id] = {}
+                self._user_roles[user_id][kb_id] = roles
+                self._cache_valid[cache_key] = True
+
+                return roles.copy()
+            except Exception as e:
+                logger.error(f"Failed to load roles from database: {e}")
+                # 降级到内存缓存
+                pass
+
+        # 从内存缓存返回
         if user_id not in self._user_roles:
             return set()
 
@@ -334,6 +443,54 @@ class RBACManager:
 
         logger.info(f"Deleted custom role: {role_name}")
         return True
+
+    async def invalidate_user_cache(self, user_id: str) -> None:
+        """使用户的所有角色缓存失效
+
+        Args:
+            user_id: 用户 ID
+        """
+        if user_id in self._user_roles:
+            # 标记所有相关的缓存为无效
+            for kb_id in self._user_roles[user_id].keys():
+                cache_key = f"{user_id}:{kb_id}"
+                self._cache_valid[cache_key] = False
+
+            # 清除内存缓存
+            del self._user_roles[user_id]
+
+        logger.info(f"Invalidated cache for user {user_id}")
+
+    async def invalidate_kb_cache(self, kb_id: int) -> None:
+        """使知识库的所有角色缓存失效
+
+        Args:
+            kb_id: 知识库 ID
+        """
+        # 遍历所有用户，清除该 KB 的缓存
+        for user_id in list(self._user_roles.keys()):
+            if kb_id in self._user_roles[user_id]:
+                cache_key = f"{user_id}:{kb_id}"
+                self._cache_valid[cache_key] = False
+                del self._user_roles[user_id][kb_id]
+
+                # 如果用户没有任何角色了，删除整个用户条目
+                if not self._user_roles[user_id]:
+                    del self._user_roles[user_id]
+
+        logger.info(f"Invalidated cache for KB {kb_id}")
+
+    async def invalidate_all_cache(self) -> None:
+        """清除所有缓存"""
+        self._user_roles.clear()
+        self._cache_valid.clear()
+        logger.info("Invalidated all role cache")
+
+    async def reload_from_db(self) -> None:
+        """从数据库重新加载所有角色"""
+        if self._db_manager:
+            await self._load_roles_from_db()
+            logger.info("Reloaded all roles from database")
 
     async def close(self) -> None:
         """关闭 RBAC 管理器"""

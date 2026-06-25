@@ -1,10 +1,14 @@
+<!-- VERSION: 2.0 - SIDEBAR FIX -->
 <!DOCTYPE html>
 <html lang="zh-CN">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LLM Wiki - 知识库浏览</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>LLM Wiki - 知识库浏览 (v2.0)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -504,27 +508,19 @@
                 if (userInfo) {
                     userInfo.textContent = `${d.user.username} (${d.user.role})`;
                 }
-                // 根据角色显示管理入口
+                // 根据角色显示管理入口（侧边栏底部）
                 const role = d.user.role;
                 if (role === 'admin' || role === 'editor') {
-                    const editLink = document.getElementById('editLink');
-                    if (editLink) editLink.classList.remove('hidden');
-                    const uploadLink = document.getElementById('uploadLink');
-                    if (uploadLink) uploadLink.classList.remove('hidden');
-                    const auditLink = document.getElementById('auditLink');
-                    if (auditLink) auditLink.classList.remove('hidden');
-                    const notifLink = document.getElementById('notifLink');
-                    if (notifLink) notifLink.classList.remove('hidden');
-                    const sharesLink = document.getElementById('sharesLink');
-                    if (sharesLink) sharesLink.classList.remove('hidden');
+                    const editLinkDesktop = document.getElementById('editLinkDesktop');
+                    if (editLinkDesktop) editLinkDesktop.classList.remove('hidden');
+                    const uploadLinkDesktop = document.getElementById('uploadLinkDesktop');
+                    if (uploadLinkDesktop) uploadLinkDesktop.classList.remove('hidden');
+                    const sharesLinkDesktop = document.getElementById('sharesLinkDesktop');
+                    if (sharesLinkDesktop) sharesLinkDesktop.classList.remove('hidden');
                 }
                 if (role === 'admin') {
-                    const adminLink = document.getElementById('adminLink');
-                    if (adminLink) adminLink.classList.remove('hidden');
-                    const usersLink = document.getElementById('usersLink');
-                    if (usersLink) usersLink.classList.remove('hidden');
-                    const webhookLink = document.getElementById('webhookLink');
-                    if (webhookLink) webhookLink.classList.remove('hidden');
+                    const webhookLinkDesktop = document.getElementById('webhookLinkDesktop');
+                    if (webhookLinkDesktop) webhookLinkDesktop.classList.remove('hidden');
                 }
                 // 触发自定义事件，通知 Alpine.js 用户已加载
                 window.dispatchEvent(new CustomEvent('user-loaded', { detail: d.user }));
@@ -633,27 +629,16 @@
 
                 <span class="text-xs bg-gradient-brand text-on-accent px-2 py-1 rounded">OKF v0.1</span>
 
-                <!-- 用户信息和管理入口 -->
+                <!-- 用户信息 -->
                 <div class="flex items-center space-x-3 border-l border-border-th pl-4">
                     <span class="text-sm text-on-surface" id="userInfo">-</span>
-                    <a href="/admin/qa.html" class="text-sm text-accent hover:underline">AI 问答</a>
-                    <a href="/admin/dashboard.html" class="text-sm text-accent hover:underline">看板</a>
-                    <a href="/admin/quality.html" class="text-sm text-accent hover:underline">质检</a>
-                    <a href="/admin/duplicates.html" class="text-sm text-accent hover:underline">去重</a>
-                    <a href="/admin/shares.html" class="hidden text-sm text-accent hover:underline"
-                        id="sharesLink">分享</a>
-                    <a href="/admin/webhooks.html" class="hidden text-sm text-accent hover:underline"
-                        id="webhookLink">通知</a>
-                    <a href="/admin/edit.html" class="hidden text-sm text-accent hover:underline" id="editLink">新建</a>
-                    <a href="/admin/upload.html" class="hidden text-sm text-accent hover:underline"
-                        id="uploadLink">上传</a>
-                    <a href="/admin/approvals.html" class="hidden text-sm text-accent hover:underline"
+                </div>
+                    <a href="#approvals" class="hidden text-sm text-accent hover:underline"
                         id="adminLink">审批</a>
-                    <a href="/admin/notifications.html" class="hidden text-sm text-accent hover:underline"
+                    <a href="#notifications" class="hidden text-sm text-accent hover:underline"
                         id="notifLink">通知</a>
-                    <a href="/admin/audit.html" class="hidden text-sm text-accent hover:underline" id="auditLink">审计</a>
-                    <a href="/admin/users.html" class="hidden text-sm text-accent hover:underline" id="usersLink">用户</a>
-                    <a href="/public.html" class="text-sm text-green-600 hover:underline" target="_blank">公开门户</a>
+                    <a href="#audit" class="hidden text-sm text-accent hover:underline" id="auditLink">审计</a>
+                    <a href="#users" class="hidden text-sm text-accent hover:underline" id="usersLink">用户</a>
                     <button onclick="WikiAPI.logout()" class="text-sm text-on-muted hover:text-red-500">退出</button>
                 </div>
             </div>
@@ -709,11 +694,10 @@
                 </button>
             </div>
             <div class="mt-4 pt-4 border-t border-border-th space-y-1">
-                <a href="/admin/qa.html" class="touch-target block px-3 py-2 text-sm text-accent hover:bg-bg-hover rounded">AI 问答</a>
-                <a href="/admin/dashboard.html" class="touch-target block px-3 py-2 text-sm text-accent hover:bg-bg-hover rounded">看板</a>
-                <a href="/admin/quality.html" class="touch-target block px-3 py-2 text-sm text-accent hover:bg-bg-hover rounded">质检</a>
-                <a href="/admin/duplicates.html" class="touch-target block px-3 py-2 text-sm text-accent hover:bg-bg-hover rounded">去重</a>
-                <a href="/public.html" class="touch-target block px-3 py-2 text-sm text-green-600 hover:bg-bg-hover rounded" target="_blank">公开门户</a>
+                <a href="#qa" class="touch-target block px-3 py-2 text-sm text-accent hover:bg-bg-hover rounded">AI 问答</a>
+                <a href="#dashboard" class="touch-target block px-3 py-2 text-sm text-accent hover:bg-bg-hover rounded">看板</a>
+                <a href="#quality" class="touch-target block px-3 py-2 text-sm text-accent hover:bg-bg-hover rounded">质检</a>
+                <a href="#duplicates" class="touch-target block px-3 py-2 text-sm text-accent hover:bg-bg-hover rounded">去重</a>
             </div>
         </nav>
     </aside>
@@ -768,19 +752,82 @@
                     </div>
                 </div>
 
-                <!-- 类型统计 -->
+                <!-- 管理工具 -->
                 <div class="mt-6 pt-4 border-t border-border-th">
-                    <h3 class="text-xs font-semibold text-on-muted uppercase tracking-wider mb-2">类型分布</h3>
+                    <h3 class="text-xs font-semibold text-on-muted uppercase tracking-wider mb-2">管理工具</h3>
                     <div class="space-y-1">
-                        <template x-for="item in typeStats.slice(0, 8)" :key="item.type">
-                            <div class="flex items-center justify-between px-3 py-1 text-xs">
-                                <div class="flex items-center space-x-2">
-                                    <span class="type-dot" :class="'type-' + item.type"></span>
-                                    <span class="text-on-surface" x-text="item.type"></span>
-                                </div>
-                                <span class="bg-accent-soft text-accent px-2 rounded-full" x-text="item.count"></span>
-                            </div>
-                        </template>
+                        <a href="#qa" class="block px-3 py-2 text-sm text-on-surface hover:bg-bg-hover rounded" data-route="qa">
+                            <span class="flex items-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <span>AI 问答</span>
+                            </span>
+                        </a>
+                        <a href="#dashboard" class="block px-3 py-2 text-sm text-on-surface hover:bg-bg-hover rounded">
+                            <span class="flex items-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 4a2 2 0 100 4m0-4a2 2 0 110 4m5 6v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2a2 2 0 002-2zm4-6V3m0 4a2 2 0 100 4m0-4a2 2 0 110 4m5 6v-4a2 2 0 00-2-2h-2a2 2 0 00-2 2v4a2 2 0 002 2h2a2 2 0 002-2z"></path>
+                                </svg>
+                                <span>看板</span>
+                            </span>
+                        </a>
+                        <a href="#quality" class="block px-3 py-2 text-sm text-on-surface hover:bg-bg-hover rounded">
+                            <span class="flex items-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <span>质检</span>
+                            </span>
+                        </a>
+                        <a href="#duplicates" class="block px-3 py-2 text-sm text-on-surface hover:bg-bg-hover rounded">
+                            <span class="flex items-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                </svg>
+                                <span>去重</span>
+                            </span>
+                        </a>
+                        <a href="#shares" class="block px-3 py-2 text-sm text-on-surface hover:bg-bg-hover rounded" id="sharesLinkDesktop">
+                            <span class="flex items-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 005.568-2.684m0 0a3 3 0 00-5.568-2.684m0 0c-.938 1.165-2.5 1.77-4.184 1.77M9 12a3 3 0 005.568 0m0 0c.938-1.165 2.5-1.77 4.184-1.77M15 12a3 3 0 00-5.568 0m0 0c-.938 1.165-2.5 1.77-4.184 1.77"></path>
+                                </svg>
+                                <span>分享</span>
+                            </span>
+                        </a>
+                        <a href="#webhooks" class="block px-3 py-2 text-sm text-on-surface hover:bg-bg-hover rounded" id="webhookLinkDesktop">
+                            <span class="flex items-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                </svg>
+                                <span>通知</span>
+                            </span>
+                        </a>
+                        <a href="#edit" class="block px-3 py-2 text-sm text-on-surface hover:bg-bg-hover rounded" id="editLinkDesktop">
+                            <span class="flex items-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                </svg>
+                                <span>新建</span>
+                            </span>
+                        </a>
+                        <a href="#upload" class="block px-3 py-2 text-sm text-on-surface hover:bg-bg-hover rounded" id="uploadLinkDesktop">
+                            <span class="flex items-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                                </svg>
+                                <span>上传</span>
+                            </span>
+                        </a>
+                        <a href="/public.html" class="block px-3 py-2 text-sm text-green-600 hover:bg-bg-hover rounded" target="_blank">
+                            <span class="flex items-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
+                                </svg>
+                                <span>公开门户</span>
+                            </span>
+                        </a>
                     </div>
                 </div>
             </nav>
@@ -788,6 +835,9 @@
 
         <!-- Main Content -->
         <main class="ml-0 lg:ml-48 flex-1">
+        <!-- 内联视图容器 -->
+        <div id="inlineViews" x-show="!isExternalView()">
+
 
             <!-- 概览视图 -->
             <div x-show="view === 'overview'" x-cloak class="animate-fade-in">
@@ -1304,6 +1354,15 @@
                         class="px-3 py-2 text-sm bg-bg-surface border border-border-th hover:bg-bg-hover rounded-lg shadow-sm">
                         重置
                     </button>
+                    <button @click="refreshGraph()"
+                        class="px-3 py-2 text-sm bg-bg-surface border border-border-th hover:bg-bg-hover rounded-lg shadow-sm flex items-center space-x-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                            </path>
+                        </svg>
+                        <span>刷新图谱</span>
+                    </button>
                     <button @click="graphShowPanel = !graphShowPanel"
                         class="px-3 py-2 text-sm bg-bg-surface border border-border-th hover:bg-bg-hover rounded-lg shadow-sm">
                         设置
@@ -1596,7 +1655,14 @@
                 </div>
             </div>
 
-        </main>
+        
+        </div>
+
+        <!-- 动态视图容器 -->
+        <div id="externalViewContainer" x-show="isExternalView()" class="h-full">
+            <!-- 动态加载的视图将渲染到这里 -->
+        </div>
+</main>
     </div>
 
     <script src="graph.js"></script>
@@ -1685,6 +1751,10 @@
                     if (match) {
                         this.kbName = match[1] + ' 知识库';
                     }
+
+                    // 初始化路由监听
+                    this.initRouter();
+
                     // 切换到图谱视图时自动 resize/fit
                     this.$watch('view', (newVal) => {
                         if (newVal === 'graph') {
@@ -1696,6 +1766,57 @@
                             });
                         }
                     });
+                },
+
+                initRouter() {
+                    // 监听 hash 变化
+                    window.addEventListener('hashchange', () => this.handleRoute());
+
+                    // 初始加载时检查 hash
+                    this.handleRoute();
+                },
+
+                async handleRoute() {
+                    const hash = window.location.hash.slice(1) || 'overview';
+                    console.log('[Router] 处理路由:', hash);
+
+                    // 更新 view 状态
+                    this.view = hash;
+
+                    // 如果是管理工具路由，动态加载模块
+                    if (['qa', 'dashboard', 'quality', 'duplicates', 'shares', 'webhooks',
+                         'edit', 'upload', 'users', 'approvals', 'audit', 'permissions',
+                         'kb-management', 'notifications'].includes(hash)) {
+                        await this.loadViewModule(hash);
+                    }
+                },
+
+                async loadViewModule(viewName) {
+                    try {
+                        console.log('[Loader] 加载视图模块:', viewName);
+                        const module = await import(`/views/views/${viewName}.js`);
+
+                        // 渲染视图到动态视图容器
+                        const container = document.getElementById('externalViewContainer');
+                        if (container && module.render) {
+                            module.render(container);
+                            this.view = viewName;
+                            console.log('[Loader] 视图模块加载成功:', viewName);
+                        }
+                    } catch (error) {
+                        console.error('[Loader] 视图模块加载失败:', viewName, error);
+                        // 显示错误提示
+                        const container = document.getElementById('externalViewContainer');
+                        if (container) {
+                            container.innerHTML = `
+                                <div class="p-8 text-center">
+                                    <h2 class="text-xl font-bold text-red-600 mb-4">加载失败</h2>
+                                    <p class="text-gray-600">${error.message}</p>
+                                    <a href="#overview" class="text-blue-600 hover:underline mt-4 inline-block">返回概览</a>
+                                </div>
+                            `;
+                        }
+                    }
                 },
 
                 setTheme(themeId) {
@@ -1790,6 +1911,13 @@
                     return Object.entries(counts)
                         .map(([type, count]) => ({ type, count }))
                         .sort((a, b) => b.count - a.count);
+                },
+
+                isExternalView() {
+                    const externalViews = ['qa', 'dashboard', 'quality', 'duplicates', 'shares',
+                                          'webhooks', 'edit', 'upload', 'users', 'approvals',
+                                          'audit', 'permissions', 'kb-management', 'notifications'];
+                    return externalViews.includes(this.view);
                 },
 
                 get totalTags() {
@@ -2300,6 +2428,50 @@
                     this.graphSearchQuery = '';
                     if (typeof resetCytoscapeGraph === 'function') {
                         resetCytoscapeGraph();
+                    }
+                },
+
+                async refreshGraph() {
+                    try {
+                        // 显示刷新提示
+                        const toast = document.createElement('div');
+                        toast.className = 'fixed top-4 right-4 z-50 bg-accent-soft text-accent px-4 py-2 rounded-lg shadow-lg';
+                        toast.textContent = '🔄 正在刷新图谱...';
+                        document.body.appendChild(toast);
+
+                        // 调用后端 API 重新生成图谱
+                        const response = await fetch('/api/graph/regenerate', { method: 'POST' });
+                        if (!response.ok) throw new Error('图谱生成失败');
+
+                        const result = await response.json();
+
+                        // 等待 2 秒让后端完成生成
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+
+                        // 重新加载图谱数据
+                        const graphRes = await fetch('data/graph-data.json?t=' + Date.now());
+                        if (!graphRes.ok) throw new Error('图谱数据加载失败');
+                        this.graphData = await graphRes.json();
+
+                        // 重新初始化图谱（传入 Alpine app 对象，而不是 graphData）
+                        if (typeof initCytoscapeGraph === 'function') {
+                            initCytoscapeGraph(this);
+                        }
+
+                        // 更新成功提示
+                        toast.textContent = `✅ 图谱已更新: ${this.graphData.nodes.length} 个节点, ${this.graphData.edges.length} 条边`;
+                        toast.className = 'fixed top-4 right-4 z-50 bg-green-100 text-green-700 px-4 py-2 rounded-lg shadow-lg';
+
+                        // 3秒后移除提示
+                        setTimeout(() => toast.remove(), 3000);
+
+                    } catch (e) {
+                        // 错误提示
+                        const errorToast = document.createElement('div');
+                        errorToast.className = 'fixed top-4 right-4 z-50 bg-red-100 text-red-700 px-4 py-2 rounded-lg shadow-lg';
+                        errorToast.textContent = `❌ 刷新失败: ${e.message}`;
+                        document.body.appendChild(errorToast);
+                        setTimeout(() => errorToast.remove(), 5000);
                     }
                 },
 

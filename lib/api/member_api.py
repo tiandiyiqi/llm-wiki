@@ -595,21 +595,33 @@ class MemberAPI:
             }
 
     async def _get_all_members(self, kb_id: int) -> List[Dict]:
-        """获取知识库的所有成员（内部方法）
+        """获取知识库的所有成员（内部方法）- 批量查询避免 N+1 问题
 
         Args:
             kb_id: 知识库 ID
 
         Returns:
-            成员列表
+            成员列表，包含用户名和角色信息
         """
-        # 这里应该从存储层获取成员列表
-        # 由于 RBACManager 存储在内存中，我们需要从存储层获取
-        # 这里是一个简化的实现
+        # 使用 JOIN 一次性获取成员信息和用户名，避免 N+1 查询
         query = """
-            SELECT user_id, role, added_at, added_by
-            FROM kb_members
-            WHERE kb_id = $1
+            SELECT
+                km.user_id,
+                km.role,
+                km.joined_at as added_at,
+                km.added_by,
+                u.username
+            FROM kb_members km
+            LEFT JOIN users u ON km.user_id = u.id
+            WHERE km.kb_id = $1
+            ORDER BY
+                CASE km.role
+                    WHEN 'owner' THEN 0
+                    WHEN 'editor' THEN 1
+                    WHEN 'reader' THEN 2
+                    ELSE 3
+                END,
+                km.joined_at DESC
         """
 
         try:
@@ -618,6 +630,7 @@ class MemberAPI:
             for row in results:
                 members.append({
                     'user_id': row['user_id'],
+                    'username': row.get('username'),  # 包含用户名
                     'role': row['role'],
                     'added_at': row['added_at'],
                     'added_by': row['added_by']

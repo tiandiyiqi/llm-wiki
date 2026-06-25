@@ -183,6 +183,7 @@ class UnifiedWebServer:
         kb_dir = self.kb_dir
         static_dir = self.static_dir
         kb_views_dir = self.kb_views_dir
+        project_views_dir = self.project_views_dir
         storage = self.storage
 
         class Handler(UnifiedRequestHandler):
@@ -191,6 +192,7 @@ class UnifiedWebServer:
         Handler.kb_dir = kb_dir
         Handler.static_dir = static_dir
         Handler.kb_views_dir = kb_views_dir
+        Handler.project_views_dir = project_views_dir
         Handler.storage = storage
         return Handler
 
@@ -201,6 +203,7 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
     kb_dir: Path = Path('.')
     static_dir: Path = Path('.')
     kb_views_dir: Path = Path('.')
+    project_views_dir: Path = Path('.')
     # StorageInterface 实例（支持双模式切换）
     storage: StorageInterface = None  # 由 _create_handler 设置
     # 线程锁，保护写操作
@@ -452,6 +455,12 @@ class UnifiedRequestHandler(BaseHTTPRequestHandler):
                 self._api_query(params)
             elif route_key == 'GET:/api/suggest':
                 self._api_search_suggest(params)
+
+            # 图谱
+            elif route_key == 'POST:/api/graph/regenerate':
+                self._api_graph_regenerate()
+            elif route_key == 'GET:/api/graph/meta':
+                self._api_graph_meta()
 
             # 通知
             elif route_key == 'GET:/api/notifications':
@@ -1740,6 +1749,83 @@ tags: [{tags_str}]
         })
 
     # ========================================================================
+    # 图谱 API
+    # ========================================================================
+
+    def _api_graph_regenerate(self) -> None:
+        """重新生成图谱数据."""
+        import threading
+        from pathlib import Path
+
+        def regenerate_in_background():
+            """后台重新生成图谱"""
+            try:
+                import subprocess
+                import sys
+
+                # 调用更新脚本
+                script_path = Path(__file__).parent.parent / 'scripts' / 'update_graph.sh'
+                if script_path.exists():
+                    subprocess.run(
+                        ['bash', str(script_path)],
+                        cwd=str(Path(__file__).parent.parent),
+                        capture_output=True,
+                        timeout=60
+                    )
+                    logger.info("图谱重新生成成功")
+                else:
+                    logger.error(f"更新脚本不存在: {script_path}")
+            except Exception as e:
+                logger.error(f"图谱重新生成失败: {e}")
+
+        # 后台异步执行，避免阻塞请求
+        thread = threading.Thread(target=regenerate_in_background, daemon=True)
+        thread.start()
+
+        self._json_response({
+            'status': 'processing',
+            'message': '图谱正在重新生成，请稍后刷新页面'
+        })
+
+    def _api_graph_meta(self) -> None:
+        """获取图谱元数据."""
+        from datetime import datetime
+        import json
+
+        graph_path = self.kb_dir / 'views' / 'data' / 'graph-data.json'
+        atoms_path = self.kb_dir / 'views' / 'data' / 'atoms.json'
+
+        if not graph_path.exists():
+            self._json_response({'error': '图谱数据不存在'}, 404)
+            return
+
+        try:
+            stat = graph_path.stat()
+            with open(graph_path, encoding='utf-8') as f:
+                data = json.load(f)
+
+            # 获取 atoms.json 的统计（如果存在）
+            atoms_count = 0
+            if atoms_path.exists():
+                try:
+                    with open(atoms_path, encoding='utf-8') as f:
+                        atoms_data = json.load(f)
+                        atoms_count = len(atoms_data) if isinstance(atoms_data, list) else 0
+                except:
+                    pass
+
+            self._json_response({
+                'last_updated': datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                'node_count': len(data.get('nodes', [])),
+                'edge_count': len(data.get('edges', [])),
+                'atoms_count': atoms_count,
+                'file_size': stat.st_size,
+                'file_path': str(graph_path.relative_to(self.kb_dir))
+            })
+        except Exception as e:
+            self._json_response({'error': f'读取图谱元数据失败: {str(e)}'}, 500)
+
+    # ========================================================================
     # 阶段六：AI 问答 API（多轮对话）
     # ========================================================================
 
@@ -2063,10 +2149,22 @@ tags: [{tags_str}]
         if '..' in path:
             self._json_response({'error': 'Forbidden'}, 403)
             return
-        # 先查知识库 views/，再查项目根 views/
-        file_path = self.kb_views_dir / path
-        if not file_path.exists() or not file_path.is_file():
-            file_path = self.static_dir / path
+
+        # 判断是哪个目录的文件
+        if path.startswith('views/'):
+            # views/ 目录的文件
+            file_path = self.project_views_dir.parent / path
+        elif path.startswith('data/'):
+            # data/ 目录的文件：先查知识库 views/data/，再查项目 views/data/
+            file_path = self.kb_views_dir / path
+            if not file_path.exists() or not file_path.is_file():
+                file_path = self.project_views_dir / path
+        else:
+            # 其他文件：先查知识库 views/，再查项目根 views/
+            file_path = self.kb_views_dir / path
+            if not file_path.exists() or not file_path.is_file():
+                file_path = self.static_dir / path
+
         # 如果是目录，尝试 index.html
         if file_path.is_dir():
             file_path = file_path / 'index.html'
