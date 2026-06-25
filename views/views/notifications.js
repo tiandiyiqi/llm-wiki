@@ -5,6 +5,8 @@
  * 核心功能：通知列表、已读/未读状态、事件类型徽章、批量操作
  */
 
+import { escapeHtml } from '../utils/ui-components.js';
+
 export function render(container) {
     const html = `<div class="notifications-view animate-fade-in">
         <div class="overview-container p-6">
@@ -17,10 +19,10 @@ export function render(container) {
 
             <!-- 操作栏 -->
             <div class="overview-card mb-6">
-                <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <div class="flex justify-between items-center p-4 border-b border-border-th">
                     <h2 class="text-lg font-bold text-on-base">通知列表</h2>
                     <div class="flex gap-2 flex-wrap">
-                        <button id="markAllReadBtn" onclick="window.NotificationsView.markAllRead()" class="px-4 py-2 text-sm bg-bg-surface-alt text-on-surface rounded-lg hover:bg-gray-200 transition-colors">
+                        <button id="markAllReadBtn" onclick="window.NotificationsView.markAllRead()" class="px-4 py-2 text-sm bg-bg-surface-alt text-on-surface rounded-lg hover:bg-bg-hover transition-colors">
                             全部标为已读
                         </button>
                         <button onclick="window.NotificationsView.loadNotifications()" class="px-4 py-2 text-sm bg-gradient-brand text-on-accent rounded-lg hover:opacity-90 transition-opacity">
@@ -81,16 +83,6 @@ function getEventLabel(event) {
 }
 
 /**
- * 辅助函数：HTML 转义
- */
-function escapeHtml(str) {
-    if (str == null) return '';
-    return String(str).replace(/[&<>"']/g, m => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[m]));
-}
-
-/**
  * 加载通知列表
  */
 async function loadNotifications() {
@@ -116,7 +108,7 @@ async function loadNotifications() {
             const eventLabel = getEventLabel(n.event);
 
             html += `
-                <div class="notif-item ${isUnread ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'} p-4 border-b border-gray-200 cursor-pointer transition-colors"
+                <div class="notif-item ${isUnread ? 'bg-accent-soft hover:bg-accent-med' : 'hover:bg-bg-hover'} p-4 border-b border-border-th cursor-pointer transition-colors"
                      onclick="window.NotificationsView.markRead('${n.id || ''}')">
                     <div class="flex items-start justify-between">
                         <div class="flex-1">

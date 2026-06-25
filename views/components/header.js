@@ -47,12 +47,13 @@ export function renderHeader(container) {
                 <div class="flex items-center space-x-3 border-l border-border-th pl-4">
                     <span class="text-sm text-on-surface" id="userInfo">-</span>
                 </div>
-                    <a href="/admin/approvals.html" class="hidden text-sm text-accent hover:underline"
+                    <!-- 管理入口已统一至侧边栏（nav-config，PLAN-M-012）；保留 hash 路由以兼容此组件被复用的场景 -->
+                    <a href="#approvals" class="hidden text-sm text-accent hover:underline"
                         id="adminLink">审批</a>
-                    <a href="/admin/notifications.html" class="hidden text-sm text-accent hover:underline"
+                    <a href="#notifications" class="hidden text-sm text-accent hover:underline"
                         id="notifLink">通知</a>
-                    <a href="/admin/audit.html" class="hidden text-sm text-accent hover:underline" id="auditLink">审计</a>
-                    <a href="/admin/users.html" class="hidden text-sm text-accent hover:underline" id="usersLink">用户</a>
+                    <a href="#audit" class="hidden text-sm text-accent hover:underline" id="auditLink">审计</a>
+                    <a href="#users" class="hidden text-sm text-accent hover:underline" id="usersLink">用户</a>
                     <button onclick="WikiAPI.logout()" class="text-sm text-on-muted hover:text-red-500">退出</button>
                 </div>
             </div>

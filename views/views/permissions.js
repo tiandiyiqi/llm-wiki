@@ -6,6 +6,8 @@
  * 采用内联视图风格 + Tab 切换
  */
 
+import { escapeHtml } from '../utils/ui-components.js';
+
 export function render(container) {
     const html = `<div class="permissions-view animate-fade-in">
         <div class="overview-container p-6">
@@ -839,16 +841,6 @@ function buildPermissionCheckboxes() {
             <input type="checkbox" value="${p.value}" class="mr-2"> ${p.label}
         </label>
     `).join('');
-}
-
-/**
- * HTML 转义
- */
-function escapeHtml(str) {
-    if (str == null) return '';
-    return String(str).replace(/[&<>"']/g, m => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[m]));
 }
 
 export default {

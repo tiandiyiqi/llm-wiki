@@ -5,6 +5,8 @@
  * 功能：文件上传、路径摄入
  */
 
+import { escapeHtml } from '../utils/ui-components.js';
+
 export function render(container) {
     const html = `<div class="upload-view animate-fade-in">
         <div class="overview-container p-6">
@@ -280,19 +282,8 @@ async function uploadFiles() {
             const formData = new FormData();
             formData.append('file', f);
 
-            // 使用原生 fetch 处理 FormData（不能设置 Content-Type）
-            const r = await fetch('/api/ingest/upload', {
-                method: 'POST',
-                body: formData,
-                credentials: 'same-origin'
-            });
-
-            if (r.status === 401) {
-                window.location.href = '/login.html';
-                throw new Error('未登录');
-            }
-
-            const data = await r.json();
+            // 统一走 WikiAPI（postForm 处理 multipart/FormData，内置 401 跳转）
+            const data = await WikiAPI.postForm('/api/ingest/upload', formData);
 
             if (data.status === 'ok') {
                 success++;
@@ -354,16 +345,6 @@ async function ingestPath() {
                 ✗ ${escapeHtml(e.message)}
             </div>`;
     }
-}
-
-/**
- * HTML 转义
- */
-function escapeHtml(str) {
-    if (str == null) return '';
-    return String(str).replace(/[&<>"']/g, m => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[m]));
 }
 
 // 导出全局方法

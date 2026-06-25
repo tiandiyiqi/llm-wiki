@@ -11,6 +11,8 @@
  * - Token 列表 + 吊销功能
  */
 
+import { escapeHtml } from '../utils/ui-components.js';
+
 // 全局状态
 let currentTab = 'users';
 let currentUser = null;
@@ -581,20 +583,6 @@ function getRoleBadge(role) {
 
     const cls = classes[role] || 'bg-gray-100 text-gray-700';
     return `<span class="inline-block px-2 py-1 rounded text-xs font-semibold ${cls}">${escapeHtml(role)}</span>`;
-}
-
-/**
- * HTML 转义
- */
-function escapeHtml(str) {
-    if (str == null) return '';
-    return String(str).replace(/[&<>"']/g, m => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-    }[m]));
 }
 
 export default {

@@ -9,7 +9,23 @@
  * - 最近活动列表
  */
 
+import { escapeHtml } from '../utils/ui-components.js';
+
 let chartInstances = [];
+
+/**
+ * 读取当前主题的 CSS 变量值（用于 Chart.js 配色，随主题切换而变）
+ * @param {string} name 变量名（含 --）
+ * @param {string} fallback 兜底色
+ */
+function cssVar(name, fallback) {
+    try {
+        const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        return v || fallback;
+    } catch (e) {
+        return fallback;
+    }
+}
 
 /**
  * 动态加载 Chart.js
@@ -40,6 +56,8 @@ function destroyCharts() {
  * 加载所有数据
  */
 async function loadData() {
+    // 先销毁旧图表，避免重复渲染到同一 canvas 报错（修复刷新/主题重绘）
+    destroyCharts();
     try {
         const [stats, behavior] = await Promise.all([
             WikiAPI.get('/api/stats'),
@@ -109,7 +127,7 @@ function renderDoughnutChart(canvasId, data) {
     // 无数据时显示提示
     if (labels.length === 0) {
         const container = canvas.parentElement;
-        container.innerHTML = '<p class="text-gray-500 text-center py-8">暂无数据</p>';
+        container.innerHTML = '<p class="text-on-muted text-center py-8">暂无数据</p>';
         return;
     }
 
@@ -123,7 +141,7 @@ function renderDoughnutChart(canvasId, data) {
                 data: values,
                 backgroundColor: colors,
                 borderWidth: 2,
-                borderColor: '#fff'
+                borderColor: cssVar('--color-bg-surface', '#ffffff')
             }]
         },
         options: {
@@ -134,7 +152,8 @@ function renderDoughnutChart(canvasId, data) {
                     position: 'right',
                     labels: {
                         font: { size: 12 },
-                        padding: 12
+                        padding: 12,
+                        color: cssVar('--color-text-secondary', '#4b5563')
                     }
                 }
             }
@@ -162,7 +181,7 @@ function renderBarChart(canvasId, label, data, limit = 10) {
     // 无数据时显示提示
     if (labels.length === 0) {
         const container = canvas.parentElement;
-        container.innerHTML = '<p class="text-gray-500 text-center py-8">暂无数据</p>';
+        container.innerHTML = '<p class="text-on-muted text-center py-8">暂无数据</p>';
         return;
     }
 
@@ -173,7 +192,7 @@ function renderBarChart(canvasId, label, data, limit = 10) {
             datasets: [{
                 label: label,
                 data: values,
-                backgroundColor: '#667eea',
+                backgroundColor: cssVar('--color-accent-primary', '#667eea'),
                 borderRadius: 4
             }]
         },
@@ -184,11 +203,17 @@ function renderBarChart(canvasId, label, data, limit = 10) {
                 legend: { display: false }
             },
             scales: {
+                x: {
+                    ticks: { color: cssVar('--color-text-secondary', '#4b5563') },
+                    grid: { color: cssVar('--color-border', '#e5e7eb') }
+                },
                 y: {
                     beginAtZero: true,
                     ticks: {
-                        precision: 0
-                    }
+                        precision: 0,
+                        color: cssVar('--color-text-secondary', '#4b5563')
+                    },
+                    grid: { color: cssVar('--color-border', '#e5e7eb') }
                 }
             }
         }
@@ -205,17 +230,17 @@ function renderPopularDocs(docs) {
     if (!container) return;
 
     if (docs.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-center py-4">暂无数据</p>';
+        container.innerHTML = '<p class="text-on-muted text-center py-4">暂无数据</p>';
         return;
     }
 
     container.innerHTML = docs.slice(0, 10).map((doc, index) => `
-        <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded transition-colors">
+        <div class="flex items-center justify-between p-2 hover:bg-bg-hover rounded transition-colors">
             <div class="flex items-center gap-3">
-                <span class="text-gray-400 font-bold w-6">${index + 1}</span>
-                <span class="text-sm font-medium text-gray-800">${escapeHtml(doc.title || doc.id || '-')}</span>
+                <span class="text-on-muted font-bold w-6">${index + 1}</span>
+                <span class="text-sm font-medium text-on-base">${escapeHtml(doc.title || doc.id || '-')}</span>
             </div>
-            <span class="text-xs text-gray-500">${doc.views || doc.count || 0} 次访问</span>
+            <span class="text-xs text-on-muted">${doc.views || doc.count || 0} 次访问</span>
         </div>
     `).join('');
 }
@@ -228,17 +253,17 @@ function renderRecentActivity(activities) {
     if (!container) return;
 
     if (activities.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-center py-4">暂无活动</p>';
+        container.innerHTML = '<p class="text-on-muted text-center py-4">暂无活动</p>';
         return;
     }
 
     container.innerHTML = activities.slice(0, 10).map(activity => `
-        <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded transition-colors">
+        <div class="flex items-center justify-between p-2 hover:bg-bg-hover rounded transition-colors">
             <div>
-                <span class="text-sm font-medium text-gray-800">${escapeHtml(activity.action || activity.type || '-')}</span>
-                <span class="text-xs text-gray-500 ml-2">${escapeHtml(activity.target || activity.target_path || '')}</span>
+                <span class="text-sm font-medium text-on-base">${escapeHtml(activity.action || activity.type || '-')}</span>
+                <span class="text-xs text-on-muted ml-2">${escapeHtml(activity.target || activity.target_path || '')}</span>
             </div>
-            <span class="text-xs text-gray-400">${escapeHtml(activity.user || '')} · ${escapeHtml(activity.timestamp || '')}</span>
+            <span class="text-xs text-on-muted">${escapeHtml(activity.user || '')} · ${escapeHtml(activity.timestamp || '')}</span>
         </div>
     `).join('');
 }
@@ -247,29 +272,24 @@ function renderRecentActivity(activities) {
  * 生成颜色数组
  */
 function generateColors(count) {
+    // 调色板取自当前主题的语义类型色变量，随主题切换换肤；带 hex 兜底
     const palette = [
-        '#667eea', '#764ba2', '#38a169', '#e53e3e', '#dd6b20',
-        '#3182ce', '#805ad5', '#319795', '#d69e2e', '#718096'
+        cssVar('--color-accent-primary', '#667eea'),
+        cssVar('--color-accent-secondary', '#764ba2'),
+        cssVar('--color-type-fact', '#22c55e'),
+        cssVar('--color-type-opinion', '#ef4444'),
+        cssVar('--color-type-data', '#f97316'),
+        cssVar('--color-type-method', '#3b82f6'),
+        cssVar('--color-type-definition', '#a855f7'),
+        cssVar('--color-type-question', '#14b8a6'),
+        cssVar('--color-confidence-high', '#16a34a'),
+        cssVar('--color-type-reference', '#6b7280'),
     ];
     const colors = [];
     for (let i = 0; i < count; i++) {
         colors.push(palette[i % palette.length]);
     }
     return colors;
-}
-
-/**
- * HTML 转义
- */
-function escapeHtml(str) {
-    if (str == null) return '';
-    return String(str).replace(/[&<>"']/g, m => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-    }[m]));
 }
 
 /**
@@ -304,57 +324,57 @@ export async function render(container) {
             <div class="p-6">
                 <!-- 页面标题 -->
                 <div class="mb-6">
-                    <h1 class="text-2xl font-bold text-gray-800">📊 数据看板</h1>
-                    <p class="text-gray-600 text-sm mt-1">系统数据统计与可视化分析</p>
+                    <h1 class="text-2xl font-bold text-on-base">📊 数据看板</h1>
+                    <p class="text-on-surface text-sm mt-1">系统数据统计与可视化分析</p>
                 </div>
 
                 <!-- 刷新按钮 -->
                 <div class="mb-4">
-                    <button onclick="window.DashboardRefresh()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm">
+                    <button onclick="window.DashboardRefresh()" class="px-4 py-2 bg-gradient-brand text-on-accent rounded hover:opacity-90 transition-opacity text-sm">
                         刷新数据
                     </button>
                 </div>
 
                 <!-- 统计卡片 -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-white rounded-lg shadow p-5">
+                    <div class="bg-bg-surface rounded-lg shadow p-5">
                         <div class="flex items-center justify-between">
                             <div>
-                                <div class="text-2xl font-bold text-gray-800" id="totalAtoms">0</div>
-                                <div class="text-sm text-gray-500 mt-1">原子总数</div>
+                                <div class="text-2xl font-bold text-on-base" id="totalAtoms">0</div>
+                                <div class="text-sm text-on-muted mt-1">原子总数</div>
                             </div>
                             <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-2xl">
                                 📄
                             </div>
                         </div>
                     </div>
-                    <div class="bg-white rounded-lg shadow p-5">
+                    <div class="bg-bg-surface rounded-lg shadow p-5">
                         <div class="flex items-center justify-between">
                             <div>
-                                <div class="text-2xl font-bold text-gray-800" id="totalTags">0</div>
-                                <div class="text-sm text-gray-500 mt-1">标签数</div>
+                                <div class="text-2xl font-bold text-on-base" id="totalTags">0</div>
+                                <div class="text-sm text-on-muted mt-1">标签数</div>
                             </div>
                             <div class="w-12 h-12 bg-green-100 text-green-600 rounded-lg flex items-center justify-center text-2xl">
                                 🏷️
                             </div>
                         </div>
                     </div>
-                    <div class="bg-white rounded-lg shadow p-5">
+                    <div class="bg-bg-surface rounded-lg shadow p-5">
                         <div class="flex items-center justify-between">
                             <div>
-                                <div class="text-2xl font-bold text-gray-800" id="totalAuthors">0</div>
-                                <div class="text-sm text-gray-500 mt-1">作者数</div>
+                                <div class="text-2xl font-bold text-on-base" id="totalAuthors">0</div>
+                                <div class="text-sm text-on-muted mt-1">作者数</div>
                             </div>
                             <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center text-2xl">
                                 👤
                             </div>
                         </div>
                     </div>
-                    <div class="bg-white rounded-lg shadow p-5">
+                    <div class="bg-bg-surface rounded-lg shadow p-5">
                         <div class="flex items-center justify-between">
                             <div>
-                                <div class="text-2xl font-bold text-gray-800" id="totalActions">0</div>
-                                <div class="text-sm text-gray-500 mt-1">操作总数</div>
+                                <div class="text-2xl font-bold text-on-base" id="totalActions">0</div>
+                                <div class="text-sm text-on-muted mt-1">操作总数</div>
                             </div>
                             <div class="w-12 h-12 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center text-2xl">
                                 ⚡
@@ -365,14 +385,14 @@ export async function render(container) {
 
                 <!-- 图表区域 - 第一行 -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <h2 class="text-lg font-bold text-gray-800 mb-4">按类型分布</h2>
+                    <div class="bg-bg-surface rounded-lg shadow p-6">
+                        <h2 class="text-lg font-bold text-on-base mb-4">按类型分布</h2>
                         <div style="height: 250px;">
                             <canvas id="typeChart"></canvas>
                         </div>
                     </div>
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <h2 class="text-lg font-bold text-gray-800 mb-4">按状态分布</h2>
+                    <div class="bg-bg-surface rounded-lg shadow p-6">
+                        <h2 class="text-lg font-bold text-on-base mb-4">按状态分布</h2>
                         <div style="height: 250px;">
                             <canvas id="statusChart"></canvas>
                         </div>
@@ -381,14 +401,14 @@ export async function render(container) {
 
                 <!-- 图表区域 - 第二行 -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <h2 class="text-lg font-bold text-gray-800 mb-4">热门标签 Top 10</h2>
+                    <div class="bg-bg-surface rounded-lg shadow p-6">
+                        <h2 class="text-lg font-bold text-on-base mb-4">热门标签 Top 10</h2>
                         <div style="height: 250px;">
                             <canvas id="tagChart"></canvas>
                         </div>
                     </div>
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <h2 class="text-lg font-bold text-gray-800 mb-4">用户活跃度</h2>
+                    <div class="bg-bg-surface rounded-lg shadow p-6">
+                        <h2 class="text-lg font-bold text-on-base mb-4">用户活跃度</h2>
                         <div style="height: 250px;">
                             <canvas id="userChart"></canvas>
                         </div>
@@ -397,16 +417,16 @@ export async function render(container) {
 
                 <!-- 列表区域 -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <h2 class="text-lg font-bold text-gray-800 mb-4">热门文档</h2>
+                    <div class="bg-bg-surface rounded-lg shadow p-6">
+                        <h2 class="text-lg font-bold text-on-base mb-4">热门文档</h2>
                         <div id="popularDocs" class="space-y-1">
-                            <p class="text-gray-500 text-center py-4">加载中...</p>
+                            <p class="text-on-muted text-center py-4">加载中...</p>
                         </div>
                     </div>
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <h2 class="text-lg font-bold text-gray-800 mb-4">最近活动</h2>
+                    <div class="bg-bg-surface rounded-lg shadow p-6">
+                        <h2 class="text-lg font-bold text-on-base mb-4">最近活动</h2>
                         <div id="recentActivity" class="space-y-1">
-                            <p class="text-gray-500 text-center py-4">加载中...</p>
+                            <p class="text-on-muted text-center py-4">加载中...</p>
                         </div>
                     </div>
                 </div>
@@ -429,9 +449,11 @@ export async function render(container) {
         await loadData();
     }
 
-    // 注册全局清理函数
+    // 注册全局清理 / 刷新 / 主题重绘函数
     window.DashboardCleanup = destroyCharts;
     window.DashboardRefresh = loadData;
+    // 主题切换时由 index.html setTheme() 调用，重新读取 CSS 变量并重绘图表
+    window.DashboardRerender = loadData;
 
     return html;
 }

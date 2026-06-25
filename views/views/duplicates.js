@@ -9,6 +9,8 @@
  * - 合并操作 API 调用
  */
 
+import { escapeHtml } from '../utils/ui-components.js';
+
 // 全局状态
 let currentDuplicates = [];
 let currentMergeIndex = null;
@@ -266,20 +268,6 @@ async function executeMerge() {
     } catch (e) {
         alert('合并失败: ' + e.message);
     }
-}
-
-/**
- * HTML 转义
- */
-function escapeHtml(str) {
-    if (str == null) return '';
-    return String(str).replace(/[&<>"']/g, m => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-    }[m]));
 }
 
 export default {

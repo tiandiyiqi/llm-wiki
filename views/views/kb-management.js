@@ -9,6 +9,8 @@
  * - 4 个弹窗：创建知识库、编辑知识库、添加成员、统计信息
  */
 
+import { escapeHtml } from '../utils/ui-components.js';
+
 // 模块状态
 let currentTab = 'list';
 let allKBs = [];
@@ -756,16 +758,6 @@ function getLevelBadge(level) {
     }[level] || 'badge-standalone';
 
     return `<span class="badge ${badgeClass}">${level}</span>`;
-}
-
-/**
- * HTML 转义
- */
-function escapeHtml(str) {
-    if (str == null) return '';
-    return String(str).replace(/[&<>"']/g, m => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[m]));
 }
 
 export default {

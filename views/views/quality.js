@@ -5,6 +5,8 @@
  * 功能：知识原子质量检查、问题统计、筛选与展示
  */
 
+import { escapeHtml } from '../utils/ui-components.js';
+
 export function render(container) {
   const html = `<div class="quality-view animate-fade-in">
     <div class="overview-container p-6">
@@ -166,18 +168,6 @@ function renderIssues() {
       <a href="#?atom=${encodeURIComponent(issue.atom_id)}" class="px-3 py-1 bg-bg-surface text-on-base border rounded hover:bg-bg-surface-alt transition-colors text-sm">查看</a>
     </div>
   `).join('');
-}
-
-// 工具函数：HTML转义
-function escapeHtml(str) {
-  if (str == null) return '';
-  return String(str).replace(/[&<>"']/g, m => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  }[m]));
 }
 
 // 工具函数：日期格式化

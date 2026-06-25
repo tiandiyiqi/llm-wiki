@@ -5,6 +5,8 @@
  * 采用内联视图风格（overview-container + overview-card）
  */
 
+import { escapeHtml } from '../utils/ui-components.js';
+
 export function render(container) {
     const html = `
     <div class="qa-view animate-fade-in">
@@ -190,13 +192,8 @@ window.sendQuestion = async function() {
     const loadingId = addMessage('思考中...', 'bot', true);
 
     try {
-        const response = await fetch('/api/qa/ask', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question })
-        });
-
-        const data = await response.json();
+        // 统一走 WikiAPI（内置凭据与 401 处理）
+        const data = await WikiAPI.post('/api/qa/ask', { question });
         removeMessage(loadingId);
         addMessage(data.answer || data.response || '抱歉，我暂时无法回答这个问题。', 'bot');
 
@@ -432,18 +429,6 @@ function saveLLMConfig() {
     alert('✅ LLM 配置已保存！\n\n配置将用于后续的问答请求。');
 
     hideLLMConfig();
-}
-
-// HTML 转义
-function escapeHtml(str) {
-    if (str == null) return '';
-    return String(str).replace(/[&<>"']/g, m => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-    }[m]));
 }
 
 export default {

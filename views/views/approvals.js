@@ -11,6 +11,8 @@
  * - 管理员权限检查
  */
 
+import { escapeHtml } from '../utils/ui-components.js';
+
 // 全局状态
 let currentTab = 'pending';
 let pendingAtomId = null;
@@ -404,20 +406,6 @@ async function confirmReject() {
     } catch (e) {
         alert('驳回失败: ' + e.message);
     }
-}
-
-/**
- * HTML 转义
- */
-function escapeHtml(str) {
-    if (str == null) return '';
-    return String(str).replace(/[&<>"']/g, m => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-    }[m]));
 }
 
 /**

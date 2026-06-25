@@ -5,6 +5,8 @@
  * 功能：审计日志查看、筛选、导出
  */
 
+import { escapeHtml } from '../utils/ui-components.js';
+
 export function render(container) {
     const html = `<div class="audit-view animate-fade-in">
         <div class="overview-container p-6">
@@ -179,16 +181,6 @@ function exportToJSON() {
     a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-}
-
-/**
- * HTML 转义
- */
-function escapeHtml(str) {
-    if (str == null) return '';
-    return String(str).replace(/[&<>"']/g, m => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[m]));
 }
 
 export default {

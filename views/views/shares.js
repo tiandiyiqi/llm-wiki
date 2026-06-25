@@ -5,6 +5,8 @@
  * 采用内联视图风格（overview-container + overview-card）
  */
 
+import { escapeHtml } from '../utils/ui-components.js';
+
 export function render(container) {
     const html = `<div class="shares-view animate-fade-in">
         <div class="overview-container p-6">
@@ -103,13 +105,6 @@ export function render(container) {
 }
 
 // 工具函数
-function escapeHtml(str) {
-    if (str == null) return '';
-    return String(str).replace(/[&<>"']/g, m => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[m]));
-}
-
 function formatDate(iso) {
     if (!iso) return '-';
     try {
