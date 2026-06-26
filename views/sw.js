@@ -7,7 +7,7 @@
  * - API 请求：Network Only（数据始终从服务器获取）
  */
 
-const CACHE_NAME = 'llm-wiki-v1';
+const CACHE_NAME = 'llm-wiki-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -16,7 +16,7 @@ const STATIC_ASSETS = [
   '/manifest.json',
 ];
 
-const CDN_CACHE_NAME = 'llm-wiki-cdn-v1';
+const CDN_CACHE_NAME = 'llm-wiki-cdn-v2';
 
 // Install: 预缓存静态资源
 self.addEventListener('install', (event) => {
@@ -117,7 +117,7 @@ async function networkFirst(request) {
     // 离线且无缓存：返回简单的离线页面
     if (request.headers.get('accept')?.includes('text/html')) {
       return new Response(
-        '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>离线</title></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui;margin:0;background:#f3f4f6"><div style="text-align:center"><h1 style="color:#667eea">📡 暂无网络</h1><p style="color:#6b7280">请检查网络连接后重试</p><button onclick="location.reload()" style="margin-top:1rem;padding:0.5rem 1.5rem;background:#667eea;color:white;border:none;border-radius:0.5rem;cursor:pointer">重试</button></div></body></html>',
+        '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>离线</title></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Inter,system-ui;margin:0;background:#f8fafc"><div style="text-align:center"><h1 style="color:#4f46e5">📡 暂无网络</h1><p style="color:#475569">请检查网络连接后重试</p><button onclick="location.reload()" style="margin-top:1rem;padding:0.5rem 1.5rem;background:#4f46e5;color:white;border:none;border-radius:0.5rem;cursor:pointer">重试</button></div></body></html>',
         { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
       );
     }

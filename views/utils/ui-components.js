@@ -170,9 +170,80 @@ export function createTabSwitcher(cfg = {}) {
     return `<div class="flex border-b border-border-th ${extraClass}">${buttons}</div>`;
 }
 
+/**
+ * 空状态组件（EmptyState）。统一"列表/表格无数据"的呈现。
+ * 落地 PLAN-M-013 三态体系（加载 / 空 / 错误）之"空"。
+ * @param {object} cfg
+ * @param {string} [cfg.title='暂无数据'] 主标题
+ * @param {string} [cfg.desc=''] 辅助说明
+ * @param {string} [cfg.icon] 自定义图标 SVG path 的 d 值；缺省用通用空盒图标
+ * @param {string} [cfg.actionLabel=''] 主操作按钮文案（为空则不渲染）
+ * @param {string} [cfg.onAction=''] 主操作按钮的内联事件
+ * @param {string} [cfg.extraClass='']
+ * @returns {string}
+ */
+export function createEmptyState(cfg = {}) {
+    const {
+        title = '暂无数据', desc = '', icon = '',
+        actionLabel = '', onAction = '', extraClass = '',
+    } = cfg;
+    const path = icon || 'M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4';
+    const action = actionLabel
+        ? `<button type="button" ${onAction ? `onclick="${onAction}"` : ''} class="mt-3 inline-flex items-center h-9 px-3.5 rounded-md bg-accent text-on-accent text-sm font-medium hover:opacity-90">${escapeHtml(actionLabel)}</button>`
+        : '';
+    return `
+    <div class="flex flex-col items-center justify-center py-12 text-center ${extraClass}">
+        <div class="w-12 h-12 rounded-lg bg-bg-surface-alt flex items-center justify-center mb-3">
+            <svg class="w-6 h-6 text-on-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="${path}"/>
+            </svg>
+        </div>
+        <div class="text-sm font-medium text-on-base">${escapeHtml(title)}</div>
+        ${desc ? `<div class="text-xs text-on-muted mt-1">${escapeHtml(desc)}</div>` : ''}
+        ${action}
+    </div>`;
+}
+
+/**
+ * 骨架屏（Skeleton）。首屏/加载占位，减少布局抖动。
+ * 落地 PLAN-M-013 三态体系之"加载"（结构化占位，区别于纯 spinner）。
+ * @param {object} [cfg]
+ * @param {number} [cfg.rows=3] 行数
+ * @param {'list'|'table'|'card'} [cfg.type='list'] 形态
+ * @param {string} [cfg.extraClass='']
+ * @returns {string}
+ */
+export function createSkeleton(cfg = {}) {
+    const { rows = 3, type = 'list', extraClass = '' } = cfg;
+    const bar = (w) => `<div class="h-3 rounded bg-bg-surface-alt animate-pulse" style="width:${w}"></div>`;
+    let items = '';
+    if (type === 'card') {
+        items = Array.from({ length: rows }).map(() => `
+            <div class="p-4 rounded-md border border-border-th bg-bg-surface">
+                ${bar('40%')}<div class="mt-3 space-y-2">${bar('100%')}${bar('80%')}</div>
+            </div>`).join('');
+        return `<div class="grid gap-3 ${extraClass}">${items}</div>`;
+    }
+    if (type === 'table') {
+        items = Array.from({ length: rows }).map(() => `
+            <div class="flex items-center gap-4 px-4 py-3 border-b border-border-th">
+                ${bar('30%')}${bar('20%')}${bar('15%')}<div class="ml-auto">${bar('48px')}</div>
+            </div>`).join('');
+        return `<div class="${extraClass}">${items}</div>`;
+    }
+    // list（默认）
+    items = Array.from({ length: rows }).map(() => `
+        <div class="flex items-center gap-3 py-3">
+            <div class="w-8 h-8 rounded-full bg-bg-surface-alt animate-pulse shrink-0"></div>
+            <div class="flex-1 space-y-2">${bar('60%')}${bar('40%')}</div>
+        </div>`).join('');
+    return `<div class="divide-y divide-border-th ${extraClass}">${items}</div>`;
+}
+
 /** 便捷全局挂载（供非模块场景或调试使用，不影响 ESM import） */
 if (typeof window !== 'undefined') {
     window.UI = window.UI || {
         escapeHtml, createBadge, createLoadingSpinner, createModal, createTable, createTabSwitcher,
+        createEmptyState, createSkeleton,
     };
 }

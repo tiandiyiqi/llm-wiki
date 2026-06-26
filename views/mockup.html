@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Wiki · 外观原型（Mockup）</title>
+<!--
+  纯外观原型 · 不接任何 API · 仅用于确认视觉与布局
+  设计依据：Doc/design.md（专业克制 + 靛蓝主色 + 亮色为主暗色次要）
+  说明：侧边栏切换、命令面板、主题切换均为「视觉交互」，数据为示例硬编码。
+-->
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ===== 设计令牌（tokens）：与 design.md 第二节一致 ===== */
+  :root {
+    --color-primary-50:#EEF2FF; --color-primary-100:#E0E7FF; --color-primary-500:#6366F1;
+    --color-primary-600:#4F46E5; --color-primary-700:#4338CA;
+    --color-bg:#FFFFFF; --color-bg-subtle:#F8FAFC; --color-bg-muted:#F1F5F9;
+    --color-border:#E2E8F0; --color-border-strong:#CBD5E1;
+    --color-text:#0F172A; --color-text-secondary:#475569; --color-text-muted:#94A3B8;
+    --color-success:#16A34A; --color-warning:#D97706; --color-danger:#DC2626; --color-info:#0891B2;
+    --radius-sm:6px; --radius-md:8px; --radius-lg:12px;
+    --shadow-sm:0 1px 2px rgba(15,23,42,.06); --shadow-md:0 4px 12px rgba(15,23,42,.08);
+    --ease:cubic-bezier(.2,.8,.2,1);
+  }
+  [data-theme="dark"] {
+    --color-primary-50:#1E1B4B; --color-primary-100:#312E81; --color-primary-600:#6366F1; --color-primary-700:#818CF8;
+    --color-bg:#0F172A; --color-bg-subtle:#1E293B; --color-bg-muted:#1E293B;
+    --color-border:#334155; --color-border-strong:#475569;
+    --color-text:#E2E8F0; --color-text-secondary:#94A3B8; --color-text-muted:#64748B;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.3); --shadow-md:0 4px 12px rgba(0,0,0,.4);
+  }
+  tailwind.config = {
+    theme: { extend: {
+      fontFamily: {
+        sans:['Inter','PingFang SC','Microsoft YaHei','system-ui','sans-serif'],
+        mono:['JetBrains Mono','SF Mono','Consolas','monospace'],
+      },
+      colors: {
+        primary:{50:'var(--color-primary-50)',100:'var(--color-primary-100)',500:'var(--color-primary-500)',600:'var(--color-primary-600)',700:'var(--color-primary-700)'},
+        ink:{DEFAULT:'var(--color-text)',2:'var(--color-text-secondary)',3:'var(--color-text-muted)'},
+        surface:{DEFAULT:'var(--color-bg)',subtle:'var(--color-bg-subtle)',muted:'var(--color-bg-muted)'},
+        line:{DEFAULT:'var(--color-border)',strong:'var(--color-border-strong)'},
+        success:'var(--color-success)',warning:'var(--color-warning)',danger:'var(--color-danger)',info:'var(--color-info)',
+      },
+      borderRadius:{sm:'var(--radius-sm)',md:'var(--radius-md)',lg:'var(--radius-lg)'},
+      boxShadow:{sm:'var(--shadow-sm)',md:'var(--shadow-md)'},
+    }}
+  }
+</style>
+<style>
+  body{font-family:'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif;background:var(--color-bg-subtle);color:var(--color-text);}
+  *{transition:background-color .15s var(--ease),border-color .15s var(--ease),color .15s var(--ease);}
+  .nav-item.active{background:var(--color-primary-50);color:var(--color-primary-700);font-weight:600;}
+  .nav-item.active .nav-bar{opacity:1;}
+  .nav-item .nav-bar{opacity:0;}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:var(--color-border-strong);border-radius:4px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body class="font-sans antialiased">
+
+<!-- ========== 顶栏 Header ========== -->
+<header class="h-14 bg-surface border-b border-line flex items-center px-4 gap-3 sticky top-0 z-30">
+  <button class="lg:hidden p-2 -ml-2 text-ink-2 hover:bg-surface-muted rounded-sm" onclick="toggleSidebar()">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+  </button>
+  <div class="flex items-center gap-2">
+    <div class="w-7 h-7 rounded-md bg-primary-600 flex items-center justify-center text-white font-bold text-sm">W</div>
+    <span class="font-semibold text-[15px] tracking-tight">LLM Wiki</span>
+  </div>
+
+  <!-- 全局搜索触发（⌘K） -->
+  <button onclick="openPalette()" class="ml-4 flex-1 max-w-md hidden sm:flex items-center gap-2 h-9 px-3 rounded-sm border border-line-strong bg-surface-subtle text-ink-3 text-sm hover:border-primary-600/40">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+    <span>搜索知识原子、跳转视图…</span>
+    <kbd class="ml-auto text-[11px] font-mono px-1.5 py-0.5 rounded border border-line-strong bg-surface">⌘K</kbd>
+  </button>
+
+  <div class="ml-auto flex items-center gap-1">
+    <button onclick="openPalette()" class="sm:hidden p-2 text-ink-2 hover:bg-surface-muted rounded-sm">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+    </button>
+    <!-- 通知铃铛 -->
+    <button class="relative p-2 text-ink-2 hover:bg-surface-muted rounded-sm">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+      <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-danger rounded-full ring-2 ring-surface"></span>
+    </button>
+    <!-- 主题切换 -->
+    <button onclick="toggleTheme()" class="p-2 text-ink-2 hover:bg-surface-muted rounded-sm">
+      <svg id="iconSun" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+      <svg id="iconMoon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+    </button>
+    <div class="ml-1 w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-semibold">任</div>
+  </div>
+</header>
+
+<div class="flex">
+  <!-- ========== 侧边栏 Sidebar ========== -->
+  <aside id="sidebar" class="w-60 shrink-0 bg-surface border-r border-line h-[calc(100vh-3.5rem)] sticky top-14 overflow-y-auto px-3 py-4 hidden lg:block">
+    <nav class="space-y-0.5" id="mainNav"></nav>
+    <div class="mt-6" id="adminNav"></div>
+    <div class="mt-6 pt-4 border-t border-line">
+      <a href="#" class="nav-item relative flex items-center gap-3 px-3 py-2 rounded-sm text-sm text-ink-2 hover:bg-surface-muted">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"/></svg>
+        公开门户
+        <svg class="w-3.5 h-3.5 ml-auto text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+      </a>
+    </div>
+  </aside>
+
+  <!-- 移动端遮罩 -->
+  <div id="scrim" class="fixed inset-0 bg-black/40 z-20 hidden lg:hidden" onclick="toggleSidebar()"></div>
+
+  <!-- ========== 主内容区 Main ========== -->
+  <main class="flex-1 min-w-0 h-[calc(100vh-3.5rem)] overflow-y-auto">
+    <!-- 面包屑 -->
+    <div class="px-6 lg:px-8 pt-5 flex items-center gap-2 text-sm text-ink-3">
+      <span>主页</span>
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      <span id="crumb" class="text-ink-2 font-medium">概览</span>
+    </div>
+
+    <!-- 视图：概览 -->
+    <section data-view="overview" class="view px-6 lg:px-8 py-5">
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <h1 class="text-[22px] font-semibold tracking-tight">概览</h1>
+          <p class="text-sm text-ink-2 mt-0.5">知识库整体状态与最近活动</p>
+        </div>
+        <button class="h-9 px-3.5 rounded-sm bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 flex items-center gap-1.5 shadow-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          新建原子
+        </button>
+      </div>
+
+      <!-- 统计卡片 -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="bg-surface border border-line rounded-md p-4 shadow-sm">
+          <div class="text-xs text-ink-3 font-medium">知识原子</div>
+          <div class="text-2xl font-semibold mt-1.5">1,284</div>
+          <div class="text-xs text-success mt-1.5 flex items-center gap-1">+24 本周</div>
+        </div>
+        <div class="bg-surface border border-line rounded-md p-4 shadow-sm">
+          <div class="text-xs text-ink-3 font-medium">关系连接</div>
+          <div class="text-2xl font-semibold mt-1.5">3,902</div>
+          <div class="text-xs text-ink-3 mt-1.5">平均 3.0 / 原子</div>
+        </div>
+        <div class="bg-surface border border-line rounded-md p-4 shadow-sm">
+          <div class="text-xs text-ink-3 font-medium">待处理缺口</div>
+          <div class="text-2xl font-semibold mt-1.5 text-warning">17</div>
+          <div class="text-xs text-warning mt-1.5">需关注</div>
+        </div>
+        <div class="bg-surface border border-line rounded-md p-4 shadow-sm">
+          <div class="text-xs text-ink-3 font-medium">本周检索</div>
+          <div class="text-2xl font-semibold mt-1.5">642</div>
+          <div class="text-xs text-success mt-1.5">+12%</div>
+        </div>
+      </div>
+
+      <!-- 类型分布 + 最近原子 -->
+      <div class="grid lg:grid-cols-3 gap-4">
+        <div class="bg-surface border border-line rounded-md p-5 shadow-sm">
+          <h2 class="text-[15px] font-semibold mb-4">类型分布</h2>
+          <div class="space-y-3">
+            <div><div class="flex justify-between text-sm mb-1"><span>方法 Method</span><span class="text-ink-3">512</span></div><div class="h-1.5 bg-surface-muted rounded-full"><div class="h-full bg-primary-600 rounded-full" style="width:78%"></div></div></div>
+            <div><div class="flex justify-between text-sm mb-1"><span>事实 Fact</span><span class="text-ink-3">386</span></div><div class="h-1.5 bg-surface-muted rounded-full"><div class="h-full bg-primary-500 rounded-full" style="width:58%"></div></div></div>
+            <div><div class="flex justify-between text-sm mb-1"><span>定义 Definition</span><span class="text-ink-3">274</span></div><div class="h-1.5 bg-surface-muted rounded-full"><div class="h-full bg-info rounded-full" style="width:42%"></div></div></div>
+            <div><div class="flex justify-between text-sm mb-1"><span>流程 Process</span><span class="text-ink-3">112</span></div><div class="h-1.5 bg-surface-muted rounded-full"><div class="h-full bg-success rounded-full" style="width:18%"></div></div></div>
+          </div>
+        </div>
+        <div class="lg:col-span-2 bg-surface border border-line rounded-md shadow-sm overflow-hidden">
+          <div class="px-5 py-3.5 border-b border-line flex items-center justify-between">
+            <h2 class="text-[15px] font-semibold">最近更新</h2>
+            <a href="#" class="text-sm text-primary-600 font-medium">查看全部</a>
+          </div>
+          <table class="w-full text-sm">
+            <tbody>
+              <tr class="border-b border-line hover:bg-surface-subtle"><td class="px-5 py-3"><div class="font-medium">CMYK 四色印刷叠印规范</div><div class="text-xs text-ink-3 font-mono mt-0.5">atom-0f3a · Method</div></td><td class="px-5 py-3 text-right text-ink-3 whitespace-nowrap">2 小时前</td></tr>
+              <tr class="border-b border-line hover:bg-surface-subtle"><td class="px-5 py-3"><div class="font-medium">出血位与安全边距定义</div><div class="text-xs text-ink-3 font-mono mt-0.5">atom-7b21 · Definition</div></td><td class="px-5 py-3 text-right text-ink-3 whitespace-nowrap">5 小时前</td></tr>
+              <tr class="border-b border-line hover:bg-surface-subtle"><td class="px-5 py-3"><div class="font-medium">PDF/X-4 导出预检流程</div><div class="text-xs text-ink-3 font-mono mt-0.5">atom-c19e · Process</div></td><td class="px-5 py-3 text-right text-ink-3 whitespace-nowrap">昨天</td></tr>
+              <tr class="hover:bg-surface-subtle"><td class="px-5 py-3"><div class="font-medium">专色 Pantone 转换注意事项</div><div class="text-xs text-ink-3 font-mono mt-0.5">atom-a88d · Fact</div></td><td class="px-5 py-3 text-right text-ink-3 whitespace-nowrap">2 天前</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 视图：浏览 -->
+    <section data-view="browse" class="view px-6 lg:px-8 py-5 hidden">
+      <div class="flex items-center justify-between mb-5">
+        <div><h1 class="text-[22px] font-semibold tracking-tight">浏览</h1><p class="text-sm text-ink-2 mt-0.5">按类型与状态筛选知识原子</p></div>
+      </div>
+      <!-- 工具条 -->
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <div class="flex items-center gap-2 h-9 px-3 rounded-sm border border-line-strong bg-surface text-sm flex-1 max-w-xs focus-within:border-primary-600 focus-within:ring-2 focus-within:ring-primary-600/20">
+          <svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input placeholder="筛选标题或标签…" class="bg-transparent outline-none w-full placeholder:text-ink-3">
+        </div>
+        <button class="h-9 px-3 rounded-sm border border-line-strong text-sm text-ink-2 hover:bg-surface-muted">全部类型</button>
+        <button class="h-9 px-3 rounded-sm border border-line-strong text-sm text-ink-2 hover:bg-surface-muted">全部状态</button>
+        <button class="h-9 px-3 rounded-sm bg-primary-50 text-primary-700 text-sm font-medium ml-auto">+ 新建</button>
+      </div>
+      <!-- 表格 -->
+      <div class="bg-surface border border-line rounded-md shadow-sm overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-surface-muted text-ink-2 text-xs uppercase tracking-wide">
+            <tr><th class="text-left font-medium px-5 py-2.5">标题</th><th class="text-left font-medium px-5 py-2.5">类型</th><th class="text-left font-medium px-5 py-2.5">状态</th><th class="text-left font-medium px-5 py-2.5">更新时间</th><th class="px-5 py-2.5"></th></tr>
+          </thead>
+          <tbody>
+            <tr class="border-t border-line hover:bg-surface-subtle h-11">
+              <td class="px-5"><div class="font-medium">CMYK 四色印刷叠印规范</div></td>
+              <td class="px-5"><span class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-primary-50 text-primary-700">Method</span></td>
+              <td class="px-5"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium" style="background:rgba(22,163,74,.1);color:var(--color-success)">● 已发布</span></td>
+              <td class="px-5 text-ink-3">2 小时前</td>
+              <td class="px-5 text-right"><button class="text-ink-3 hover:text-ink p-1">⋯</button></td>
+            </tr>
+            <tr class="border-t border-line hover:bg-surface-subtle h-11">
+              <td class="px-5"><div class="font-medium">出血位与安全边距定义</div></td>
+              <td class="px-5"><span class="inline-flex px-2 py-0.5 rounded text-xs font-medium" style="background:rgba(8,145,178,.1);color:var(--color-info)">Definition</span></td>
+              <td class="px-5"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium" style="background:rgba(217,119,6,.1);color:var(--color-warning)">● 草稿</span></td>
+              <td class="px-5 text-ink-3">5 小时前</td>
+              <td class="px-5 text-right"><button class="text-ink-3 hover:text-ink p-1">⋯</button></td>
+            </tr>
+            <tr class="border-t border-line hover:bg-surface-subtle h-11">
+              <td class="px-5"><div class="font-medium">PDF/X-4 导出预检流程</div></td>
+              <td class="px-5"><span class="inline-flex px-2 py-0.5 rounded text-xs font-medium" style="background:rgba(22,163,74,.1);color:var(--color-success)">Process</span></td>
+              <td class="px-5"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium" style="background:rgba(22,163,74,.1);color:var(--color-success)">● 已发布</span></td>
+              <td class="px-5 text-ink-3">昨天</td>
+              <td class="px-5 text-right"><button class="text-ink-3 hover:text-ink p-1">⋯</button></td>
+            </tr>
+            <tr class="border-t border-line hover:bg-surface-subtle h-11">
+              <td class="px-5"><div class="font-medium">专色 Pantone 转换注意事项</div></td>
+              <td class="px-5"><span class="inline-flex px-2 py-0.5 rounded text-xs font-medium" style="background:rgba(79,70,229,.08);color:var(--color-primary-600)">Fact</span></td>
+              <td class="px-5"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium" style="background:rgba(100,116,139,.12);color:var(--color-text-secondary)">● 待审</span></td>
+              <td class="px-5 text-ink-3">2 天前</td>
+              <td class="px-5 text-right"><button class="text-ink-3 hover:text-ink p-1">⋯</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="px-5 py-3 border-t border-line flex items-center justify-between text-sm text-ink-3">
+          <span>共 1,284 条</span>
+          <div class="flex gap-1">
+            <button class="h-8 px-2.5 rounded-sm border border-line-strong hover:bg-surface-muted">上一页</button>
+            <button class="h-8 w-8 rounded-sm bg-primary-600 text-white">1</button>
+            <button class="h-8 w-8 rounded-sm border border-line-strong hover:bg-surface-muted">2</button>
+            <button class="h-8 w-8 rounded-sm border border-line-strong hover:bg-surface-muted">3</button>
+            <button class="h-8 px-2.5 rounded-sm border border-line-strong hover:bg-surface-muted">下一页</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 视图：用户管理（管理工具示例） -->
+    <section data-view="users" class="view px-6 lg:px-8 py-5 hidden">
+      <div class="flex items-center justify-between mb-5">
+        <div><h1 class="text-[22px] font-semibold tracking-tight">用户管理</h1><p class="text-sm text-ink-2 mt-0.5">成员、角色与状态</p></div>
+        <button class="h-9 px-3.5 rounded-sm bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 shadow-sm">+ 邀请成员</button>
+      </div>
+      <div class="bg-surface border border-line rounded-md shadow-sm overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-surface-muted text-ink-2 text-xs uppercase tracking-wide">
+            <tr><th class="text-left font-medium px-5 py-2.5">成员</th><th class="text-left font-medium px-5 py-2.5">角色</th><th class="text-left font-medium px-5 py-2.5">状态</th><th class="text-left font-medium px-5 py-2.5">最近活动</th><th class="px-5 py-2.5"></th></tr>
+          </thead>
+          <tbody>
+            <tr class="border-t border-line hover:bg-surface-subtle h-12">
+              <td class="px-5"><div class="flex items-center gap-2.5"><div class="w-7 h-7 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-xs font-semibold">任</div><div><div class="font-medium">任晴天</div><div class="text-xs text-ink-3">ren@example.com</div></div></div></td>
+              <td class="px-5"><span class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-primary-50 text-primary-700">管理员</span></td>
+              <td class="px-5"><span class="inline-flex items-center gap-1 text-xs" style="color:var(--color-success)">● 在线</span></td>
+              <td class="px-5 text-ink-3">刚刚</td>
+              <td class="px-5 text-right"><button class="text-ink-3 hover:text-ink p-1">⋯</button></td>
+            </tr>
+            <tr class="border-t border-line hover:bg-surface-subtle h-12">
+              <td class="px-5"><div class="flex items-center gap-2.5"><div class="w-7 h-7 rounded-full bg-surface-muted text-ink-2 flex items-center justify-center text-xs font-semibold">李</div><div><div class="font-medium">李编辑</div><div class="text-xs text-ink-3">li@example.com</div></div></div></td>
+              <td class="px-5"><span class="inline-flex px-2 py-0.5 rounded text-xs font-medium" style="background:rgba(8,145,178,.1);color:var(--color-info)">编辑者</span></td>
+              <td class="px-5"><span class="inline-flex items-center gap-1 text-xs text-ink-3">● 离线</span></td>
+              <td class="px-5 text-ink-3">3 小时前</td>
+              <td class="px-5 text-right"><button class="text-ink-3 hover:text-ink p-1">⋯</button></td>
+            </tr>
+            <tr class="border-t border-line hover:bg-surface-subtle h-12">
+              <td class="px-5"><div class="flex items-center gap-2.5"><div class="w-7 h-7 rounded-full bg-surface-muted text-ink-2 flex items-center justify-center text-xs font-semibold">王</div><div><div class="font-medium">王访客</div><div class="text-xs text-ink-3">wang@example.com</div></div></div></td>
+              <td class="px-5"><span class="inline-flex px-2 py-0.5 rounded text-xs font-medium" style="background:rgba(100,116,139,.12);color:var(--color-text-secondary)">查看者</span></td>
+              <td class="px-5"><span class="inline-flex items-center gap-1 text-xs" style="color:var(--color-warning)">● 待激活</span></td>
+              <td class="px-5 text-ink-3">从未</td>
+              <td class="px-5 text-right"><button class="text-ink-3 hover:text-ink p-1">⋯</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 组件样例：空状态 / 按钮 / 徽章 -->
+      <div class="grid lg:grid-cols-2 gap-4 mt-6">
+        <div class="bg-surface border border-line rounded-md p-8 shadow-sm flex flex-col items-center justify-center text-center">
+          <div class="w-12 h-12 rounded-lg bg-surface-muted flex items-center justify-center mb-3">
+            <svg class="w-6 h-6 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
+          </div>
+          <div class="text-sm font-medium">暂无待审批内容</div>
+          <div class="text-xs text-ink-3 mt-1">空状态组件 · EmptyState</div>
+          <button class="mt-3 h-8 px-3 rounded-sm bg-primary-600 text-white text-sm font-medium">去浏览</button>
+        </div>
+        <div class="bg-surface border border-line rounded-md p-5 shadow-sm">
+          <div class="text-xs text-ink-3 font-medium mb-3">组件样例 · 按钮 / 徽章</div>
+          <div class="flex flex-wrap gap-2 mb-4">
+            <button class="h-9 px-3.5 rounded-sm bg-primary-600 text-white text-sm font-medium hover:bg-primary-700">Primary</button>
+            <button class="h-9 px-3.5 rounded-sm border border-line-strong text-sm font-medium text-ink hover:bg-surface-muted">Secondary</button>
+            <button class="h-9 px-3.5 rounded-sm text-sm font-medium text-ink-2 hover:bg-surface-muted">Ghost</button>
+            <button class="h-9 px-3.5 rounded-sm text-white text-sm font-medium" style="background:var(--color-danger)">Danger</button>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium" style="background:rgba(22,163,74,.1);color:var(--color-success)">成功</span>
+            <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium" style="background:rgba(217,119,6,.1);color:var(--color-warning)">警告</span>
+            <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium" style="background:rgba(220,38,38,.1);color:var(--color-danger)">错误</span>
+            <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium" style="background:rgba(8,145,178,.1);color:var(--color-info)">信息</span>
+            <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-primary-50 text-primary-700">主色</span>
+            <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium" style="background:rgba(100,116,139,.12);color:var(--color-text-secondary)">中性</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ========== 命令面板 ⌘K ========== -->
+<div id="palette" class="fixed inset-0 z-40 hidden">
+  <div class="absolute inset-0 bg-black/40" onclick="closePalette()"></div>
+  <div class="relative max-w-xl mx-auto mt-[12vh] bg-surface border border-line rounded-lg shadow-md overflow-hidden">
+    <div class="flex items-center gap-3 px-4 h-12 border-b border-line">
+      <svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      <input autofocus placeholder="搜索知识原子、跳转视图、执行操作…" class="flex-1 bg-transparent outline-none text-sm placeholder:text-ink-3">
+      <kbd class="text-[11px] font-mono px-1.5 py-0.5 rounded border border-line-strong text-ink-3">ESC</kbd>
+    </div>
+    <div class="max-h-80 overflow-y-auto py-2">
+      <div class="px-4 py-1.5 text-xs text-ink-3 font-medium uppercase tracking-wide">知识原子</div>
+      <button class="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-primary-50 text-left"><svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg><span class="flex-1">CMYK 四色印刷叠印规范</span><span class="text-xs font-mono text-ink-3">Method</span></button>
+      <button class="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-primary-50 text-left"><svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg><span class="flex-1">PDF/X-4 导出预检流程</span><span class="text-xs font-mono text-ink-3">Process</span></button>
+      <div class="px-4 py-1.5 mt-1 text-xs text-ink-3 font-medium uppercase tracking-wide">跳转</div>
+      <button onclick="go('overview');closePalette()" class="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-primary-50 text-left"><svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5z"/></svg><span class="flex-1">概览</span></button>
+      <button onclick="go('users');closePalette()" class="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-primary-50 text-left"><svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1z"/></svg><span class="flex-1">用户管理</span></button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { MAIN_VIEWS, getAdminGroups } from './utils/nav-config.js';
+
+const svg = d => `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${d}"/></svg>`;
+const navItem = (label, key, icon, badge) => `
+  <a href="#" data-nav="${key}" onclick="go('${key}');return false"
+     class="nav-item relative flex items-center gap-3 px-3 py-2 rounded-sm text-sm text-ink-2 hover:bg-surface-muted">
+    <span class="nav-bar absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-primary-600"></span>
+    ${svg(icon)}<span class="flex-1">${label}</span>
+    ${badge ? `<span class="text-xs px-1.5 py-0.5 rounded-full font-medium" style="background:rgba(217,119,6,.12);color:var(--color-warning)">${badge}</span>` : ''}
+  </a>`;
+
+// 主视图（缺口带示例徽章 17）
+document.getElementById('mainNav').innerHTML =
+  MAIN_VIEWS.map(v => navItem(v.label, v.view, v.icon, v.view==='gaps' ? '17' : '')).join('');
+
+// 管理工具分组（以 admin 角色全部展示）
+document.getElementById('adminNav').innerHTML = getAdminGroups('admin').map(g => `
+  <div class="mb-4">
+    <div class="px-3 mb-1 text-xs font-semibold text-ink-3 uppercase tracking-wide">${g.name}</div>
+    ${g.items.map(it => navItem(it.label, it.route, it.icon, '')).join('')}
+  </div>`).join('');
+
+// 视图切换（纯外观，无数据对接）
+const crumbMap = { overview:'概览', browse:'浏览', graph:'图谱', timeline:'时间线', gaps:'缺口',
+  qa:'AI 问答', quality:'质检', duplicates:'去重', edit:'新建', upload:'上传', shares:'分享',
+  dashboard:'看板', notifications:'通知', webhooks:'集成/Webhook', users:'用户管理',
+  permissions:'权限', 'kb-management':'知识库', approvals:'审批', audit:'审计' };
+const known = new Set(['overview','browse','users']); // 已绘制外观的示例视图
+
+window.go = (key) => {
+  document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav===key));
+  document.getElementById('crumb').textContent = crumbMap[key] || key;
+  const target = known.has(key) ? key : 'overview';
+  document.querySelectorAll('.view').forEach(s => s.classList.toggle('hidden', s.dataset.view!==target));
+  if (window.innerWidth < 1024) document.getElementById('sidebar').classList.add('hidden');
+};
+go('overview');
+
+// 主题 / 命令面板 / 侧边栏（视觉交互）
+window.toggleTheme = () => {
+  const root = document.documentElement;
+  const dark = root.getAttribute('data-theme')==='dark';
+  root.setAttribute('data-theme', dark ? 'light':'dark');
+  document.getElementById('iconSun').classList.toggle('hidden', dark);
+  document.getElementById('iconMoon').classList.toggle('hidden', !dark);
+};
+window.openPalette = () => { document.getElementById('palette').classList.remove('hidden'); };
+window.closePalette = () => { document.getElementById('palette').classList.add('hidden'); };
+window.toggleSidebar = () => {
+  const sb = document.getElementById('sidebar'), sc = document.getElementById('scrim');
+  const hidden = sb.classList.contains('hidden');
+  sb.classList.toggle('hidden', !hidden);
+  sb.classList.toggle('fixed', hidden); sb.classList.toggle('z-30', hidden); sb.classList.toggle('left-0', hidden);
+  sc.classList.toggle('hidden', !hidden);
+};
+document.addEventListener('keydown', e => {
+  if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); openPalette(); }
+  if (e.key==='Escape') closePalette();
+});
+</script>
+</body>
+</html>

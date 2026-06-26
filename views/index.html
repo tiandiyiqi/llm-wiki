@@ -9,6 +9,10 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>LLM Wiki - 知识库浏览 (v2.0)</title>
+    <!-- PLAN-M-013：Inter（界面/中文回退）+ JetBrains Mono（代码/ID） -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -49,33 +53,57 @@
                         'type-reference-badge-bg': 'var(--color-type-reference-badge-bg)',
                     },
                     backgroundImage: {
-                        'gradient-brand': 'linear-gradient(135deg, var(--color-accent-primary), var(--color-accent-secondary))',
+                        'gradient-brand': 'linear-gradient(135deg, #4f46e5, #6366f1)',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'PingFang SC', 'Microsoft YaHei', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'SF Mono', 'Consolas', 'monospace'],
                     }
                 }
             }
         }
     </script>
     <style>
+        /* PLAN-M-013：全局字体栈（Inter + 中文回退） */
+        body, button, input, select, textarea {
+            font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+        }
+        code, pre, .font-mono, [class*="font-mono"] {
+            font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+        }
+        /* PLAN-M-013：可访问性——统一焦点环（键盘可见）+ 尊重减弱动效 */
+        :focus-visible {
+            outline: 2px solid var(--color-focus-ring);
+            outline-offset: 2px;
+            border-radius: 4px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
         /* Theme: Classic (default) */
         .theme-classic {
-            --color-bg-base: #f3f4f6;
+            /* PLAN-M-013：靛蓝专业克制（accent=indigo-600 / 中性=slate / 柔化阴影） */
+            --color-bg-base: #f8fafc;
             --color-bg-surface: #ffffff;
-            --color-bg-surface-alt: #f9fafb;
-            --color-bg-hover: #f3f4f6;
-            --color-bg-overlay: rgba(0, 0, 0, 0.8);
-            --color-text-primary: #111827;
-            --color-text-secondary: #4b5563;
-            --color-text-tertiary: #9ca3af;
+            --color-bg-surface-alt: #f8fafc;
+            --color-bg-hover: #f1f5f9;
+            --color-bg-overlay: rgba(15, 23, 42, 0.45);
+            --color-text-primary: #0f172a;
+            --color-text-secondary: #475569;
+            --color-text-tertiary: #94a3b8;
             --color-text-inverse: #ffffff;
-            --color-accent-primary: #667eea;
-            --color-accent-secondary: #764ba2;
+            --color-accent-primary: #4f46e5;
+            --color-accent-secondary: #4338ca;
             --color-accent-soft: #eef2ff;
             --color-accent-medium: #c7d2fe;
-            --color-border: #e5e7eb;
-            --color-focus-ring: #6366f1;
-            --color-shadow: rgba(0, 0, 0, 0.1);
-            --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.1);
-            --shadow-card-hover: 0 15px 40px rgba(0, 0, 0, 0.15);
+            --color-border: #e2e8f0;
+            --color-focus-ring: #4f46e5;
+            --color-shadow: rgba(15, 23, 42, 0.08);
+            --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.06);
+            --shadow-card-hover: 0 4px 12px rgba(15, 23, 42, 0.08);
             --color-type-method: #3b82f6;
             --color-type-fact: #22c55e;
             --color-type-definition: #a855f7;
@@ -290,41 +318,39 @@
             display: none !important;
         }
 
-        /* 概览页样式 */
+        /* 概览页样式 —— PLAN-M-013：去整页渐变，改专业克制（中性背景 + 白卡 + 细边框） */
         .overview-container {
-            background: linear-gradient(135deg, var(--color-accent-primary) 0%, var(--color-accent-secondary) 100%);
+            background: var(--color-bg-base);
             min-height: calc(100vh - 56px);
-            padding: 30px 20px;
+            padding: 24px;
         }
 
         .overview-card {
             background: var(--color-bg-surface);
-            border-radius: 16px;
-            padding: 25px;
+            border: 1px solid var(--color-border);
+            border-radius: 12px;
+            padding: 20px;
             box-shadow: var(--shadow-card);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
             color: var(--color-text-primary);
         }
 
         .overview-card:hover {
-            transform: translateY(-3px);
+            border-color: var(--color-border-strong, var(--color-accent-medium));
             box-shadow: var(--shadow-card-hover);
         }
 
+        /* 数字/标题：去渐变文字（AI 感来源），改克制实色 */
         .gradient-number {
-            font-size: 2.5rem;
+            font-size: 2.25rem;
             font-weight: 700;
-            background: linear-gradient(135deg, var(--color-accent-primary), var(--color-accent-secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: var(--color-accent-primary);
+            letter-spacing: -0.02em;
         }
 
         .gradient-title {
-            background: linear-gradient(135deg, var(--color-accent-primary), var(--color-accent-secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: var(--color-text-primary);
+            font-weight: 600;
         }
 
         .type-dot {
@@ -462,7 +488,7 @@
     <link rel="stylesheet" href="/css/responsive.css">
     <!-- PWA Support -->
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#667eea">
+    <meta name="theme-color" content="#4f46e5">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="LLM Wiki">
@@ -584,7 +610,7 @@
             layer.innerHTML = '';
             for (let i = 0; i < 25; i++) {
                 const div = document.createElement('div');
-                div.style.cssText = 'font-size:14px;color:#667eea;transform:rotate(-30deg);white-space:nowrap;';
+                div.style.cssText = 'font-size:14px;color:#4f46e5;transform:rotate(-30deg);white-space:nowrap;';
                 div.textContent = text;
                 layer.appendChild(div);
             }
@@ -856,7 +882,7 @@
                                         <span class="font-medium text-on-surface" x-text="item.type"></span>
                                     </div>
                                     <span
-                                        class="bg-gradient-brand text-on-accent px-3 py-1 rounded-full text-sm font-semibold"
+                                        class="bg-accent-soft text-accent px-2.5 py-0.5 rounded-md text-sm font-semibold"
                                         x-text="item.count"></span>
                                 </div>
                             </template>
@@ -1653,7 +1679,7 @@
                 // 主题系统
                 currentTheme: localStorage.getItem('llm-wiki-theme') || 'classic',
                 themes: [
-                    { id: 'classic', name: 'Classic', swatch: '#667eea' },
+                    { id: 'classic', name: 'Classic', swatch: '#4f46e5' },
                     { id: 'dark-tech', name: 'Dark Tech', swatch: '#22d3ee' },
                     { id: 'forest', name: 'Forest', swatch: '#d4a574' },
                     { id: 'terracotta', name: 'Terracotta', swatch: '#c4553a' },
@@ -1689,6 +1715,9 @@
                 async init() {
                     // 确保主题已应用
                     document.documentElement.className = 'theme-' + this.currentTheme;
+
+                    // PLAN-M-013：暴露 app 实例供命令面板读取当前角色（只读，不耦合内部）
+                    window.__wikiApp = this;
 
                     // 加载导航数据层（单一来源）——须在路由初始化之前完成
                     await this.loadNavConfig();
@@ -1896,9 +1925,13 @@
                 },
 
                 get typeStats() {
+                    // PLAN-M-013：防御性归一——部分原子 type 含字面引号（数据问题），
+                    // 去掉首尾引号后再统计，合并「"method"」与「method」，并修正圆点配色 class。
+                    const norm = (t) => String(t == null ? '' : t).replace(/^["'\s]+|["'\s]+$/g, '');
                     const counts = {};
                     for (const atom of this.atoms) {
-                        counts[atom.type] = (counts[atom.type] || 0) + 1;
+                        const t = norm(atom.type);
+                        counts[t] = (counts[t] || 0) + 1;
                     }
                     return Object.entries(counts)
                         .map(([type, count]) => ({ type, count }))
@@ -2498,6 +2531,9 @@
             });
         }
     </script>
+
+    <!-- PLAN-M-013：命令面板（⌘K / Ctrl+K）全局加载，自注册键盘监听 -->
+    <script type="module" src="/views/components/command-palette.js"></script>
 
 </body>
 
