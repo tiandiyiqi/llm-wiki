@@ -205,3 +205,17 @@ Phase 0/1 ──> Phase 3（校验依赖稳定外观基线）
 - **待人工冒烟（需浏览器）**：5 主题切换目测（重点 classic 新配色）；⌘K 面板键盘与搜索；三角色侧边栏；双端 drawer；对比度/触控目标/键盘走查（Phase 3 剩余项）。
 - **未执行（按安全边界停顿）**：`/supercode:ship`（版本发布/部署为外向操作），等待用户确认后再执行。
 - **可选未做**：Tailwind CDN→构建期（保持零构建现状）；命令面板"知识原子"跳转到具体详情（当前跳浏览视图，详情对接可作后续子任务）。
+
+### 9.4 定稿后追加（用户确认外观方向后的实地打磨）
+
+> 通过 GStack `/browse` 实地截图核查驱动，非凭描述。
+
+| 项 | 问题 | 处理 |
+|----|------|------|
+| **概览整页渐变** | `.overview-container` 给整个概览页铺 `linear-gradient(accent→accent-secondary)` 全屏渐变，是"满屏靛蓝、改色后观感无变化"的真正元凶（Phase 0 仅改变量值掩盖不了它） | 改为中性背景 `--color-bg-base`；卡片改白底+细边框+小圆角；`gradient-number/title` 去渐变文字改实色。真正落地"专业克制" |
+| **类型分布徽章** | 数字徽章用 `bg-gradient-brand` 实底渐变胶囊，偏重 | 改 `bg-accent-soft text-accent` 浅底深字 |
+| **类型"引号"数据** | 部分原子 `type` 含字面引号，`"method"` 与 `method` 被当两类 | `typeStats` 取数层防御性归一（去首尾引号），合并显示并修正圆点配色；底层数据清洗另列 |
+| **Service Worker 旧缓存** | `sw.js` 对 CSS/JS 用 cacheFirst 且版本号 `v1` 从未变，导致改动在浏览器端不可见 | 版本号 `v1→v2` 触发 activate 清旧缓存；修离线页残留紫色 |
+| **权限页 admin 被挡（bug）** | `permissions.js` 读 `window.WikiAPI.currentUser`（全项目从未赋值、恒空），含 admin 在内任何人都被弹"仅管理员可访问"并踢回概览 | 改读真实来源 `window.__currentUser`，与 users.js/approvals.js 一致；实测 admin 可正常进入。仅此一处有该 bug |
+
+**实地验证（8 视图 `/browse` 截图）**：概览/浏览/图谱/看板/AI问答/上传/用户/权限 均确认白底白卡、靛蓝克制、风格统一；其它视图经令牌继承自动达成，无同类结构性渐变残留。

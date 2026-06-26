@@ -228,8 +228,9 @@ export function render(container) {
         allKBs: [],
 
         async init() {
-            // 检查用户权限
-            if (!window.WikiAPI.currentUser || window.WikiAPI.currentUser.role !== 'admin') {
+            // 检查用户权限（PLAN-M-013 修复：真实用户在 window.__currentUser，
+            // 旧代码误读 window.WikiAPI.currentUser（从未赋值），导致 admin 也被挡）
+            if (!window.__currentUser || window.__currentUser.role !== 'admin') {
                 alert('仅管理员可访问权限管理页面');
                 window.location.hash = '#overview';
                 return;

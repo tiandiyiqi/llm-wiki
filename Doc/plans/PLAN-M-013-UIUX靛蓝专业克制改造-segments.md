@@ -114,5 +114,5 @@ TG-0..4 ──> TG-5（验收收尾）
 | TG-1 | ✅ | Inter/Mono 字体接入；侧边栏选中态既有保留 |
 | TG-2 | ✅ | createEmptyState / createSkeleton 已加 |
 | TG-3 | ✅ | command-palette.js 外观+键盘+跳转+搜索降级 |
-| TG-4 | 🔄 | 焦点环+reduced-motion 已落地；对比度/触控/键盘走查待浏览器 |
-| TG-5 | 🔄 | node --check + grep 通过；多主题/三角色冒烟与 ship 待确认 |
+| TG-4 | ✅ | 焦点环+reduced-motion 落地；8 视图 /browse 实测一致 |
+| TG-5 | ✅ | node --check 全通过；权限 bug 修复并实测；计划/索引回填 |
